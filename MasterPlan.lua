@@ -4,7 +4,10 @@ local defaults, mdata = {
 	availableMissionSort="threats",
 	sortFollowers=true,
 	batchMissions=true,
-	version="0.11"
+	dropLessSalvage=true,
+	riskReward=1,
+	ignore={},
+	version="0.12",
 }
 local conf = setmetatable({}, {__index=defaults})
 T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
@@ -29,12 +32,12 @@ T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 	end
 end)
 T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
-	MasterPlanConfig, MasterPlanData = conf, mdata
+	MasterPlanConfig, MasterPlanData, conf.ignore = conf, mdata, next(conf.ignore) and conf.ignore or nil
 	T._ObserveMissions()
 end)
 
 setmetatable(api, {__index=bgapi})
-bgapi.GarrisonAPI = T.Garrison
+bgapi.GarrisonAPI, T.config = T.Garrison, conf
 
 function api:GetSortFollowers()
 	return conf.sortFollowers
