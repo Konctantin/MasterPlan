@@ -679,13 +679,17 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		end)
 	end
 	local roamingParty = CreateFrame("Frame", nil, availUI) do
-		roamingParty:SetPoint("BOTTOM", 0, -3)
-		roamingParty:SetSize(120, 36)
+		roamingParty:SetPoint("BOTTOM", 110, -2)
+		roamingParty:SetSize(40, 36)
 		function roamingParty:GetFollowers()
-			return self[1].followerID, self[2].followerID, self[3].followerID
+			local a, b, c
+			for i=#self,1,-1 do
+				a, b, c = self[i].followerID, a, b
+			end
+			return a, b, c
 		end
 		function roamingParty:DropFollowers(f1, f2, f3)
-			for i=1,3 do
+			for i=1,#self do
 				local f = self[i].followerID
 				if f and (f == f1 or f == f2 or f == f3) then
 					self[i].followerID = nil
@@ -695,7 +699,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		end
 		function roamingParty:Update()
 			local changed = false
-			for i=1,3 do
+			for i=1,#self do
 				local f, fi = self[i].followerID
 				if f then
 					fi = C_Garrison.GetFollowerInfo(f)
@@ -717,14 +721,14 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			end
 		end
 		function roamingParty:Clear()
-			for i=1,3 do
+			for i=1,#self do
 				self[i].followerID = nil
 			end
 			self:Update()
 		end
 		local function Roamer_SetFollower(_, slot, follower)
 			if roamingParty[slot].followerID ~= follower then
-				for i=1,3 do
+				for i=1,#roamingParty do
 					if roamingParty[slot].followerID == follower then
 						roamingParty[slot].followerID = nil
 					end
@@ -750,17 +754,26 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			end
 		end
 		local function Roamer_OnEnter(self)
-			if self.followerID and not easyDrop:IsOpen(self) then
+			if easyDrop:IsOpen(self) then
+			elseif self.followerID then
 				for i=1,#roamingParty do
 					if easyDrop:IsOpen(roamingParty[i]) then
 						return
 					end
 				end
 				FollowerTooltip_SetFollower(self, C_Garrison.GetFollowerInfo(self.followerID))
+			else
+				GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+				GameTooltip:SetText(L"Select a follower to focus on")
+				GameTooltip:AddLine(L"Group suggestions will be updated to include the selected follower.", 1,1,1,1)
+				GameTooltip:Show()
 			end
 		end
-		local function Roamer_OnLeave()
+		local function Roamer_OnLeave(self)
 			GarrisonFollowerTooltip:Hide()
+			if GameTooltip:IsOwned(self) then
+				GameTooltip:Hide()
+			end
 		end
 		local function RoamerMenu_OnMouse(self, _, id)
 			if self and id then
@@ -773,12 +786,17 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			end
 		end
 		local function Roamer_OnClick(self, button)
+			if GameTooltip:IsOwned(self) then
+				GameTooltip:Hide()
+			end
 			if button == "RightButton" then
 				Roamer_SetFollower(nil, self:GetID(), nil)
 				GarrisonFollowerTooltip:Hide()
+				self:GetScript("OnEnter")(self)
 			elseif easyDrop:IsOpen(self) then
 				CloseDropDownMenus()
 				PlaySound("UChatScrollButton")
+				self:GetScript("OnEnter")(self)
 			else
 				PlaySound("UChatScrollButton")
 				local mn, f2, slot, cur = {}, C_Garrison.GetFollowers(), self:GetID(), self.followerID
@@ -802,7 +820,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				CloseDropDownMenus()
 			end
 		end
-		for i=1,3 do
+		for i=1,1 do
 			local x = CreateFrame("Button", nil, roamingParty, nil, i)
 			x:SetSize(36, 36)	x:SetPoint("LEFT", 40*i-36, 0) x:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			local v = x:CreateTexture(nil, "ARTWORK", nil, 1) v:SetPoint("TOPLEFT", 3, -3) v:SetPoint("BOTTOMRIGHT", -3, 3) v:SetTexture("Interface\\Garrison\\Portraits\\FollowerPortrait_NoPortrait")
@@ -2002,6 +2020,9 @@ do -- availMissionsHandle
 			local sc = "|cffffffff" .. g[1] .. "%"
 			if g[3] and g[3] > 0 then
 				text = floor(g[1]*g[3]/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t"
+			elseif g[9] and g[9] > 0 then
+				local eg = g[1]*g[9]/100
+				text = GetMoneyString(eg - eg % 1e4)
 			else
 				local _, exp = G.GetMissionGroupXP(g, d)
 				if (exp or 0) <= 0 then
@@ -2109,12 +2130,13 @@ do -- availMissionsHandle
 					missions[i].ord = 0
 				end
 			elseif order == "threats2" then
-				cinfo = G.GetCounterInfo()
+				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
 				for i=1, #missions do
 					local mi = missions[i]
 					local g = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, G.GroupRank.threats, 1, roamingParty:GetFollowers())
 					mi.ord = g and g[1] and g[1][1] == 100 and computeThreat(mi) or -1
 				end
+				finfo = nil
 			end
 			local nf, nr = GetAvailableResources(droppedMissionCost)
 			if (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire" then
@@ -2234,7 +2256,7 @@ do -- interestMissionsHandle
 			wipe(usefulTraits)
 			usefulTraits[T.EnvironmentCounters[s[5]] or 0] = 1
 			usefulTraits[best.ttrait or 0] = 1
-			usefulTraits[best.rtrait or 0] = 1
+			usefulTraits[s[4] > 0 and s[4] or 0] = 1
 			usefulTraits[232] = best.dtrait
 			for i=1,data.s[2] do
 				local fi = fi[best[i]]
@@ -2434,7 +2456,7 @@ do -- interestMissionsHandle
 			self.chance:SetTextColor(1, 0.55, 0)
 		end
 		
-		local r, rt = self.rewards[1], mappedRewards[s[4]] or s[4]
+		local r, rt = self.rewards[1], mappedRewards[d[4]] or d[4]
 		if rt == 0 then
 			local rq = d[3] * (1+(best and best[4] or 0))
 			r.tooltipTitle, r.tooltipText, r.currencyID, r.itemID = GARRISON_REWARD_MONEY, GetMoneyString(rq), 0
@@ -2454,35 +2476,35 @@ do -- interestMissionsHandle
 	end
 	interestMissionsHandle = core:CreateHandle(CreateInterestMission, SetInterestMission, 60)
 	local unusedEntry, emptyTable, missions = {unused={}}, {}, {
-		{313, 104,   1, s={645, 3, 28800, 118529, 28, 1, 2, 6, 8, 9, 10}}, -- Highmaul Raid
-		{314, 104,   1, s={645, 3, 28800, 118529, 17, 1, 3, 3, 4, 6, 7}}, -- Highmaul Raid
-		{315, 104,   1, s={645, 3, 28800, 118529, 12, 2, 4, 7, 9, 10, 10}}, -- Highmaul Raid
-		{316, 104,   1, s={645, 3, 28800, 118529, 29, 1, 6, 8, 9, 9, 10}}, -- Highmaul Raid
-		{446, 103,   1, s={660, 3, 28800, 122484, 18, 1, 2, 3, 6, 7, 9, 10}}, -- Slagworks
-		{447, 103,   1, s={660, 3, 28800, 122484, 21, 1, 2, 3, 3, 6, 8, 10}}, -- Black Forge
-		{448, 103,   1, s={660, 3, 28800, 122484, 24, 3, 4, 4, 6, 7, 7, 8}}, -- Iron Assembly
-		{449, 103,   1, s={660, 3, 28800, 122484, 11, 1, 2, 3, 6, 8, 9, 10}}, -- Blackhand's Crucible
-		{311, 103, 300, s={630, 3, 21600, 824, 11, 2, 3, 6, 10}}, -- Can't Go Home This Way
-		{312, 104, 300, s={630, 3, 21600, 824, 25, 2, 4, 8, 10}}, -- Magical Mystery Tour
-		{268, 103, 225, s={615, 2, 14400, 824, 22, 2, 3, 7}}, -- Who's the Boss?
-		{269, 104, 225, s={615, 2, 14400, 824, 20, 1, 6, 10}}, -- Griefing with the Enemy
-		{132, 107, 175, s={100, 2, 21600, 824, 15, 4, 6}}, -- The Basilisk's Stare
-		{133, 101, 175, s={100, 2, 21600, 824, 18, 3, 8}}, -- Elemental Territory
-		{503, 105,   1, s={675, 2, 21600, 123858, 11, 1, 2, 3, 6, 10}}, -- Lessons of the Blade
-		{361, 102, 5e6, s={100, 3, 36000, 0, 25, 2, 3, 7, 9}}, -- Blingtron's Secret Vault
-		{407, 105,   3, s={100, 3, 86000, 115280, 13, 3, 4, 6, 8, 8}}, -- Tower of Terror
-		{405, 102,   3, s={100, 3, 86000, 115280, 20, 1, 2, 4, 7, 9}}, -- Lost in the Weeds
-		{403, 104,   3, s={100, 3, 86000, 115280, 27, 3, 6, 7, 8}}, -- Rock the Boat
-		{404, 101,   3, s={100, 3, 86000, 115280, 12, 2, 6, 7, 8}}, -- He Keeps it Where?
-		{406, 104,   3, s={100, 3, 86000, 115280, 27, 1, 2, 3, 10}}, -- It's Rigged!
-		{410, 105,  18, s={100, 3, 86000, 115510, 16, 2, 3, 4, 8, 9}}, -- A Rune With a View
-		{412, 107,  18, s={100, 3, 86000, 115510, 24, 2, 2, 3, 3, 7, 9}}, -- Beyond the Pale
-		{413, 101,  18, s={100, 3, 86000, 115510, 27, 1, 2, 4, 6, 7, 8}}, -- Pumping Iron
-		{411, 104,  18, s={100, 3, 86000, 115510, 29, 2, 3, 3, 6, 8, 9}}, -- Rocks Fall. Everyone Dies.
-		{409, 103,  18, s={100, 3, 86000, 115510, 22, 1, 2, 3, 6, 9, 9}}, -- The Great Train Robbery
-		{408, 103,  18, s={100, 3, 86000, 115510, 11, 1, 2, 3, 6, 7, 10}}, -- The Pits
-		{358, 103,   1, s={100, 3, 36000, 994, 22, 2, 3, 6}}, -- Drov the Ruiner
-		{359, 107,   1, s={100, 3, 36000, 994, 21, 1, 3, 7}}, -- Rukhmar
+		{313, 104, 1, 118529, s={645, 3, 28800, 256, 28, 1, 2, 6, 8, 9, 10}}, -- Highmaul Raid
+		{314, 104, 1, 118529, s={645, 3, 28800, 256, 17, 1, 3, 3, 4, 6, 7}}, -- Highmaul Raid
+		{315, 104, 1, 118529, s={645, 3, 28800, 256, 12, 2, 4, 7, 9, 10, 10}}, -- Highmaul Raid
+		{316, 104, 1, 118529, s={645, 3, 28800, 256, 29, 1, 6, 8, 9, 9, 10}}, -- Highmaul Raid
+		{446, 103, 1, 122484, s={660, 3, 28800, 256, 18, 1, 2, 3, 6, 7, 9, 10}}, -- Slagworks
+		{447, 103, 1, 122484, s={660, 3, 28800, 256, 21, 1, 2, 3, 3, 6, 8, 10}}, -- Black Forge
+		{448, 103, 1, 122484, s={660, 3, 28800, 256, 24, 3, 4, 4, 6, 7, 7, 8}}, -- Iron Assembly
+		{449, 103, 1, 122484, s={660, 3, 28800, 256, 11, 1, 2, 3, 6, 8, 9, 10}}, -- Blackhand's Crucible
+		{311, 103, 300, 824, s={630, 3, 21600, 79, 11, 2, 3, 6, 10}}, -- Can't Go Home This Way
+		{312, 104, 300, 824, s={630, 3, 21600, 79, 25, 2, 4, 8, 10}}, -- Magical Mystery Tour
+		{268, 103, 225, 824, s={615, 2, 14400, 79, 22, 2, 3, 7}}, -- Who's the Boss?
+		{269, 104, 225, 824, s={615, 2, 14400, 79, 20, 1, 6, 10}}, -- Griefing with the Enemy
+		{132, 107, 175, 824, s={100, 2, 21600, 79, 15, 4, 6}}, -- The Basilisk's Stare
+		{133, 101, 175, 824, s={100, 2, 21600, 79, 18, 3, 8}}, -- Elemental Territory
+		{503, 105, 1, 123858, s={675, 2, 21600, -1, 11, 1, 2, 3, 6, 10}}, -- Lessons of the Blade
+		{361, 102, 5000000, 0, s={100, 3, 36000, 256, 25, 2, 3, 7, 9}}, -- Blingtron's Secret Vault
+		{407, 105, 3, 115280, s={100, 3, 86000, 0, 13, 3, 4, 6, 8, 8}}, -- Tower of Terror
+		{405, 102, 3, 115280, s={100, 3, 86000, 0, 20, 1, 2, 4, 7, 9}}, -- Lost in the Weeds
+		{403, 104, 3, 115280, s={100, 3, 86000, 0, 27, 3, 6, 7, 8}}, -- Rock the Boat
+		{404, 101, 3, 115280, s={100, 3, 86000, 0, 12, 2, 6, 7, 8}}, -- He Keeps it Where?
+		{406, 104, 3, 115280, s={100, 3, 86000, 0, 27, 1, 2, 3, 10}}, -- It's Rigged!
+		{410, 105, 18, 115510, s={100, 3, 86000, 0, 16, 2, 3, 4, 8, 9}}, -- A Rune With a View
+		{412, 107, 18, 115510, s={100, 3, 86000, 0, 24, 2, 2, 3, 3, 7, 9}}, -- Beyond the Pale
+		{413, 101, 18, 115510, s={100, 3, 86000, 0, 27, 1, 2, 4, 6, 7, 8}}, -- Pumping Iron
+		{411, 104, 18, 115510, s={100, 3, 86000, 0, 29, 2, 3, 3, 6, 8, 9}}, -- Rocks Fall. Everyone Dies.
+		{409, 103, 18, 115510, s={100, 3, 86000, 0, 22, 1, 2, 3, 6, 9, 9}}, -- The Great Train Robbery
+		{408, 103, 18, 115510, s={100, 3, 86000, 0, 11, 1, 2, 3, 6, 7, 10}}, -- The Pits
+		{358, 103, 1, 994, s={100, 3, 36000, 0, 22, 2, 3, 6}}, -- Drov the Ruiner
+		{359, 107, 1, 994, s={100, 3, 36000, 0, 21, 1, 3, 7}}, -- Rukhmar
 	}
 	local function GetRewardFromSet(r)
 		for i=1,#r do

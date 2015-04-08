@@ -172,7 +172,7 @@ local function followerIDcmp(a, b)
 	return a.followerID < b.followerID
 end
 local function SetFollowerInfo(t)
-	local ft, now = {}, time()
+	local ft, now, um = {}, time(), 0
 	for i=1,#t do
 		local v = t[i]
 		if v.isCollected then
@@ -184,9 +184,11 @@ local function SetFollowerInfo(t)
 			end
 			AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, 3))
 			local tls = C_Garrison.GetFollowerMissionTimeLeftSeconds(fid)
+			if v.quality >= 4 and v.level == 100 then um = um + 1 end
 			ft[fid], v.missionEndTime, v.affinity = v, tls and (now + tls) or nil, T.Affinities[v.garrFollowerID or v.followerID]
 		end
 	end
+	if um > 11 then T.config.goldRewardThreshold = 0 end
 	for k,v in pairs(dropFollowers) do
 		local f = ft[k]
 		if not f.missionEndTime then
@@ -363,6 +365,7 @@ do -- sortByFollowerLevels
 	function api.sortByFollowerLevels(counters, finfo)
 		lvl = finfo
 		table.sort(counters, cmp)
+		lvl = nil
 		return counters
 	end
 end
@@ -922,7 +925,7 @@ local computeEquivXP, computeEarliestDeparture do -- +api.GetSuggestedMissionGro
 					end
 				end
 			end
-			ret1 = balanced + risk * (conf.xpPerCopper * g[9] + conf.xpPerResource * g[3]) + (api.HasSignificantRewards(minfo) and conf.xpWithToken or 0)
+			ret1 = balanced + risk * (conf.xpPerCopper * g[9] + conf.xpPerResource * g[3]) + (api.HasSignificantRewards(minfo) == true and conf.xpWithToken or 0)
 			ret2 = floor(expected)
 			equivXP[g], expectedXP[g] = ret1, ret2
 		end
@@ -1052,10 +1055,12 @@ api.GroupRank, api.GroupFilter = {}, {} do
 		return ac > bc
 	end
 	local function res(a, b, finfo, minfo, now)
-		if a[3] > 0 or b[3] > 0 then
-			local ac, bc = risk[a[1]] * a[3], risk[b[1]] * b[3]
-			if ac ~= bc then
-				return ac > bc
+		for i=3,9,6 do
+			if a[i] > 0 or b[i] > 0 then
+				local ac, bc = risk[a[1]] * a[i], risk[b[1]] * b[i]
+				if ac ~= bc then
+					return ac > bc
+				end
 			end
 		end
 		return success(a,b, finfo, minfo, now)
@@ -1087,7 +1092,7 @@ api.GroupRank, api.GroupFilter = {}, {} do
 end
 function api.GetMissionDefaultGroupRank(mi)
 	local rew = api.HasSignificantRewards(mi)
-	local key = rew == false and "xp" or rew == "resource" and "resources" or "threats"
+	local key = rew == false and "xp" or (rew == "resource" or rew == "gold") and "resources" or "threats"
 	return api.GroupRank[key], key
 end
 function api.GroupFilter.IDLE(res, finfo, minfo)
@@ -1118,11 +1123,6 @@ function api.GroupFilter.ACTIVE(res, finfo, minfo)
 	end
 	return true
 end
-function api.AnnotateMissionParty(party, finfo, minfo, force)
-	finfo = finfo or api.GetFollowerInfo()
-	computeEquivXP(party, finfo, minfo)
-	computeEarliestDeparture(party, finfo, minfo, force)
-end
 do -- HasSignificantRewards(minfo)
 	local cache = {}
 	function api.HasSignificantRewards(mi)
@@ -1130,22 +1130,25 @@ do -- HasSignificantRewards(minfo)
 		local ret = cache[mid]
 		if ret ~= nil then
 		elseif mi.rewards and not T.XPMissions[mid] then
-			local allGR, allXP = true, true
+			local allGR, allXP, gold = true, true
 			for _, r in pairs(mi.rewards) do
-				if not (r.followerXP or (r.currencyID == 0 and r.quantity < T.config.goldRewardThreshold)) then
+				if r.currencyID == 0 then
+					gold = r.quantity
+				elseif not r.followerXP then
 					allXP = false
 				end
 				if r.currencyID ~= GARRISON_CURRENCY then
 					allGR = false
 				end
 			end
-			ret = allGR and not allXP and "resource" or not allXP
+			ret = allGR and not allXP and "resource" or (gold and gold > T.config.goldRewardThreshold and "gold") or not allXP
 		else
 			ret = false
 		end
 		cache[mid] = ret
 		return ret
 	end
+	cacheTables[#cacheTables+1] = cache
 end
 do -- api.GetSuggestedGroups(mi, onlyBackfill, f1, f2, f3)
 	local function SetGroup(_, group)
@@ -1171,7 +1174,6 @@ do -- api.GetSuggestedGroups(mi, onlyBackfill, f1, f2, f3)
 			for i=1,mi.numFollowers do
 				tg = (i > 1 and tg .. "|n" or "") .. api.GetFollowerLevelDescription(gi[4+i], ml, finfo[gi[4+i]])
 			end
-			api.AnnotateMissionParty(gi, finfo, mi)
 			local sc, xp, res, text = gi[1] .. "%"
 			if gi.expectedXP and gi.expectedXP > 0 then
 				local exp = BreakUpLargeNumbers(floor(gi.expectedXP))
@@ -1327,7 +1329,7 @@ function api.ExtendFollowerTooltipGainedXP(tip, awardXP, fi)
 end
 
 local function EvaluateGroup(mi, counters, traits, fa, fb, fc, scratch)
-	local mlvl, tv, c, mc, umc = mi[1], mi[4] == 123858 and 3 or 6, mi[2] == 3, scratch or {}, false
+	local mlvl, tv, c, mc, umc = mi[1], mi[4] == -1 and 3 or 6, mi[2] == 3, scratch or {}, false
 	local nc, cap = traits[201]*2 + traits[202]*4, (#mi-5)*tv do
 		local time, env = mi[3]*2^-traits[221], mi[5]
 		nc = nc + (env == 13 and 1 or 2) * (traits[T.EnvironmentCounters[env]] or 0) + traits[(time >= 25200) and 76 or 77]*2 + traits[47]*6
@@ -1523,7 +1525,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 						local la, lb, lc, rt = fa.cLevel, fb.cLevel, fc.cLevel, mi[4]
 						local ga, gb, gc = amlvl > 100 and (amlvl - 300) or ((amlvl-90)*30), bmlvl > 100 and (bmlvl - 300) or ((bmlvl-90)*30), c and (cmlvl > 100 and (cmlvl - 300) or ((cmlvl-90)*30)) or 0
 						local gap = (ga > la and (ga - la) or 0) + (gb > lb and (gb - lb) or 0) + (gc > lc and (gc - lc) or 0)
-						local hi, lo = sc + s2 * ((rt == 824 and traits[79] or rt == 0 and traits[256] or 0) * 16 + na * 4 + nw), (32767-gap)*16 + traits[221]
+						local hi, lo = sc + s2 * ((rt > 0 and traits[rt] or 0) * 16 + na * 4 + nw), (32767-gap)*16 + traits[221]
 						local d = (best[1] - hi - lo)
 						if d < 0 then
 							best[1], best[2], best[3], best[4], best[5] = hi + lo, a, b, c, amlvl + 1e3*bmlvl + (c and 1e6*cmlvl or 0)
@@ -1582,8 +1584,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 			end
 			
 			bt.ttrait = mi[3]*2^-(traits[221] or 0) >= 25200 and 76 or 77
-			bt.rtrait = mi[4] == 0 and 256 or mi[4] == 824 and 79 or nil
-			bt[4], bt.dtrait = traits[bt.rtrait] or 0
+			bt[4], bt.dtrait = traits[mi[4] > 0 and mi[4]] or 0
 			local lc, cn, h
 			for i=6, #mi do
 				local c = mi[i]
@@ -1596,7 +1597,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					local nh = h + traits[232]/2
 					bt.dtrait, h = h < lc and (nh <= lc and 1 or 2) or nil, nh
 				end
-				bt[1+i] = (h >= cn + 1) and 2 or h >= cn or (h == cn-0.5 and (mi[4] == 123858 or 0.5) or nil)
+				bt[1+i] = (h >= cn + 1) and 2 or h >= cn or (h == cn-0.5 and (mi[4] == -1 or 0.5) or nil)
 			end
 			missions[i].best = bt
 		else
