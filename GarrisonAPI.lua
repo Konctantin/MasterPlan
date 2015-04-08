@@ -610,7 +610,7 @@ do -- GetMissionSeen
 end
 
 do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
-	local msf, msi, msd, mmi, finfo, msiMentorIndex = {}, {}, {}
+	local msf, msi, msd, mmi, finfo, msiMentorIndex, mentorLevel = {}, {}, {}
 	local suppressFollowerEvents, releaseFollowerEvents do
 		local level, frames, followers = 0
 		local function failsafe()
@@ -673,7 +673,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 	end
 	function api.GetMissionGroups(mid, trustValid)
 		if not trustValid or not msi[1] then
-			finfo, msiMentorIndex = api.GetFollowerInfo()
+			finfo, msiMentorIndex, mentorLevel = api.GetFollowerInfo()
 			local valid, fn = true, 1
 			for k,v in pairs(finfo) do
 				if v.isCollected and v.status ~= GARRISON_FOLLOWER_INACTIVE then
@@ -690,7 +690,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			table.sort(msi, cmp_level)
 			for i=1,#msi do
 				if finfo[msi[i]].garrFollowerID == MENTOR_FOLLOWER then
-					msiMentorIndex = i
+					msiMentorIndex, mentorLevel = i, finfo[msi[i]].iLevel
 					break
 				end
 			end
@@ -734,8 +734,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 
 			local i1, i2, i3 = 1, mi.numFollowers > 1 and 2 or -1, mi.numFollowers > 2 and 3 or -1
 			local af, rf, nf, getXPMul = C_Garrison.AddFollowerToMission, C_Garrison.RemoveFollowerFromMission, mi.numFollowers, api.GetBuffsXPMultiplier
-			local GetPartyMissionInfo = C_Garrison.GetPartyMissionInfo
-			local mentorLevel, mentorSlot = msiMentorIndex and msi[msiMentorIndex].iLevel
+			local GetPartyMissionInfo, mentorSlot = C_Garrison.GetPartyMissionInfo
 			repeat
 				for i=nf,1,-1 do
 					rf(mid, msi[t[i]])
@@ -1512,7 +1511,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 end
 
 function api.countFreeFollowers(f, finfo)
-	local ret = 0
+	local ret, finfo = 0, finfo or api.GetFollowerInfo()
 	for i=1,f and #f or 0 do
 		local st = finfo[f[i]].status
 		if not (st == GARRISON_FOLLOWER_INACTIVE or st == GARRISON_FOLLOWER_WORKING or T.config.ignore[f[i]]) then

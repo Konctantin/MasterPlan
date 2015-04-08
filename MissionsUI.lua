@@ -1765,6 +1765,10 @@ do -- availMissionsHandle
 				local exp = BreakUpLargeNumbers(floor(g.expectedXP))
 				GameTooltip:AddLine((L"+%s experience expected"):format(exp))
 			end
+			if g[3] > 0 or g[9] > 0 then
+				local r = g[3] > 0 and g[3] .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t" or GetMoneyString(g[9])
+				GameTooltip:AddLine(REWARDS .. ": |cffffffff" .. r) --TODO
+			end
 			GameTooltip:Show()
 		end
 	end
@@ -2270,10 +2274,10 @@ do -- interestMissionsHandle
 			for i=1,(info.quality or 0)-1 do
 				local b = GarrisonFollowerTooltip.Traits[i]
 				local t = C_Garrison.GetFollowerTraitAtIndex(info.followerID, i) or 0
-				if b and t > 0 and (usefulTraits[t] or usefulTraits[T.EquivTrait[t]]) then
-					b.Name:SetText((ut == 2 and "|cffdcff0a" or "|cff10ff10") .. b.Name:GetText() or "")
-				else
-					b.Name:SetText("|cffa0a0a0" .. b.Name:GetText() or "")
+				if b and t > 0 then
+					local ut = (usefulTraits[t] or usefulTraits[T.EquivTrait[t]])
+					local c = ut and (ut == 2 and "|cffdcff0a" or "|cff10ff10") or "|cffa0a0a0"
+					b.Name:SetText(c .. (b.Name:GetText() or ""))
 				end
 			end
 			local mlvl2 = self.targetLevel
