@@ -2,8 +2,9 @@ local api, bgapi, addonName, T = {}, {}, ...
 
 local defaults, mdata = {
 	availableMissionSort="threats",
+	sortFollowers=true,
 	batchMissions=true,
-	version="0.7"
+	version="0.11"
 }
 local conf = setmetatable({}, {__index=defaults})
 T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
@@ -34,6 +35,15 @@ end)
 
 setmetatable(api, {__index=bgapi})
 bgapi.GarrisonAPI = T.Garrison
+
+function api:GetSortFollowers()
+	return conf.sortFollowers
+end
+function api:SetSortFollowers(sort)
+	assert(type(sort) == "boolean", 'Syntax: MasterPlan:SetSortFollowers(sort)')
+	conf.sortFollowers = sort
+	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "sortFollowers")
+end
 
 function api:SetMissionOrder(order)
 	assert(type(order) == "string", 'Syntax: MasterPlan:SetMissionOrder("order")')

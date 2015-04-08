@@ -639,7 +639,12 @@ api.GroupRank = {} do
 		if ac == bc then
 			ac, bc = computeTotalXP(a, finfo, minfo), computeTotalXP(b, finfo, minfo)
 		end
-		if ac == bc then ac, bc = a[3], b[3] end
+		if ac == bc  then
+			ac, bc = a[4], b[4]
+		end
+		if ac == bc then
+			ac, bc = a[3], b[3]
+		end
 		return ac >= bc
 	end
 	local function res(a, b, finfo, minfo)

@@ -131,7 +131,7 @@ end})
 local traits, traitGroups = {221, 76, 77, 79}, {
 	{80, 236, icon="Interface\\Icons\\XPBonus_Icon"},
 	{63,64,65,66,67,68,69,70,71,72,73,74,75,78, icon="Interface\\Icons\\PetBattle_Health"},
-	{4,36,37,38,39,40,41,42,43,244, icon="Interface\\Icons\\Ability_Hunter_MarkedForDeath"},
+	{4,36,37,38,39,40,41,42,43, icon="Interface\\Icons\\Ability_Hunter_MarkedForDeath"},
 	{7,8,9,44,45,46,48,49, icon="Interface\\Icons\\Achievement_Zone_Stonetalon_01"},
 	{52,53,54,55,56,57,58,59,60,61,62,227,231, icon="Interface\\Icons\\Trade_Engineering"},
 }
