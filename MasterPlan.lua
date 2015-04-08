@@ -89,6 +89,7 @@ function api:GetBatchMissionCompletion()
 end
 
 local parties, tentativeState = {}, {}
+T.tentativeState = tentativeState
 local function dissolve(mid)
 	local p = parties[mid]
 	if p then

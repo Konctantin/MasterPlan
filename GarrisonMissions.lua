@@ -363,7 +363,7 @@ do -- Minimize mission
 			f1, f2, f3 = fi and fi.followerID, f1, f2
 		end
 		MasterPlan:SaveMissionParty(mi.missionID, f1, f2, f3)
-		roamingParty:Clear()
+		roamingParty:DropFollowers(f1, f2, f3)
 		GarrisonMissionFrame.MissionTab.MissionPage.CloseButton:Click()
 	end)
 	min:SetScript("OnHide", function(self)
