@@ -7,7 +7,7 @@ end
 
 do -- Localizer stub
 	local LL, L = type(T.L) == "table" and T.L or {}, newproxy(true)
-	getmetatable(L).__call = function(self, k)
+	getmetatable(L).__call = function(_, k)
 		return LL[k] or k
 	end
 	T.L = L
@@ -26,12 +26,13 @@ local conf, api = setmetatable({}, {__index={
 	levelDecay=0.9,
 	currencyWasteThreshold=0.25,
 	legendStep=0,
+	lastCacheTime=0,
 	ignore={},
 	complete={},
 }})
 T.config, api = conf, setmetatable({}, {__index={GarrisonAPI=T.Garrison}})
 
-T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
+T.Evie.RegisterEvent("ADDON_LOADED", function(_, addon)
 	if addon == addonName then
 		T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
 			local complete = securecall(T._GetMissionSeenTable)

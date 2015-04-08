@@ -215,8 +215,8 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 			elseif fi.status == nil and status == GARRISON_FOLLOWER_WORKING and T.config.ignore[fi.followerID] then
 				status = L"Ignored"
 			end
-			if fi.missionTimeLeft then
-				buttons[i].Status:SetFormattedText("%s (%s)", status, fi.missionTimeLeft)
+			if fi.missionEndTime then
+				buttons[i].Status:SetFormattedText("%s (%s)", status, G.GetTimeStringFromSeconds(fi.missionEndTime-time()))
 			else
 				buttons[i].Status:SetText(status)
 			end
@@ -263,7 +263,7 @@ hooksecurefunc("GarrisonMissionPage_SetEnemies", function(enemies)
 		end
 	end
 end)
-hooksecurefunc("GarrisonMissionPage_SetFollower", function(frame, info)
+hooksecurefunc("GarrisonMissionPage_SetFollower", function(frame, _info)
 	local f = frame:IsMouseOver() and frame:IsShown() and frame:GetScript("OnEnter")
 	if f then
 		f(frame)
@@ -380,7 +380,7 @@ do -- Minimize mission
 	min:SetPushedTexture("Interface\\Buttons\\UI-Panel-HideButton-Down")
 	min:SetPoint("RIGHT", GarrisonMissionFrame.MissionTab.MissionPage.CloseButton, "LEFT", 8, 0)
 	min:SetHitRectInsets(0,8,0,0)
-	min:SetScript("OnClick", function(self)
+	min:SetScript("OnClick", function()
 		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
 		local mid, f1, f2, f3 = mi.missionID
 		for i=1, mi.numFollowers do
@@ -402,7 +402,7 @@ do -- Minimize mission
 		end
 	end)
 	
-	hooksecurefunc("GarrisonMissionPage_SetFollower", function(slot, info)
+	hooksecurefunc("GarrisonMissionPage_SetFollower", function(_, info)
 		if info and info.followerID then
 			MasterPlan:DissolveMissionByFollower(info.followerID)
 		end
@@ -436,7 +436,7 @@ end
 do -- Projected XP rewards
 	local function MissionFollower_OnEnter(self)
 		G.ExtendMissionInfoWithXPRewardData(MISSION_PAGE_FRAME.missionInfo, true)
-		G.ExtendFollowerTooltipMissionRewardXP(MISSION_PAGE_FRAME.missionInfo, self.info)
+		G.ExtendFollowerTooltipProjectedRewardXP(MISSION_PAGE_FRAME.missionInfo, self.info)
 	end
 	for i=1,3 do
 		GarrisonMissionFrame.MissionTab.MissionPage.Followers[i]:HookScript("OnEnter", MissionFollower_OnEnter)
@@ -495,11 +495,17 @@ do -- Counter-follower lists
 		else
 			atip.CounterOthers:SetPoint("TOPLEFT", atip.Description, "BOTTOMLEFT", 0, -8)
 		end
-		if not atip:GetTop() then
+		local top, bot = atip:GetTop()
+		if not top then
 		elseif atip.CounterOthers:GetText() ~= "" then
-			atip:SetHeight(atip:GetTop()-atip.CounterOthers:GetBottom() + 12)
+			bot = atip.CounterOthers:GetBottom()
 		else
-			atip:SetHeight(atip:GetTop()-atip.Details:GetBottom() + 18)
+			bot = atip.Details:GetBottom()
+		end
+		if bot then
+			atip:SetHeight(top-bot+16)
+		elseif atip:IsVisible() then
+			C_Timer.After(0.03, atip_Resize)
 		end
 	end
 	hooksecurefunc("GarrisonFollowerAbilityTooltipTemplate_SetAbility", function(self, aid)
@@ -518,7 +524,7 @@ do -- Counter-follower lists
 			end
 		end
 	end)
-	hooksecurefunc("GarrisonFollowerTooltipTemplate_SetGarrisonFollower", function(self, data)
+	hooksecurefunc("GarrisonFollowerTooltipTemplate_SetGarrisonFollower", function(self, _info)
 		for i=1,#self.Abilities do
 			local ci = self.Abilities[i].CounterIcon
 			if ci:IsShown() then
@@ -561,13 +567,13 @@ do -- Counter-follower lists
 end
 do -- suppress completion toast while missions UI is visible
 	local registered = false
-	GarrisonMissionFrame:HookScript("OnShow", function(self)
+	GarrisonMissionFrame:HookScript("OnShow", function()
 		if AlertFrame:IsEventRegistered("GARRISON_MISSION_FINISHED") then
 			registered = true
 			AlertFrame:UnregisterEvent("GARRISON_MISSION_FINISHED")
 		end
 	end)
-	GarrisonMissionFrame:HookScript("OnHide", function(self)
+	GarrisonMissionFrame:HookScript("OnHide", function()
 		if registered then
 			AlertFrame:RegisterEvent("GARRISON_MISSION_FINISHED")
 			registered = false
@@ -661,7 +667,7 @@ do -- Follower headcounts
 			elseif v.status == GARRISON_FOLLOWER_ON_MISSION then
 				nm = nm + 1
 			elseif (v.status or "") ~= "" and v.status ~= GARRISON_FOLLOWER_IN_PARTY then
-			elseif v.level == 100 and v.quality == 4 then
+			elseif v.level == 100 and v.quality >= 4 then
 				nx = nx + 1
 			else
 				ni = ni + 1
@@ -691,5 +697,22 @@ do -- Scary follower warning
 				GarrisonFollowerTooltip:SetHeight(GarrisonFollowerTooltip:GetHeight()-oh+ub:GetHeight())
 			end
 		end)
+	end
+end
+
+do
+	local r = GarrisonMissionFrame.MissionTab.MissionPage.RewardsFrame.Rewards
+	local oe = r[1]:GetScript("OnEnter")
+	local function Reward_OnEnter(self, ...)
+		if self.itemID then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			G.SetItemTooltip(GameTooltip, self.itemID)
+			GameTooltip:Show()
+		else
+			oe(self, ...)
+		end
+	end
+	for i=1,#r do
+		r[i]:SetScript("OnEnter", Reward_OnEnter)
 	end
 end

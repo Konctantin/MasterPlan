@@ -4,7 +4,7 @@
 ## LoadOnDemand: 1
 ## LoadWith: Blizzard_GarrisonUI
 ## RequiredDeps: Blizzard_GarrisonUI
-## Version: 0.33
+## Version: 0.34
 ## Author: foxlit
 ## X-Website: http://www.townlong-yak.com/master-plan/
 ## SavedVariablesPerCharacter: MasterPlanPC
@@ -17,3 +17,4 @@ MasterPlan.lua
 MissionsUI.lua
 GarrisonMissions.lua
 GarrisonFollowers.lua
+GarrisonLanding.lua

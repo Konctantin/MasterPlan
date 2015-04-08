@@ -72,3 +72,10 @@ T.MissionCoalescing = {
 	[118529]={4,8,12},
 	[122484]={-19,4,8},
 }
+
+T.TokenSlots = {} do
+	local b, s, m, d = 114e3, 1, T.TokenSlots, "62:56424e:553f644b::533a46:65:63:543b6047:52395e45:3561:34::57446950:::706e6d6c"
+	for a, i in d:gmatch("(:*)(%x%x)") do
+		m[b+tonumber(i,16)], s = s, s + #a
+	end
+end
