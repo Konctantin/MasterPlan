@@ -7,6 +7,59 @@ hooksecurefunc(C_Garrison, "StartMission", function() wipe(data) end)
 
 local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INACTIVE]=1}
 
+local parseTime = {} do
+	local captures = {} do
+		local function proc(fm, f, s)
+			local t, pat = nil, fm:gsub("%%d", "\0"):gsub("[()%[%].%-+*%%]", "%%%0")
+			for chunk, inner in pat:gmatch("(|4(.-);)") do
+				local it = {[0]=chunk:gsub("[()%[%].%-+*%%]", "%%%0")}
+				for var in inner:gmatch("[^:]+") do
+					it[#it+1] = var
+				end
+				t = t or {}
+				t[#t+1] = it
+			end
+			if t then
+				local nv = {}
+				for i=1,#t do nv[i] = 1 end
+				while 1 do
+					local pat = pat
+					for i=1,#nv do
+						pat = pat:gsub(t[i][0], t[i][nv[i]])
+					end
+					captures[#captures+1], captures[#captures+2], captures[#captures+3] = "^" .. pat:gsub("%z", "(%%d+)") .. "$", f, s
+					for i=#nv, 0, -1 do
+						if i == 0 then return end
+						nv[i] = nv[i] % #t[i] + 1
+						if nv[i] > 1 then break end
+					end
+				end
+			else
+				captures[#captures+1], captures[#captures+2], captures[#captures+3] = "^" .. pat:gsub("%z", "(%%d+)") .. "$", f, s
+			end
+		end
+		proc(GARRISON_DURATION_DAYS, 86400, 0)
+		proc(GARRISON_DURATION_DAYS_HOURS, 86400, 3600)
+		proc(GARRISON_DURATION_HOURS, 3600, 0)
+		proc(GARRISON_DURATION_HOURS_MINUTES, 3600, 60)
+		proc(GARRISON_DURATION_MINUTES, 60, 0)
+		proc(GARRISON_DURATION_SECONDS, 1, 0)
+	end
+	setmetatable(parseTime, {__index=function(self, k)
+		if k == nil then return 0 end
+		local ret = math.huge
+		for i=1,#captures, 3 do
+			local a, b = k:match(captures[i])
+			if a then
+				ret = tonumber(a) * captures[i+1] + (b and tonumber(b) * captures[i+2] or 0)
+				break
+			end
+		end
+		self[k] = ret
+		return ret
+	end})
+end
+
 local function populateMechanics()
 	local q = C_Garrison.GetFollowerAbilityCounterMechanicInfo
 	for _, aid in pairs({11, 100, 168, 148, 160, 101, 105, 157, 122}) do
@@ -46,7 +99,8 @@ function api.GetFollowerInfo(refresh)
 		end
 		for k, v in pairs(C_Garrison.GetInProgressMissions()) do
 			for i=1,#v.followers do
-				ft[v.followers[i]].mission, ft[v.followers[i]].missionTimeLeft = v.missionID, v.timeLeft
+				local f = ft[v.followers[i]]
+				f.mission, f.missionTimeLeft, f.missionTimeSeconds = v.missionID, v.timeLeft, parseTime[v.timeLeft]
 			end
 		end
 		data.followers = ft
@@ -355,6 +409,7 @@ do -- GetMissionSeen
 			C_Timer.After(1, ObserveMissions)
 			isPendingObserve = true
 		end
+		
 	end)
 end
 
@@ -524,32 +579,63 @@ function api.GetFilteredMissionGroups(minfo, filter, cmp, limit)
 	return best
 end
 api.GroupRank, api.GroupFilter = {}, {}
+function api.GetBuffsXPMultiplier(buffs)
+	local mul = 1
+	for i=1,#buffs do
+		local v = buffs[i]
+		if v == 80 or v == 236 then
+			mul = mul + 0.35
+		end
+	end
+	return mul
+end
+function api.GetFollowerXPMultiplier(fi, mlvl)
+	local ef = api.GetLevelEfficiency(api.GetFMLevel(fi), mlvl)
+	if fi.quality == 4 and fi.level == 100 then
+		return 0
+	elseif fi.followerID and not fi.traits then
+		fi = api.GetFollowerInfo()[fi.followerID]
+	end
+	return (ef == 0 and 0.1 or ef) * (fi.traits[29] and 1.50 or 1)
+end
 local computeTotalXP do
-	local xpGroupBuffs = {[80]=0.35, [236]=0.35}
-	function computeTotalXP(g, finfo, minfo)
-		if not g.totalXP then
-			local mlvl, bonus, base = api.GetFMLevel(minfo), g[8], g[2]
+	function computeTotalXP(g, finfo, minfo, force)
+		if not g.totalXP or force then
+			local mlvl, bonus = api.GetFMLevel(minfo), g[8]
+			local mxp = g[2] + g[1]/100 * bonus * (bonus > 0 and g[9] and api.GetBuffsXPMultiplier(g[9]) or 1)
 			
-			local xp, mul, b = 0, 1, g[9]
-			for i=1,b and #b or 0 do
-				mul = mul + (xpGroupBuffs[b[i]] or 0)
-			end
+			local xp = 0
 			for i=1, minfo.numFollowers do
-				local fi = finfo[g[4+i]]
-				if fi.level < 100 or fi.quality < 4 then
-					local ef = api.GetLevelEfficiency(api.GetFMLevel(fi), mlvl)
-					xp = xp + (ef == 0 and 0.1 or ef) * (base + g[1]/100 * bonus * mul) * (fi.traits[29] and 1.50 or 1)
-				end
+				xp = xp + api.GetFollowerXPMultiplier(finfo[g[4+i]], mlvl) * mxp
 			end
-
 			g.totalXP = xp
 		end
 		return g.totalXP
 	end
 end
+local function computeEarliestDeparture(g, finfo, minfo, force)
+	local ret = g.earliestDeparture
+	if not ret or force then
+		ret = 0
+		for i=5, 4+minfo.numFollowers do
+			local f = finfo[g[i]]
+			if f.status == GARRISON_FOLLOWER_ON_MISSION then
+				local t = f.missionTimeSeconds or math.huge
+				if t > ret then
+					ret = t
+				end
+			end
+		end
+		g.earliestDeparture = ret or math.huge
+	end
+	return ret or math.huge
+end
 api.GroupRank = {} do
 	local function success(a, b, finfo, minfo)
 		local ac, bc = a[1], b[1]
+		if ac == bc then
+			ac, bc = -computeEarliestDeparture(a, finfo, minfo), -computeEarliestDeparture(a, finfo, minfo)
+		end
 		if ac == bc then
 			ac, bc = computeTotalXP(a, finfo, minfo), computeTotalXP(b, finfo, minfo)
 		end
@@ -569,7 +655,6 @@ api.GroupRank = {} do
 	end
 	api.GroupRank.threats, api.GroupRank.resources, api.GroupRank.xp = success, res, xp
 end
-
 function api.GroupFilter.IDLE(res, finfo, minfo)
 	for i=5,4+minfo.numFollowers do
 		local fi = finfo[res[i]]
@@ -597,8 +682,29 @@ function api.GroupFilter.ACTIVE(res, finfo, minfo)
 	end
 	return true
 end
-function api.AnnotateMissionParty(party, finfo, minfo)
-	computeTotalXP(party, finfo or api.GetFollowerInfo(), minfo)
+function api.AnnotateMissionParty(party, finfo, minfo, force)
+	finfo = finfo or api.GetFollowerInfo()
+	computeTotalXP(party, finfo, minfo)
+	computeEarliestDeparture(party, finfo, minfo, force)
+end
+function api.HasSignificantRewards(mi)
+	if mi.rewards then
+		local allGR, allXP = true, true
+		for _, r in pairs(mi.rewards) do
+			if not (r.followerXP or (r.currencyID == 0 and r.quantity < 1000000)) then
+				allXP = false
+			end
+			if r.currencyID ~= GARRISON_CURRENCY then
+				allGR = false
+			end
+		end
+		if allGR and not allXP then
+			return "resource"
+		else
+			return not allXP
+		end
+	end
+	return false
 end
 
 do -- GetUpgradeItems(ilevel, isArmor)

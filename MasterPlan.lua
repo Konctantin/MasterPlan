@@ -76,6 +76,10 @@ function api:SaveMissionParty(mid, f1, f2, f3)
 	parties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
 	tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
 end
+function api:HasTentativeParty(mid)
+	local p = parties[mid]
+	return p ~= nil and ((p[1] and 1 or 0) + (p[2] and 1 or 0) + (p[3] and 1 or 0)) or 0
+end
 function api:GetFollowerTentativeMission(fid)
 	return tentativeState[fid]
 end
