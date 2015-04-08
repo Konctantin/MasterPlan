@@ -1,8 +1,10 @@
 local api, _, T = {}, ...
-local EV = T.Evie
+if T.Mark ~= 16 then return end
+local EV, L = T.Evie, {}
+setmetatable(L, {__call=function(self,k) if T.L then L = T.L return L(k) end return k end})
 
 local f, data, mechanics = CreateFrame("Frame"), {}, {}
-f:SetScript("OnUpdate", function() wipe(data) f:Hide() end)
+f:SetScript("OnUpdate", function(self) wipe(data) self:Hide() end)
 hooksecurefunc(C_Garrison, "StartMission", function() wipe(data) end)
 
 local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INACTIVE]=1}
@@ -58,6 +60,21 @@ local parseTime = {} do
 		self[k] = ret
 		return ret
 	end})
+end
+function api.GetSecondsFromTimeString(time)
+	local t = parseTime[time]
+	return t and t > 59 and (t + 60) or t
+end
+function api.GetTimeStringFromSeconds(sec)
+	if sec < 60 then
+		return GARRISON_DURATION_SECONDS:format(sec < 0 and 0 or sec)
+	elseif sec < 3600 then
+		return GARRISON_DURATION_MINUTES:format(sec/60)
+	elseif sec < 84600 then
+		return (sec % 3600 < 60 and GARRISON_DURATION_HOURS or GARRISON_DURATION_HOURS_MINUTES):format(sec/3600, (sec/60) % 60)
+	else
+		return (sec % 86400 < 3600 and GARRISON_DURATION_DAYS or GARRISON_DURATION_DAYS_HOURS):format(sec/84600, (sec/3600) % 24)
+	end
 end
 
 local dropFollowers = {} do -- Start/Available capture
@@ -219,6 +236,9 @@ do -- sortByFollowerLevels
 			end
 			if ac == bc then
 				ac, bc = af.level or 0, bf.level or 0
+				if ac == bc and ac == 100 then
+					ac, bc = af.iLevel or 0, bf.iLevel or 0
+				end
 			end
 			if ac == bc then
 				ac, bc = C_Garrison.GetFollowerQuality(a), C_Garrison.GetFollowerQuality(b)
@@ -244,22 +264,25 @@ function api.GetLevelEfficiency(fLevel, mLevel)
 	end
 	return 0
 end
-function api.GetFollowerLevelDescription(fid, mlvl, finfo)
-	local finfo, q = finfo or api.GetFollowerInfo()[fid], C_Garrison.GetFollowerQuality(fid)
-	local tooLow = api.GetLevelEfficiency(api.GetFMLevel(finfo), mlvl) == 0
-	local lc, away = ITEM_QUALITY_COLORS[tooLow and 0 or q].hex, finfo.missionTimeLeft
-	if finfo.status == GARRISON_FOLLOWER_INACTIVE then
+function api.GetFollowerLevelDescription(fid, mlvl, fi)
+	local fi, q = fi or api.GetFollowerInfo()[fid], C_Garrison.GetFollowerQuality(fid)
+	local tooLow = api.GetLevelEfficiency(api.GetFMLevel(fi), mlvl) == 0
+	local lc, away = ITEM_QUALITY_COLORS[tooLow and 0 or q].hex, fi.missionTimeLeft
+	if fi.status == GARRISON_FOLLOWER_INACTIVE then
 		away = RED_FONT_COLOR_CODE .. " (" .. GARRISON_FOLLOWER_INACTIVE .. ")"
-	elseif finfo.status == GARRISON_FOLLOWER_WORKING then
+	elseif fi.status == GARRISON_FOLLOWER_WORKING then
 		away = YELLOW_FONT_COLOR_CODE .. " (" .. GARRISON_FOLLOWER_WORKING .. ")"
 	elseif away then
 		away = "|cffa0a0a0 (" .. away .. ")"
 	elseif T.config.ignore[fid] then
-		away = RED_FONT_COLOR_CODE .. " (" .. T.L"Ignored" .. ")"
+		away = RED_FONT_COLOR_CODE .. " (" .. L"Ignored" .. ")"
 	else
 		away = ""
 	end
-	return ("%s[%d]|r %s%s|r%s"):format(lc, finfo.level < 100 and finfo.level or finfo.iLevel, HIGHLIGHT_FONT_COLOR_CODE, finfo.name, away)
+	if fi.level == 100 and fi.quality == 4 and tooLow then
+		away = ITEM_QUALITY_COLORS[4].hex .. L"*" .. (away ~= "" and "|r " .. away or "|r")
+	end
+	return ("%s[%d]|r %s%s|r%s"):format(lc, fi.level < 100 and fi.level or fi.iLevel, HIGHLIGHT_FONT_COLOR_CODE, fi.name, away)
 end
 function api.GetNumIdleCombatFollowers(followers)
 	local ret = 0
@@ -272,7 +295,7 @@ function api.GetNumIdleCombatFollowers(followers)
 end
 
 do -- CompleteMissions/AbortCompleteMissions
-	local curStack, curRewards, curFollowers, curCallback, curLog
+	local curStack, curRewards, curFollowers, curCallback
 	local curSalvage, curPlayerXP = {[114120]=0, [114119]=0, [114116]=0}, {}
 	local curState, curIndex, completionStep, lastAction, delayIndex, delayMID
 	local function checkSalvage(addRewards)
@@ -298,7 +321,7 @@ do -- CompleteMissions/AbortCompleteMissions
 				if curState == state and curIndex == delayIndex and curStack[delayIndex].missionID == delayMID then
 					local time = GetTime()
 					if not minDelay and (not lastAction or (time-lastAction >= d)) then
-						lastAction, curLog[#curLog+1] = GetTime(), {GetTime(), "DELAY", state}
+						lastAction = GetTime()
 						f(curStack[curIndex].missionID)
 						C_Timer.After(d, delay)
 					else
@@ -318,7 +341,7 @@ do -- CompleteMissions/AbortCompleteMissions
 		if curState == "ABORT" or curState == "DONE" then
 			checkSalvage(true)
 			securecall(curCallback, curState, curStack, curRewards, curFollowers)
-			curState, curStack, curRewards, curFollowers, curIndex, curCallback, delayMID, delayIndex, curLog = nil
+			curState, curStack, curRewards, curFollowers, curIndex, curCallback, delayMID, delayIndex = nil
 		end
 	end
 	function completionStep(ev, ...)
@@ -327,10 +350,8 @@ do -- CompleteMissions/AbortCompleteMissions
 		while mi and (mi.succeeded or mi.failed) do
 			mi, curIndex = curStack[curIndex+1], curIndex + 1
 		end
-		curLog[#curLog+1] = {GetTime(), curState, curIndex, ev, ...}
 		if (ev == "GARRISON_MISSION_NPC_CLOSED" and mi) or not mi then
-			curState, MasterPlanLog, curLog[#curLog+1] = mi and "ABORT" or "DONE", MasterPlanLog or {}, {GetTime(), mi and "ABORT" or "DONE", curRewards, curFollowers}
-			table.insert(MasterPlanLog, curLog)
+			curState = mi and "ABORT" or "DONE"
 			C_Timer.After(0.5, delayDone)
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
 			if mi.state == -1 then
@@ -396,7 +417,7 @@ do -- CompleteMissions/AbortCompleteMissions
 	EV.RegisterEvent("GARRISON_MISSION_BONUS_ROLL_COMPLETE", completionStep)
 	EV.RegisterEvent("GARRISON_MISSION_COMPLETE_RESPONSE", completionStep)
 	function api.CompleteMissions(stack, callback)
-		curStack, curCallback, curRewards, curFollowers, curLog = stack, callback, {}, {}, {}
+		curStack, curCallback, curRewards, curFollowers = stack, callback, {}, {}
 		curState, curIndex = "NEXT", 1, checkSalvage(false)
 		completionStep("GARRISON_MISSION_NPC_OPENED", "IMMEDIATE")
 	end
@@ -436,7 +457,7 @@ do -- GetMissionSeen
 		if #avail > 0 then
 			for i=1,#avail do
 				local mid = avail[i].missionID
-				if lt and dt[mid] and expire[mid] and (now - dt[mid]) > expire[mid]*3600 then
+				if lt and dt[mid] and (expire[mid] or 0) > 0 and (now - dt[mid]) > expire[mid]*3600 then
 					if T.config.announceLoss then
 						dt.__loss = dt.__loss or {}
 						dt.__loss[#dt.__loss + 1] = {now, mid, dt[-mid], dt[mid], expire[mid], "!"}
@@ -452,7 +473,7 @@ do -- GetMissionSeen
 							ip = C_Garrison.GetInProgressMissions()
 							for i=1,#ip do ip[-ip[i].missionID], ip[i] = true end
 						end
-						if not ip[-abs(k)] then
+						if not ip[k] and not ip[-k] then
 							dt.__loss = dt.__loss or {}
 							dt.__loss[#dt.__loss + 1] = {now, abs(k), api.GetMissionSeen(abs(k))}
 						end
@@ -464,11 +485,23 @@ do -- GetMissionSeen
 		end
 	end
 	function api.GetMissionSeen(mid)
-		local now = time()
-		return difftime(now, dt and dt[-mid] or now), difftime(now, dt and dt[mid] or now), expire[mid]
+		local now, ex = time(), expire[mid]
+		local early, late = dt and dt[-mid] or now, dt and dt[mid] or now
+		if early == 0 then early = min(late, now - ex * 3600) end
+		return difftime(now, early), difftime(now, late), expire[mid]
 	end
 	function T._SetMissionSeenTable(t)
-		dt, lt = t, type(t) == "table" and type(t.__time) == "number" and t.__time or nil
+		if type(t) == "table" then
+			dt, lt = {}, type(t) == "table" and type(t.__time) == "number" and t.__time or 0
+			for k,v in pairs(t) do
+				if type(k) == "number" and type(v) == "number" then
+					dt[k] = v
+				end
+			end
+		end
+	end
+	function T._GetMissionSeenTable()
+		return dt
 	end
 	T._ObserveMissions = ObserveMissions
 	EV.RegisterEvent("GARRISON_MISSION_STARTED", function(ev, id)
@@ -676,14 +709,24 @@ function api.GetBuffsXPMultiplier(buffs)
 	end
 	return mul
 end
-function api.GetFollowerXPMultiplier(fi, mlvl)
-	local ef = api.GetLevelEfficiency(api.GetFMLevel(fi), mlvl)
+function api.GetFollowerXPGain(fi, mlvl, base, bonus)
 	if fi.quality == 4 and fi.level == 100 then
-		return 0
-	elseif fi.followerID and not fi.traits then
-		fi = api.GetFollowerInfo()[fi.followerID]
+		base, bonus = 0, 0
+	elseif base > 0 or bonus > 0 then
+		fi = fi.traits and fi or api.GetFollowerInfo()[fi.followerID] or fi
+		local tmul = fi.traits and fi.traits[29] and 1.50 or 1
+		local ef = api.GetLevelEfficiency(fi.iLevel > 600 and fi.iLevel or fi.level, mlvl)
+		local emul = (ef == 0 and 0.1 or ef)
+		if base > 0 then
+			base = base * tmul * emul
+			if fi.xp + base > fi.levelXP and fi.level < 100 then
+				ef = api.GetLevelEfficiency(fi.level + 1, mlvl)
+				emul = (ef == 0 and 0.1 or ef)
+			end
+		end
+		bonus = bonus * tmul * emul
 	end
-	return (ef == 0 and 0.1 or ef) * (fi.traits[29] and 1.50 or 1)
+	return base, bonus
 end
 local risk = {} do
 	setmetatable(risk, {__index=function(self, c)
@@ -706,19 +749,38 @@ local risk = {} do
 		end
 	end)
 end
-local computeTotalXP do
-	function computeTotalXP(g, finfo, minfo, force)
-		if not g.totalXP or force then
+local computeEquivXP do
+	local max, min = math.max, math.min
+	function computeEquivXP(g, finfo, minfo, force)
+		if not g.equivXP or force then
 			local mlvl, bonus = api.GetFMLevel(minfo), g[8]
-			local mxp = g[2] + risk[g[1]] * bonus * (bonus > 0 and g[9] and api.GetBuffsXPMultiplier(g[9]) or 1)
+			bonus = bonus * (bonus > 0 and g[9] and api.GetBuffsXPMultiplier(g[9]) or 1)
 			
-			local xp = 0
+			local expected, balanced, risk, ecap = 0, 0, risk[g[1]], (T.config.xpCapGrace or 2000)
+			
 			for i=1, minfo.numFollowers do
-				xp = xp + api.GetFollowerXPMultiplier(finfo[g[4+i]], mlvl) * mxp
+				local fi = finfo[g[4+i]]
+				local base, bonus = api.GetFollowerXPGain(fi, mlvl, g[2], bonus)
+				if base > 0 or bonus > 0 then
+					if (fi.level == 99 and fi.quality == 4) or (fi.level == 100 and fi.quality == 3) then
+						local cap = fi.levelXP - fi.xp
+						balanced = balanced + base + risk*max(0, min(bonus, cap + ecap - base))
+						expected = expected + max(0, min(base, cap)) + g[1]/100 * max(0, min(bonus, cap - base))
+					else
+						balanced, expected = balanced + base + risk * bonus, expected + base + g[1]/100 * bonus
+					end
+				end
 			end
-			g.totalXP = floor(xp)
+			if type(minfo.rewards) == "table" then
+				for k,v in pairs(minfo.rewards) do
+					if v.currencyID == 0 then
+						balanced = balanced + g[1]/100 * v.quantity/10000 * (T.config.xpPerGold or 0)
+					end
+				end
+			end
+			g.equivXP, g.expectedXP = floor(balanced), floor(expected)
 		end
-		return g.totalXP
+		return g.equivXP
 	end
 end
 local function computeDingScore(g, finfo)
@@ -750,7 +812,7 @@ local function computeEarliestDeparture(g, finfo, minfo, force)
 				end
 			end
 		end
-		g.earliestDeparture = ret or math.huge
+		g.earliestDeparture = time() + ret
 	end
 	return ret or math.huge
 end
@@ -761,7 +823,7 @@ api.GroupRank, api.GroupFilter = {}, {} do
 			ac, bc = -computeEarliestDeparture(a, finfo, minfo), -computeEarliestDeparture(a, finfo, minfo)
 		end
 		if ac == bc then
-			ac, bc = computeTotalXP(a, finfo, minfo), computeTotalXP(b, finfo, minfo)
+			ac, bc = computeEquivXP(a, finfo, minfo), computeEquivXP(b, finfo, minfo)
 			if ac == bc then
 				ac, bc = ac / a[4], bc / b[4]
 			end
@@ -787,7 +849,7 @@ api.GroupRank, api.GroupFilter = {}, {} do
 		return success(a,b, finfo, minfo)
 	end
 	local function xp(a, b, finfo, minfo)
-		local ac, bc = computeTotalXP(a, finfo, minfo), computeTotalXP(b, finfo, minfo)
+		local ac, bc = computeEquivXP(a, finfo, minfo), computeEquivXP(b, finfo, minfo)
 		if ac == bc then
 			ac, bc = ac / a[4], bc / b[4]
 		end
@@ -832,14 +894,14 @@ function api.GroupFilter.ACTIVE(res, finfo, minfo)
 end
 function api.AnnotateMissionParty(party, finfo, minfo, force)
 	finfo = finfo or api.GetFollowerInfo()
-	computeTotalXP(party, finfo, minfo)
+	computeEquivXP(party, finfo, minfo)
 	computeEarliestDeparture(party, finfo, minfo, force)
 end
 function api.HasSignificantRewards(mi)
 	if mi.rewards then
 		local allGR, allXP = true, true
 		for _, r in pairs(mi.rewards) do
-			if not (r.followerXP or (r.currencyID == 0 and r.quantity < 1000000)) then
+			if not (r.followerXP or (r.currencyID == 0 and r.quantity < T.config.goldRewardThreshold)) then
 				allXP = false
 			end
 			if r.currencyID ~= GARRISON_CURRENCY then
@@ -869,6 +931,40 @@ do -- GetUpgradeItems(ilevel, isArmor)
 	end
 	function api.GetUpgradeItems(ilevel, isWeapon)
 		return walk(ilevel, isWeapon and upgrades.WEAPON or upgrades.ARMOR, 1)
+	end
+end
+
+function api.ExtendFollowerTooltipMissionRewardXP(mi, fi)
+	local tip = GarrisonFollowerTooltip
+	if mi and fi and tip:IsShown() and tip.XPBarBackground:IsShown() then
+		local bmul, base, extraXP, bonus, _ = mi.groupXPBuff, mi.baseXP, mi.extraXP, 0
+		if bmul == nil or extraXP == nil then
+			local _, _, _, _, pb, _, exp = C_Garrison.GetPartyMissionInfo(mi.missionID)
+			bmul, extraXP = api.GetBuffsXPMultiplier(pb), exp
+		end
+		if base == nil then
+			_, base = C_Garrison.GetMissionInfo(mi.missionID)
+		end
+		if base and extraXP and bmul and fi.levelXP then
+			for k,v in pairs(mi.rewards) do
+				if v.followerXP then bonus = bonus + v.followerXP end
+			end
+			local base, bonus = api.GetFollowerXPGain(fi, api.GetFMLevel(mi), extraXP + base, bonus)
+			
+			local toLevel, wmul = fi.levelXP - fi.xp, tip.XPBarBackground:GetWidth()/fi.levelXP
+			tip.XPRewardBase:SetWidth(math.max(0.01, math.min(toLevel, base)*wmul))
+			tip.XPRewardBonus:SetWidth(math.max(0.01, math.min(toLevel-base, bonus)*wmul))
+			tip.XPRewardBonus:SetShown(bonus > 0 and toLevel > base)
+			tip.XPRewardBase:SetShown(base > 0)
+			if base > 0 then
+				local xpt = "|cff99ff00" .. BreakUpLargeNumbers(floor(base)) .. "|r"
+				if bonus > 0 then xpt = xpt .. "+|cff00bfff" .. BreakUpLargeNumbers(floor(bonus)) .. "|r" end
+				tip.XP:SetText(tip.XP:GetText() .. "|n" .. (L"Reward: %s XP"):format(xpt))
+			end
+		else
+			tip.XPRewardBonus:Hide()
+			tip.XPRewardBase:Hide()
+		end
 	end
 end
 

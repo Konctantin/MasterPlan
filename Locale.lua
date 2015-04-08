@@ -1,7 +1,9 @@
 local L, _, T = GetLocale(), ...
 
+-- See http://wow.curseforge.com/addons/master-plan/localization/
 T.L =
 L == "deDE" and {
+	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "Aktive Missionen (%d)",
 	["Additional mission loot may be delivered via mail."] = "Zusätzliche Missionsbeute kann per Post zugestellt werden.",
 	["Available Missions (%d)"] = "Verfügbare Missionen (%d)",
@@ -20,11 +22,13 @@ L == "deDE" and {
 	["Follower XP"] = "Anhänger EP",
 	["Garrison resources"] = "Garnisonsressourcen",
 	["Group %d"] = "Gruppe %d",
+	Idle = "untätig", -- Needs review
+	["Idle (max-level)"] = "untätig (Höchststufe)", -- Needs review
 	Ignore = "Ignorieren",
 	Ignored = "Ignoriert",
 	["In Tentative Party"] = "In vorläufiger Gruppe",
 	["Mission duration"] = "Missionsdauer",
-	["Mission expiration"] = "Mission Ablaufzeit", -- Needs review
+	["Mission expiration"] = "Mission Ablaufzeit",
 	["Mission level"] = "Missionslevel",
 	["Mission order:"] = "Missionssortierung:",
 	["Mitigated threats"] = "Entschärfte Bedrohungen",
@@ -42,6 +46,7 @@ L == "deDE" and {
 	["You have no followers to counter this mechanic."] = "Du hast keine Begleiter, die diese Fähigkeit kontern können.",
 	["You have no followers with this trait."] = "Du hast keinen Anhänger mit dieser Eigenschaft.",
 	["You have no free bag slots."] = "Du hast keine freien Taschenplätze.",
+	["You must restart World of Warcraft after installing this update."] = "Du musst World of Warcraft neustarten nachdem du dieses Update installiert hast.",
 } or
 L == "esES" and {
 	["Active Missions (%d)"] = "Misiones activas (%d)",
@@ -66,6 +71,7 @@ L == "esES" and {
 	Ignored = "Ignorado",
 	["In Tentative Party"] = "En Grupo Tentativo",
 	["Mission duration"] = "Duración de la misión",
+	["Mission expiration"] = "Expiración de la Misión",
 	["Mission level"] = "Nivel de misión",
 	["Mission order:"] = "Orden de misión:",
 	["Mitigated threats"] = "Amenazas mitigadas",
@@ -107,6 +113,7 @@ L == "esMX" and {
 	Ignored = "Ignorado",
 	["In Tentative Party"] = "En Grupo Tentativo",
 	["Mission duration"] = "Duración de la misión",
+	["Mission expiration"] = "Expiración de la Misión",
 	["Mission level"] = "Nivel de misión",
 	["Mission order:"] = "Orden de misión:",
 	["Mitigated threats"] = "Amenazas mitigadas",
@@ -126,6 +133,7 @@ L == "esMX" and {
 	["You have no free bag slots."] = "No tienes espacio en las mochilas.",
 } or
 L == "frFR" and {
+	["%.2gk"] = "%.2g k", -- Needs review
 	["Active Missions (%d)"] = "Missions en cours (%d)",
 	["Additional mission loot may be delivered via mail."] = "Le butin supplémentaire de mission sera renvoyé par courrier.",
 	["Available Missions (%d)"] = "Missions disponibles (%d)",
@@ -148,9 +156,10 @@ L == "frFR" and {
 	Ignored = "Ignoré",
 	["In Tentative Party"] = "En équipe provisoire",
 	["Mission duration"] = "durée de mission",
+	["Mission expiration"] = "expiration de mission",
 	["Mission level"] = "niveau de mission",
 	["Mission order:"] = "Missions triées par :",
-	["Mitigated threats"] = "menaces atténuées", -- Needs review
+	["Mitigated threats"] = "menaces atténuées",
 	["Pending: %s |4hour:hours;"] = "Délai : %s |4h restante:h restantes;",
 	Ready = "Prêt",
 	["Reward: %s XP"] = "Récompense : %s d'EXP",
@@ -167,6 +176,7 @@ L == "frFR" and {
 	["You have no free bag slots."] = "Vous n'avez plus de place dans vos sacs.",
 } or
 L == "itIT" and {
+	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "Missioni Attive (%d)",
 	["Additional mission loot may be delivered via mail."] = "Ulteriori ricompense potrebbero essere inviate via posta.",
 	["Available Missions (%d)"] = "Missioni Disponibili (%d)",
@@ -185,10 +195,13 @@ L == "itIT" and {
 	["Follower XP"] = "XP seguace",
 	["Garrison resources"] = "Risorse guarnigione",
 	["Group %d"] = "Gruppo %d",
+	Idle = "in attesa",
+	["Idle (max-level)"] = "in attesa (livello-max)",
 	Ignore = "Ignora",
 	Ignored = "Ignorato",
 	["In Tentative Party"] = "Nel Gruppo Provvisorio",
 	["Mission duration"] = "Durata missione",
+	["Mission expiration"] = "Scadenza missione",
 	["Mission level"] = "Livello missione",
 	["Mission order:"] = "Ordina missioni per:",
 	["Mitigated threats"] = "Minacce mitigate",
@@ -206,50 +219,54 @@ L == "itIT" and {
 	["You have no followers to counter this mechanic."] = "Non hai seguaci per contrastare questa meccanica.",
 	["You have no followers with this trait."] = "Non hai seguaci con questo tratto.",
 	["You have no free bag slots."] = "Non hai spazio nelle borse.",
+	["You must restart World of Warcraft after installing this update."] = "È necessario riavviare World of Warcraft dopo l'installazione di questo aggiornamento.",
 } or
 L == "koKR" and {
+	["%.2gk"] = "%.2g천",
 	["Active Missions (%d)"] = "진행중인 임무 (%d)",
-	["Additional mission loot may be delivered via mail."] = "나머지 임무 보상은 우편으로 발송될 것입니다.",
+	["Additional mission loot may be delivered via mail."] = "추가적인 임무 보상이 우편으로 발송될수도 있습니다.",
 	["Available Missions (%d)"] = "가능한 임무 (%d)",
-	["Can be countered by:"] = "상쇄 가능:", -- Needs review
+	["Can be countered by:"] = "상쇄 가능:",
 	["Chance of success"] = "성공 확률",
-	["Click to view upgrade options"] = "업그레이드 옵션을 보려면 클릭", -- Needs review
+	["Click to view upgrade options"] = "업그레이드 옵션을 보려면 클릭",
 	["Complete All"] = "모두 완료",
 	["Complete Missions"] = "임무 완료하기",
-	["Complete party"] = "완성된 파티", -- Needs review
+	["Complete party"] = "파티 완성시키기",
 	Done = "완료",
-	["%d%% success chance"] = "성공확률 %d%%", -- Needs review
-	["Expedited mission completion"] = "임무 완료 예상 시간", -- Needs review
+	["%d%% success chance"] = "성공 확률 %d%%",
+	["Expedited mission completion"] = "임무 완료 빠르게 보기",
 	Failed = "실패",
 	["Follower experience"] = "추종자 경험치",
 	["Followers with this trait:"] = "이 특성을 지닌 추종자:",
-	["Follower XP"] = "추종자 경험치", -- Needs review
+	["Follower XP"] = "추종자 경험치",
 	["Garrison resources"] = "주둔지 자원",
-	["Group %d"] = "그룹 %d",
-	Ignore = "무시", -- Needs review
-	Ignored = "무시됨", -- Needs review
-	["In Tentative Party"] = "임시 파티 내", -- Needs review
-	["Mission duration"] = "임무 지속시간", -- Needs review
-	["Mission expiration"] = "임무 완료시간", -- Needs review
+	["Group %d"] = "%d 그룹 ",
+	Ignore = "무시",
+	Ignored = "무시됨",
+	["In Tentative Party"] = "임시 파티에 있음",
+	["Mission duration"] = "임무 완료 시간",
+	["Mission expiration"] = "임무 만료 시간",
 	["Mission level"] = "임무 레벨",
 	["Mission order:"] = "임무 정렬:",
-	["Mitigated threats"] = "제거된 위협요소", -- Needs review
-	["Pending: %s |4hour:hours;"] = "남은시간: %s |4시간:시간;", -- Needs review
-	Ready = "준비 완료", -- Needs review
-	["Reward: %s XP"] = "보상: 경험치 %s", -- Needs review
-	["+%s experience expected"] = "+%s 예상 경험치",
+	["Mitigated threats"] = "상쇄된 위협요소",
+	["Pending: %s |4hour:hours;"] = "남은시간: %s |4시간:시간;",
+	Ready = "준비 완료",
+	["Reward: %s XP"] = "보상: 경험치 %s",
+	["+%s experience expected"] = "예상 경험치 +%s ",
 	Success = "성공",
-	["Success chance"] = "성공 가능성", -- Needs review
-	["Suggested groups"] = "추천 그룹", -- Needs review
+	["Success chance"] = "성공 가능성",
+	["Suggested groups"] = "추천 그룹",
 	["%s XP"] = "경험치 %s",
-	["%s XP gained"] = "경험치 %s 획득", -- Needs review
-	Unignore = "무시취소", -- Needs review
+	["%s XP gained"] = "경험치 %s 획득",
+	Unignore = "무시 취소",
 	["View Rewards"] = "보상 보기",
-	["You have no followers to counter this mechanic."] = "이 위협 요소를 제거할 추종자가 없습니다.",
+	["You have no followers to counter this mechanic."] = "이 위협 요소를 상쇄할 추종자가 없습니다.",
 	["You have no followers with this trait."] = "이 특성을 가진 추종자가 없습니다.",
 	["You have no free bag slots."] = "가방에 빈 공간이 없습니다.",
+	["You must restart World of Warcraft after installing this update."] = "해당 업데이트이후에 월드 오브 워크래프트를 재시작해주셔야 합니다.",
 } or
 L == "ptBR" and {
+	["%.2gk"] = "%.2gk", -- Needs review
 	["Active Missions (%d)"] = "Missões Ativas (%d)",
 	["Additional mission loot may be delivered via mail."] = "Saque adicional de missões poderá ser entregue por correio.",
 	["Available Missions (%d)"] = "Missões Disponíveis (%d)",
@@ -272,8 +289,10 @@ L == "ptBR" and {
 	Ignored = "Ignorado", -- Needs review
 	["In Tentative Party"] = "Em Grupo Provisório",
 	["Mission duration"] = "Duração da missão", -- Needs review
+	["Mission expiration"] = "Expiração da missão", -- Needs review
 	["Mission level"] = "Nível da Missão",
 	["Mission order:"] = "Ordem das Missões:",
+	["Mitigated threats"] = "Ameaças mitigadas", -- Needs review
 	["Pending: %s |4hour:hours;"] = "Pendente: %s |4hora:horas;", -- Needs review
 	Ready = "Pronto",
 	["Reward: %s XP"] = "Recompensa: %s XP", -- Needs review
@@ -290,41 +309,43 @@ L == "ptBR" and {
 	["You have no free bag slots."] = "Você não tem espaço livre nas bolsas.",
 } or
 L == "ruRU" and {
-	["Active Missions (%d)"] = "Активные миссии (%d)",
-	["Additional mission loot may be delivered via mail."] = "Дополнительная добыча от миссии может быть доставлена по почте.",
-	["Available Missions (%d)"] = "Доступные миссии (%d)",
-	["Can be countered by:"] = "Может противостоять:",
+	["%.2gk"] = "%.2gk", -- Needs review
+	["Active Missions (%d)"] = "Активные задания (%d)",
+	["Additional mission loot may be delivered via mail."] = "Дополнительная добыча с задания может быть доставлена по почте.",
+	["Available Missions (%d)"] = "Доступные задания (%d)",
+	["Can be countered by:"] = "Может быть нейтрализовано:",
 	["Chance of success"] = "Вероятность успеха",
 	["Click to view upgrade options"] = "Нажмите для просмотра улучшений",
 	["Complete All"] = "Завершить все",
-	["Complete Missions"] = "Завершить миссии",
+	["Complete Missions"] = "Завершить задания",
 	["Complete party"] = "Собрать отряд",
 	Done = "Завершено",
 	["%d%% success chance"] = "%d%% вероятность успеха",
-	["Expedited mission completion"] = "Ускоренное завершение миссии",
+	["Expedited mission completion"] = "Ускоренное завершение заданий",
 	Failed = "Провалено",
 	["Follower experience"] = "Опыт соратника",
-	["Followers with this trait:"] = "Соратники с данной способностью:",
+	["Followers with this trait:"] = "Соратники с данной особенностью:",
 	["Follower XP"] = "XP соратника",
 	["Garrison resources"] = "Ресурсы гарнизона",
 	["Group %d"] = "Группа %d",
-	Ignore = "Пропустить",
-	Ignored = "Пропущенный",
+	Ignore = "Игнорировать",
+	Ignored = "Игнорируется",
 	["In Tentative Party"] = "В предварительной группе",
 	["Mission duration"] = "Длительность задания",
-	["Mission level"] = "Уровень миссии",
-	["Mission order:"] = "Сортировка миссий:",
-	["Mitigated threats"] = "Смягчение угрозы",
+	["Mission expiration"] = "Истечение срока задания",
+	["Mission level"] = "Уровень задания",
+	["Mission order:"] = "Сортировка заданий:",
+	["Mitigated threats"] = "Нейтрализованные угрозы",
 	["Pending: %s |4hour:hours;"] = "Ожидание: %s |4час:часа:часов;",
 	Ready = "Готово",
 	["Reward: %s XP"] = "Награда: %s XP",
 	["+%s experience expected"] = "+%s ожидаемый опыт",
 	Success = "Успешно",
 	["Success chance"] = "Вероятность успеха",
-	["Suggested groups"] = "Предложенные группы",
+	["Suggested groups"] = "Предлагаемые группы",
 	["%s XP"] = "%s XP",
 	["%s XP gained"] = "%s XP получено",
-	Unignore = "Не пропускать",
+	Unignore = "Не игнорировать",
 	["View Rewards"] = "Посмотреть награды",
 	["You have no followers to counter this mechanic."] = "У вас нет соратников, чтобы  противостоять данной способности.",
 	["You have no followers with this trait."] = "У вас нет соратников с данной особенностью.",
@@ -353,9 +374,9 @@ L == "zhCN" and {
 	Ignored = "已忽略",
 	["In Tentative Party"] = "在预设队伍中",
 	["Mission duration"] = "任务时间",
-	["Mission expiration"] = "任务时长", -- Needs review
+	["Mission expiration"] = "任务存在时间",
 	["Mission level"] = "任务等级",
-	["Mission order:"] = "任务排序:",
+	["Mission order:"] = "任务排序：",
 	["Mitigated threats"] = "减少威胁",
 	["Pending: %s |4hour:hours;"] = "等待：%s |4hour:小时;",
 	Ready = "就绪",
@@ -373,6 +394,7 @@ L == "zhCN" and {
 	["You have no free bag slots."] = "你没有多余的背包空间。",
 } or
 L == "zhTW" and {
+	["%.2gk"] = "%.2gk", -- Needs review
 	["Active Missions (%d)"] = "正在進行(%s)",
 	["Additional mission loot may be delivered via mail."] = "額外的任務獎勵可能會透過郵件寄送",
 	["Available Missions (%d)"] = "可執行的任務(%d)",
@@ -395,6 +417,7 @@ L == "zhTW" and {
 	Ignored = "已忽略",
 	["In Tentative Party"] = "在暫定隊伍中",
 	["Mission duration"] = "任務持續時間",
+	["Mission expiration"] = "任務期限", -- Needs review
 	["Mission level"] = "任務等級",
 	["Mission order:"] = "任務排序:",
 	["Mitigated threats"] = "平息威脅",
@@ -412,5 +435,6 @@ L == "zhTW" and {
 	["You have no followers to counter this mechanic."] = "你沒有追隨者可反制此威脅",
 	["You have no followers with this trait."] = "你沒有追隨者具備此特長",
 	["You have no free bag slots."] = "你的背包沒有足夠的空間",
+	["You must restart World of Warcraft after installing this update."] = "安裝此更新後，你必須重新開啟遊戲", -- Needs review
 } or
 {}

@@ -1,45 +1,69 @@
 local api, bgapi, addonName, T = {}, {}, ...
+if T.Mark ~= 16 then
+	local m = "You must restart World of Warcraft after installing this update."
+	if type(T.L) == "table" and type(T.L[m]) == "string" then m = T.L[m] end
+	return print("|cffff2020[Master Plan]: " .. m)
+end
 
-local defaults, mdata, mcdata = {
-	availableMissionSort="threats",
+local defaults = {
+	availableMissionSort="xp",
 	sortFollowers=true,
 	batchMissions=true,
 	dropLessSalvage=true,
 	riskReward=1,
+	xpPerGold=0,
+	xpCapGrace=2000,
 	announceLoss=false,
+	goldRewardThreshold=2000000,
 	ignore={},
-	version="0.13",
+	version="0.16",
 }
+
 local conf = setmetatable({}, {__index=defaults})
 T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 	if addon == addonName then
-		if type(MasterPlanConfig) == "table" then
-			for k,v in pairs(MasterPlanConfig) do
-				if type(v) == type(defaults[k]) then
-					conf[k] = v
+		local pc
+		if type(MasterPlanPC) == "table" then
+			pc, MasterPlanPC = MasterPlanPC
+		else
+			pc = {}
+			if type(MasterPlanConfig) == "table" then
+				for k,v in pairs(MasterPlanConfig) do
+					pc[k] = v
 				end
+			end
+			local n, r = UnitFullName("player")
+			local ckey = (r or "?") .. "#" .. n
+			if type(MasterPlanData) == "table" then
+				local cd = MasterPlanData[ckey]
+				if type(cd) == "table" then
+					pc.ignore, pc.seen, cd.__ignore = cd.__ignore, cd
+				end
+				MasterPlanData[ckey] = nil
+			end
+		end
+		
+		for k,v in pairs(pc) do
+			local tv = type(v)
+			if k ~= "ignore" and k ~= "seen" and tv == type(defaults[k]) then
+				conf[k] = v
+			elseif k == "ignore" and tv == "table" then
+				for k,v in pairs(v) do
+					conf.ignore[k] = v
+				end
+			elseif k == "seen" and tv == "table" then
+				T._SetMissionSeenTable(v)
 			end
 		end
 		conf.version = defaults.version
 		T.Evie.RaiseEvent("MP_SETTINGS_CHANGED")
 		
-		mdata = type(MasterPlanData) == "table" and MasterPlanData or {}
-		local n, r = UnitFullName("player")
-		local ckey = (r or "?") .. "#" .. n
-		mcdata = type(mdata[ckey]) == "table" and mdata[ckey] or {}
-		if type(mcdata.__ignore) == "table" then
-			for k,v in pairs(mcdata.__ignore) do
-				conf.ignore[k] = v
-			end
-			mcdata.__ignore = nil
-		end
-		T._SetMissionSeenTable(mcdata)
-		
 		return "remove"
 	end
 end)
 T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
-	MasterPlanConfig, MasterPlanData, mcdata.__ignore = conf, mdata, next(conf.ignore) and conf.ignore
+	MasterPlanPC = conf
+	conf.seen, conf.ignore = T._GetMissionSeenTable(), next(conf.ignore) and conf.ignore
 	T._ObserveMissions()
 end)
 

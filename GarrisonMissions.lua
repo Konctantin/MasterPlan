@@ -1,4 +1,5 @@
 local _, T = ...
+if T.Mark ~= 16 then return end
 local EV, G, L = T.Evie, T.Garrison, T.L
 
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
@@ -19,9 +20,19 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 	function easyDrop:IsOpen(owner)
 		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
 	end
+	local function CheckOwner(self)
+		if self.owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown() then
+			if self.owner:IsVisible() then
+				return
+			end
+			CloseDropDownMenus()
+		end
+		self:SetScript("OnUpdate", nil)
+	end
 	function easyDrop:Open(owner, menu, ...)
 		self.owner = owner
-		EasyMenu(menu, self, "cursor", 0, 0, "MENU", 4)
+		self:SetScript("OnUpdate", CheckOwner)
+		EasyMenu(menu, self, "cursor", 9000, 9000, "MENU", 4)
 		DropDownList1:ClearAllPoints()
 		DropDownList1:SetPoint(...)
 	end
@@ -217,20 +228,57 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 	EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", function() roamingParty:Clear() end)
 end
 do -- Missions tab split
+	local function clone(parent, key)
+		local t, o = parent:CreateTexture(nil, "BORDER"), parent[key]
+		t:SetTexture(o:GetTexture())
+		t:SetTexCoord(o:GetTexCoord())
+		t:SetAllPoints(o)
+		t:SetBlendMode(o:GetBlendMode())
+		return t
+	end
 	local tab = CreateFrame("Button", "GarrisonMissionFrameTab3", GarrisonMissionFrame, "GarrisonMissionFrameTabTemplate", 1)
 	tab:SetPoint("LEFT", GarrisonMissionFrameTab1, "RIGHT", -5, 0)
+	tab.Pulse = tab:CreateAnimationGroup() do
+		local ag = tab.Pulse
+		ag:SetLooping("BOUNCE")
+		tab.p1, tab.p2, tab.p3 = clone(tab, "LeftHighlight"), clone(tab, "RightHighlight"), clone(tab, "MiddleHighlight")
+		local t = tab:CreateTexture(nil, "BACKGROUND", nil, 1)
+		t:SetPoint("TOPLEFT", tab.p3, "TOPLEFT", -16, -1)
+		t:SetPoint("BOTTOMRIGHT", tab.p3, "BOTTOMRIGHT", 6, 12)
+		t:SetTexture("Interface\\Buttons\\UI-ListBox-Highlight")
+		t:SetBlendMode("ADD")
+		t:SetTexCoord(16/128, 112/128, 0, 1)
+		tab.p4 = t
+		for i=1,4 do
+			local ap = ag:CreateAnimation("Alpha")
+			ap:SetDuration(1.25)
+			ap:SetFromAlpha(0)
+			ap:SetToAlpha(i == 4 and 0.20 or 0.5)
+			ap:SetChildKey("p" .. i)
+		end
+		ag:Play()
+		ag:SetScript("OnStop", function()
+			for i=1,4 do
+				tab["p" .. i]:SetAlpha(0)
+			end
+		end)
+	end
+	
 	GarrisonMissionFrameTab2:SetPoint("LEFT", tab, "RIGHT", -5, 0)
 	PanelTemplates_DeselectTab(tab)
 	local function ResizeTabs()
 		PanelTemplates_TabResize(tab, 10)
 		PanelTemplates_TabResize(GarrisonMissionFrameTab1, 10)
 	end
+	local updateFlag
 	local function updateMissionTabs()
-		tab:SetFormattedText(L"Active Missions (%d)", #GarrisonMissionFrameMissions.inProgressMissions)
+		updateFlag = nil
+		local cm = GarrisonMissionFrame.MissionComplete.completeMissions
+		tab:SetFormattedText(L"Active Missions (%d)", math.max(#GarrisonMissionFrameMissions.inProgressMissions, cm and #cm or 0))
 		GarrisonMissionFrameTab1:SetFormattedText(L"Available Missions (%d)", #GarrisonMissionFrameMissions.availableMissions)
 		ResizeTabs()
 		C_Timer.After(0, ResizeTabs)
-		if #GarrisonMissionFrameMissions.inProgressMissions == 0 then
+		if #GarrisonMissionFrameMissions.inProgressMissions == 0 and (cm and #cm or 0) == 0 then
 			PanelTemplates_SetDisabledTabState(tab)
 		elseif GarrisonMissionFrame.selectedTab == 3 then
 			PanelTemplates_SelectTab(tab)
@@ -243,7 +291,13 @@ do -- Missions tab split
 		if T.InProgressUI then
 			T.InProgressUI:SetShown(GarrisonMissionFrame.selectedTab == 3)
 		end
+		if GarrisonMissionFrame.selectedTab == 3 or #C_Garrison.GetCompleteMissions() == 0 then
+			tab.Pulse:Stop()
+		else
+			tab.Pulse:Play()
+		end
 	end
+	T.UpdateMissionTabs = updateMissionTabs
 	hooksecurefunc("GarrisonMissionList_UpdateMissions", updateMissionTabs)
 	hooksecurefunc("PanelTemplates_UpdateTabs", function(frame)
 		if frame == GarrisonMissionFrame then
@@ -262,7 +316,6 @@ do -- Missions tab split
 		if GarrisonMissionFrame.selectedTab ~= 1 and GarrisonMissionFrame.selectedTab ~= 3 then
 			GarrisonMissionFrame_SelectTab(1)
 		end
-		GarrisonMissionList_SetTab(GarrisonMissionFrameMissionsTab2)
 		PanelTemplates_SetTab(GarrisonMissionFrame, 3)
 		sortIndicator:Hide()
 		GarrisonMissionFrame_CheckCompleteMissions()
@@ -273,26 +326,15 @@ do -- Missions tab split
 		GarrisonMissionList_SetTab(GarrisonMissionFrameMissionsTab1)
 	end)
 	hooksecurefunc("GarrisonMissionList_SetTab", updateMissionTabs)
+	EV.RegisterEvent("GARRISON_MISSION_FINISHED", function()
+		if GarrisonMissionFrame:IsVisible() and not updateFlag and GarrisonMissionFrame.selectedTab ~= 3 then
+			updateFlag = true
+			C_Timer.After(0, updateMissionTabs)
+			PlaySound("UI_Garrison_Toast_MissionComplete")
+		end
+	end)
 end
 
-local landingSort do
-	local order = {}
-	local function cmp(a,b)
-		if a.timeLeft == b.timeLeft and ("/" .. a.timeLeft .. "/"):match("%D0%D") then
-			if a.level ~= b.level then return a.level > b.level end
-			return strcmputf8i(a.name, b.name) < 0
-		end
-		return (order[a.missionID] or 0) < (order[b.missionID] or 0)
-	end
-	function landingSort(t)
-		for k,v in pairs(C_Garrison.GetLandingPageItems()) do
-			if v and v.missionID then order[v.missionID] = k end
-		end
-		table.sort(t, cmp)
-		wipe(order)
-	end
-end
-hooksecurefunc(C_Garrison, "GetInProgressMissions", function(t) if t then landingSort(t) end end)
 local significantRewardsRank = {[false]="xp", [true]="threats", resource="resources"}
 do -- Garrison_SortMissions
 	local origSort, used, cinfo, finfo = Garrison_SortMissions, {}
@@ -330,7 +372,7 @@ do -- Garrison_SortMissions
 		wipe(used)
 		return ret < 0 and -1 or 0
 	end
-	local fields = {threats=1, resources=3, xp="totalXP"}
+	local fields = {threats=1, resources=3, xp="equivXP"}
 	function Garrison_SortMissions(missions, ...)
 		local order, ml = sortIndicator.value, GarrisonMissionFrame.MissionTab.MissionList
 		if ml.showInProgress or missions ~= ml.availableMissions or not GarrisonMissionFrame:IsShown() then
@@ -351,7 +393,7 @@ do -- Garrison_SortMissions
 				g2 = g2 and g2[1] or g
 				if g2 then G.AnnotateMissionParty(g2, nil, mi) end
 				mi.ord = g and g[field] or -math.huge
-				mi.successChance, mi.successChance2, mi.timeToParty2 = g and g[1] or 0, g2 and g2[1] or 0, g2 and g2.earliestDeparture
+				mi.successChance, mi.successChance2, mi.timeOfParty2 = g and g[1] or 0, g2 and g2[1] or 0, g2 and g2.earliestDeparture
 			end
 			if order == "duration" then
 				for i=1, #missions do
@@ -609,6 +651,12 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 			else
 				buttons[i].Status:SetText(status)
 			end
+			if status == "" and fi.level == 100 then
+				local _weaponItemID, weaponItemLevel, _armorItemID, armorItemLevel = C_Garrison.GetFollowerItems(fi.followerID)
+				if weaponItemLevel ~= armorItemLevel then
+					buttons[i].ILevel:SetText(ITEM_LEVEL_ABBR .. " " .. fi.iLevel .. " (" .. weaponItemLevel .. "/" .. armorItemLevel .. ")")
+				end
+			end
 		end
 	end
 end)
@@ -654,29 +702,43 @@ local lfgButton, GetSuggestedGroups do
 	ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking28")
 	ico:SetAllPoints()
 	lfgButton:SetPoint("TOPRIGHT", GarrisonMissionFrame.MissionTab.MissionPage.Stage, "TOPRIGHT", -6, -25)
-	local curIco, nextSwap, overTime = 28, 0.08, 0
+	local curIco, nextSwap, overTime, overTimeState = 28, 0.08, 0
 	lfgButton:SetScript("OnUpdate", function(self, elapsed)
-		local goal, over = easyDrop:IsOpen(self) and 17 or 28, self:IsMouseOver()
-		if curIco ~= goal or (goal ~= 17 and over) then
-			nextSwap = nextSwap - elapsed
-		end
-		if over then
+		local goal, isOver
+		if easyDrop:IsOpen(self) then
+			goal, isOver = 17, self:IsMouseOver() or (DropDownList1:IsVisible() and DropDownList1:IsMouseOver(4,-4,-4,4))
+			if isOver ~= overTimeState then overTimeState, overTime = isOver, 0 end
 			overTime = overTime + elapsed
+			if not overTimeState and self.clickOpen == "hover" and overTime > 0.20 then
+				CloseDropDownMenus()
+				self.clickOpen = false
+			end
 		else
-			overTime = 0
+			goal, isOver = 28, self:IsMouseOver()
+			if isOver ~= overTimeState then
+				overTimeState, overTime = isOver, 0
+				if overTimeState == false and self.clickOpen then
+					self.clickOpen = false
+				end
+			end
+			overTime = overTime + elapsed
+			if overTimeState and overTime > 0.15 and not easyDrop:IsOpen(self) and not self.clickOpen then
+				self:Click()
+				self.clickOpen = "hover"
+			end
 		end
-		if nextSwap < 0 then
-			curIco, nextSwap = (curIco + 1) % 29, 0.08
-			local curIco = curIco > 4 and curIco < 9 and (8-curIco) or (curIco == 16 and 15) or curIco
-			ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking" .. curIco)
-		end
-		if overTime > 1 and curIco == 16 and not easyDrop:IsOpen(self) then
-			self:Click()
-			overTime = 0
+		if curIco ~= goal or (goal ~= 17 and overTimeState) then
+			if nextSwap < elapsed then
+				curIco, nextSwap = (curIco + 1) % 29, 0.08
+				local curIco = curIco > 4 and curIco < 9 and (8-curIco) or (curIco == 16 and 15) or curIco
+				ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking" .. curIco)
+			else
+				nextSwap = nextSwap - elapsed
+			end
 		end
 	end)
 	lfgButton:SetScript("OnHide", function(self)
-		curIco, nextSwap = 28, 0.08
+		curIco, nextSwap, self.clickOpen = 28, 0.08
 		ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking28")
 		if easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
@@ -689,6 +751,13 @@ local lfgButton, GetSuggestedGroups do
 			GarrisonMissionPage_AddFollower(group[4+i])
 		end
 	end
+	local function SecondsToTime(sec)
+		local m, s, out = (sec % 3600) / 60, sec % 60
+		if sec >= 3600 then out = HOUR_ONELETTER_ABBR:format(sec/3600) end
+		if m > 0 then out = (out and out .. " " or "") .. MINUTE_ONELETTER_ABBR:format(m) end
+		if s > 0 then out = (out and out .. " " or "") .. SECOND_ONELETTER_ABBR:format(s) end
+		return out or ""
+	end
 	local function addToMenu(mm, groups, mi, finfo, base)
 		local ml = G.GetFMLevel(mi)
 		for i=1,#groups do
@@ -697,10 +766,13 @@ local lfgButton, GetSuggestedGroups do
 				tg = (i > 1 and tg .. "|n" or "") .. G.GetFollowerLevelDescription(gi[4+i], ml, finfo[gi[4+i]])
 			end
 			G.AnnotateMissionParty(gi, finfo, mi)
-			if gi.totalXP and gi.totalXP > 0 then
-				tg = tg .. "|n" .. (L"+%s experience expected"):format(BreakUpLargeNumbers(floor(gi.totalXP)))
+			local text = gi[1] .. "%"
+			if gi.expectedXP and gi.expectedXP > 0 then
+				local exp = BreakUpLargeNumbers(floor(gi.expectedXP))
+				text, tg = text .. "; " .. (L"%s XP"):format(exp), tg .. "|n" .. (L"+%s experience expected"):format(exp)
 			end
-			mm[#mm+1] = { text = gi[1] .. "%; " .. SecondsToTime(gi[4]), notCheckable=true, tooltipText=tg, tooltipTitle=NORMAL_FONT_COLOR_CODE .. (L"Group %d"):format((base or 0) + i), tooltipOnButton=true, func=SetGroup, arg1=gi, arg2=mi}
+			text = text .. "; " .. SecondsToTime(gi[4])
+			mm[#mm+1] = { text = text, notCheckable=true, tooltipText=tg, tooltipTitle=NORMAL_FONT_COLOR_CODE .. (L"Group %d"):format((base or 0) + i), tooltipOnButton=true, func=SetGroup, arg1=gi, arg2=mi}
 		end
 	end
 	local function extend(g, mi, f1, f2, f3)
@@ -721,8 +793,13 @@ local lfgButton, GetSuggestedGroups do
 	end
 	function GetSuggestedGroups(mi, rank, onlyBackfill, f1, f2, f3)
 		local mm, finfo = {}, G.GetFollowerInfo()
-		local sg = not onlyBackfill and G.GetFilteredMissionGroups(mi, G.GroupFilter.IDLE, rank, 3)
-		sg = extend(sg, mi)
+		local sg
+		if not onlyBackfill then
+			sg = G.GetFilteredMissionGroups(mi, G.GroupFilter.IDLE, rank, 3)
+			sg = extend(sg, mi)
+		elseif (f1 and 1 or 0) + (f2 and 1 or 0) + (f3 and 1 or 0) == mi.numFollowers then
+			sg = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, rank, 1, f1, f2, f3)
+		end
 		if sg and #sg > 0 then
 			mm[1] = {text=L"Suggested groups", isTitle=true, notCheckable=true}
 			addToMenu(mm, sg, mi, finfo)
@@ -739,10 +816,12 @@ local lfgButton, GetSuggestedGroups do
 		return mm
 	end
 	lfgButton:SetScript("OnClick", function(self)
-		if easyDrop:IsOpen(self) then
+		if easyDrop:IsOpen(self) and (not overTimeState or overTime > 0.85 or self.clickOpen ~= "hover") then
+			self.clickOpen = true
 			CloseDropDownMenus()
 			return
 		end
+		self.clickOpen = true
 
 		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
 		local ff = GarrisonMissionFrame.MissionTab.MissionPage.Followers
@@ -823,7 +902,7 @@ do -- Minimize mission
 		end
 		G.PushFollowerPartyStatus(info.followerID)
 	end)
-	hooksecurefunc("GarrisonMissionPage_SetPartySize", function()
+	hooksecurefunc("GarrisonMissionPage_SetEnemies", function()
 		local mp = GarrisonMissionFrame.MissionTab.MissionPage
 		local info = mp.missionInfo
 		local f1, f2, f3 = MasterPlan:GetMissionParty(info.missionID)
@@ -833,11 +912,11 @@ do -- Minimize mission
 				return
 			end
 		end
+		if not f2 then
+			f2, f3 = f3
+		end
 		if not f1 then
 			f1, f2, f3 = f2, f3
-			if not f1 then
-				f1, f2 = f2
-			end
 		end
 
 		GarrisonMissionFrame.followerCounters = C_Garrison.GetBuffedFollowersForMission(info.missionID)
@@ -849,6 +928,7 @@ do -- Minimize mission
 			end
 			f1, f2, f3 = f2, f3, f1
 		end
+		GarrisonMissionFrame.MissionTab.MissionPage.RewardsFrame.ChanceGlowAnim:Stop()
 		shortcut = false
 	end)
 	EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", function()
@@ -902,12 +982,16 @@ local threatListMT = {} do
 				GameTooltip:AddLine(self.info.name)
 				GameTooltip:Show()
 			else
-				for i=1,#menu do
-					menu[i].func = menu[i].func and OpenMission
-				end
-				openFollowers, menu[1].text = self, self.info.name
-				easyDrop:Open(self, menu, "TOP", self, "BOTTOM", 0, -2)
-				self:SetScript("OnUpdate", OnUpdate)
+				C_Timer.After(0.1, function()
+					if self:IsMouseOver() then
+						for i=1,#menu do
+							menu[i].func = menu[i].func and OpenMission
+						end
+						openFollowers, menu[1].text = self, self.info.name
+						easyDrop:Open(self, menu, "TOP", self, "BOTTOM", 0, -2)
+						self:SetScript("OnUpdate", OnUpdate)
+					end
+				end)
 			end
 		else
 			GarrisonMissionMechanicTooltip.missionLevel = self.missionLevel
@@ -951,8 +1035,10 @@ end
 local function createProjectionFrame(parent)
 	local r = CreateFrame("Frame", nil, parent)
 	r:SetSize(50, 16)
-	r.Text = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightOutline")
+	r.Text = r:CreateFontString(nil, "ARTWORK")
+	r.Text:SetFont(GameFontNormalOutline:GetFont(), 11, "OUTLINE")
 	r.Text:SetPoint("BOTTOM")
+	r.Text:SetSize(80, 10)
 	return r
 end
 hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRewards)
@@ -985,7 +1071,7 @@ hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRe
 		self.Projections:SetSize(1,1)
 		for i=1,3 do
 			self.Projections[i] = createProjectionFrame(self.Projections)
-			self.Projections[i]:SetPoint("BOTTOM", i > 0 and self.Projections[i-1] or nil, "TOP", 0, 2)
+			self.Projections[i]:SetPoint("BOTTOM", i > 0 and self.Projections[i-1] or nil, "TOP", 0, 4)
 		end
 		self.Projections[1]:SetPoint("BOTTOM")
 		self:SetScript("OnEnter", MissionButton_OnEnter)
@@ -1017,13 +1103,13 @@ hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRe
 			end
 		end
 		self.Projections:SetShown(mi.successChance ~= nil)
-		self.Projections:SetPoint("BOTTOM", self, "BOTTOMLEFT", 100, 16)
+		self.Projections:SetPoint("BOTTOM", self, "BOTTOMLEFT", 105, 16)
 		local s1, s2 = mi.successChance or 0, mi.successChance2 or 0
 		self.Projections[1].Text:SetFormattedText("|TInterface\\FriendsFrame\\StatusIcon-Online:0|t%d%%", s1)
 		if s1 < 100 and s2 > 0 and s2 ~= s1 then
-			local text = floor(s2) .. "%"
-			if mi.timeToParty2 and mi.timeToParty2 < math.huge and mi.timeToParty2 >= 0 then
-				text = ("%d:%02d"):format(mi.timeToParty2/3600, (mi.timeToParty2/60) % 60)
+			local text, tl = floor(s2) .. "%", mi.timeOfParty2 and max(0, mi.timeOfParty2 - time()) or -1
+			if tl < math.huge and tl >= 0 then
+				text = format(SecondsToTimeAbbrev(tl)) .. ": " .. text
 			end
 			self.Projections[2].Text:SetText("|TInterface\\FriendsFrame\\StatusIcon-Away:0|t" .. text)
 			self.Projections[2]:Show()
@@ -1077,27 +1163,7 @@ do -- GarrisonFollowerTooltip xp textures
 end
 do -- Projected XP rewards
 	local function MissionFollower_OnEnter(self)
-		local tip = GarrisonFollowerTooltip
-		if self.info and GarrisonFollowerTooltip:IsShown() and tip.XPBarBackground:IsShown() then
-			local mi = MISSION_PAGE_FRAME.missionInfo
-			local _, _, _, _successChance, partyBuffs, _, extraXP = C_Garrison.GetPartyMissionInfo(mi.missionID)
-			local bonus, _, base = 0, C_Garrison.GetMissionInfo(mi.missionID)
-			for k,v in pairs(mi.rewards) do
-				if v.followerXP then bonus = bonus + v.followerXP end
-			end
-			local bmul, emul = G.GetBuffsXPMultiplier(partyBuffs), G.GetFollowerXPMultiplier(self.info, G.GetFMLevel(mi))
-			base, bonus = (extraXP + base) * emul, bonus * emul * bmul
-			local toLevel, wmul = self.info.levelXP - self.info.xp, tip.XPBarBackground:GetWidth()/self.info.levelXP
-			tip.XPRewardBase:SetWidth(math.max(0.01, math.min(toLevel, base)*wmul))
-			tip.XPRewardBonus:SetWidth(math.max(0.01, math.min(toLevel-base, bonus)*wmul))
-			tip.XPRewardBonus:SetShown(bonus > 0 and toLevel > base)
-			tip.XPRewardBase:SetShown(base > 0)
-			if base > 0 then
-				local xpt = "|cff99ff00" .. BreakUpLargeNumbers(floor(base)) .. "|r"
-				if bonus > 0 then xpt = xpt .. "+|cff00bfff" .. BreakUpLargeNumbers(floor(bonus)) .. "|r" end
-				tip.XP:SetText(tip.XP:GetText() .. "|n" .. (L"Reward: %s XP"):format(xpt))
-			end
-		end
+		G.ExtendFollowerTooltipMissionRewardXP(MISSION_PAGE_FRAME.missionInfo, self.info)
 	end
 	for i=1,3 do
 		GarrisonMissionFrame.MissionTab.MissionPage.Followers[i]:HookScript("OnEnter", MissionFollower_OnEnter)
@@ -1106,7 +1172,7 @@ end
 do -- Counter-follower lists
 	local function GetCounterListText(mech, mlvl)
 		local finfo, cinfo = G.GetFollowerInfo(), G.GetCounterInfo()
-		local c, t, mlvl = cinfo[mech], ""
+		local c, t = cinfo[mech], ""
 		if c then
 			local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
 			t, mlvl = {}, mlvl or (mi and G.GetFMLevel(mi))
@@ -1118,14 +1184,33 @@ do -- Counter-follower lists
 		end
 		return t
 	end
+	local function GetTraitListText(trait, mlvl)
+		local finfo, c, cn = G.GetFollowerInfo(), {}, 1
+		for k,v in pairs(finfo) do
+			if v.isCollected and v.traits and v.traits[trait] then
+				c[cn], cn = k, cn + 1
+			end
+		end
+		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
+		local mlvl = mlvl or mi and G.GetFMLevel(mi) or 0
+		T.Garrison.sortByFollowerLevels(c, finfo)
+		for i=1,#c do
+			c[i] = T.Garrison.GetFollowerLevelDescription(c[i], mlvl, finfo[c[i]])
+		end
+		return cn > 1 and (NORMAL_FONT_COLOR_CODE .. L"Followers with this trait:" .. "|r\n" .. table.concat(c, "\n")) or ""
+	end
 	
 	local atip = GarrisonFollowerAbilityTooltip
 	atip.CounterOthers = atip:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 	atip.CounterOthers:SetJustifyH("LEFT")
-	atip.CounterOthers:SetPoint("TOPLEFT", atip.Details, "BOTTOMLEFT", -26, -16)
 	local function atip_Resize()
 		atip:SetWidth(math.max(245, 46 + atip.CounterOthers:GetStringWidth()))
 		atip.Description:SetWidth(atip:GetWidth()-245+190)
+		if atip.Details:IsShown() then
+			atip.CounterOthers:SetPoint("TOPLEFT", atip.Details, "BOTTOMLEFT", -26, -16)
+		else
+			atip.CounterOthers:SetPoint("TOPLEFT", atip.Description, "BOTTOMLEFT", 0, -8)
+		end
 		if not atip:GetTop() then
 		elseif atip.CounterOthers:GetText() ~= "" then
 			atip:SetHeight(atip:GetTop()-atip.CounterOthers:GetBottom() + 12)
@@ -1135,10 +1220,15 @@ do -- Counter-follower lists
 	end
 	hooksecurefunc("GarrisonFollowerAbilityTooltipTemplate_SetAbility", function(self, aid)
 		if self.CounterOthers then
-			local text = self.Details:IsShown() and GetCounterListText((C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid))) or ""
+			local text
+			if self.Details:IsShown() then
+				text = GetCounterListText((C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid))) or ""
+				self.CounterIcon:SetMask("")
+				self.CounterIcon:SetTexCoord(4/64,60/64,4/64,60/64)
+			else
+				text = GetTraitListText(aid) or ""
+			end
 			self.CounterOthers:SetText(text)
-			self.CounterIcon:SetMask("")
-			self.CounterIcon:SetTexCoord(4/64,60/64,4/64,60/64)
 			if text ~= "" then
 				atip_Resize() C_Timer.After(0.03, atip_Resize)
 			end
@@ -1177,414 +1267,6 @@ do -- Counter-follower lists
 	end)
 end
 
-local UpdateCompletedMissionList, lootContainer do -- Rearranged completion dialog
-	local updateMissionStatusList, displayedMissionSet
-	local bf = GarrisonMissionFrameMissions.CompleteDialog.BorderFrame
-	local bm, w, h = bf.Model, bf:GetSize()
-	bf:SetSize(w*1.10, h*1.15)
-	w, h = bf.Stage:GetSize()
-	bf.Stage:SetSize(w*1.10, h*1.15 + 1.5)
-	bm:SetWidth(320)
-	bm:SetPoint("BOTTOMLEFT", -80, 0)
-	bm.Title:ClearAllPoints()
-	bm.Title:SetPoint("TOPLEFT", bm:GetParent(), "TOPLEFT", 200, -10)
-	bm.Title:SetPoint("TOPRIGHT", bm:GetParent(), "TOPRIGHT", -50, -10)
-	bm.Title:SetText((bm.Title:GetText():gsub("%s+", " ")))
-	bf.CompleteAll = CreateFrame("Button", nil, bf, "UIPanelButtonTemplate")
-	bf.CompleteAll:SetWidth(200)
-	bf.CompleteAll:SetText(L"Complete All")
-	bf.CompleteAll:SetPoint("BOTTOM", 80, 20)
-	local function Misson_OnClick(self)
-		local mi = displayedMissionSet[self:GetID()]
-		if bf.CompleteAll:IsShown() and not (mi.succeeded or mi.failed) then
-			GarrisonMissionFrame.MissionTab.MissionList.CompleteDialog:Hide();
-			GarrisonMissionFrame.MissionComplete:Show();
-			GarrisonMissionFrame.MissionCompleteBackground:Show();
-			GarrisonMissionFrame.MissionComplete.currentIndex = 1
-			GarrisonMissionFrame.MissionComplete.completeMissions = {mi}
-			GarrisonMissionComplete_Initialize(GarrisonMissionFrame.MissionComplete.completeMissions, 1)
-			GarrisonMissionFrame.MissionComplete.NextMissionButton.returnToOverview = false
-			for i=1,#displayedMissionSet do
-				local v = displayedMissionSet[i]
-				if v ~= mi and not (v.succeeded or v.failed) then
-					GarrisonMissionFrame.MissionComplete.NextMissionButton.returnToOverview = self:GetID()
-					break
-				end
-			end
-		end
-	end
-	bf.missions = setmetatable({}, {__index=function(self, k)
-		local b = CreateFrame("Button", nil, bf, nil, k)
-		b:SetSize(485, 17) b:SetNormalFontObject(GameFontHighlight) b:SetText("!")
-		b:SetHighlightTexture("?") b:GetHighlightTexture():SetTexture(1,1,1) b:GetHighlightTexture():SetAlpha(0.15)
-		if k > 1 then b:SetPoint("TOP", self[k-1], "BOTTOM") end
-		local l, n, s, r = b:CreateFontString(nil, "ARTWORK", "GameFontGreen"), b:GetFontString(), b:CreateFontString(nil, "ARTWORK", "GameFontNormal"), b:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-		l:SetPoint("RIGHT", n, "LEFT", -2, 0)
-		n:ClearAllPoints() n:SetPoint("LEFT", 42, 0)
-		s:SetPoint("LEFT", 245, 0)
-		r:SetPoint("RIGHT", -2, 0)
-		b:SetScript("OnClick", Misson_OnClick)
-		self[k], b.level, b.status, b.rewards = b, l, s, r
-		return b
-	end})
-	bf.missions[1]:SetPoint("TOPLEFT", 240, -70)
-	bf.missions[1]:Hide()
-	bf.batch = CreateFrame("CheckButton", nil, bm, "InterfaceOptionsCheckButtonTemplate")
-	bf.batch:SetSize(16, 16)
-	bf.batch:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT", 8, 4)
-	bf.batch.Text:SetText(L"Expedited mission completion")
-	bf.batch.Text:SetFontObject(GameFontHighlightSmall)
-	bf.batch:SetScript("OnClick", function(self)
-		MasterPlan:SetBatchMissionCompletion(self:GetChecked())
-	end)
-	bf.batch:SetHitRectInsets(0,-bf.batch.Text:GetStringWidth()-6,0,0)
-	EV.RegisterEvent("MP_SETTINGS_CHANGED", function(ev, set)
-		if set == "batchMissions" or set == nil then
-			bf.batch:SetChecked(MasterPlan:GetBatchMissionCompletion())
-		end
-	end)
-	
-	bf.ViewButton:Hide()
-	local close = CreateFrame("Button", nil, bf, "UIPanelCloseButton")
-	close:SetSize(28,28) close:SetPoint("TOPRIGHT")
-	close:SetScript("OnClick", function()
-		GarrisonMissionFrameMissions.CompleteDialog:Hide()
-		GarrisonMissionList_UpdateMissions()
-	end)
-	lootContainer = CreateFrame("Frame", nil, GarrisonMissionFrameMissions.CompleteDialog.BorderFrame)
-	lootContainer:SetSize(490, 205)
-	lootContainer:SetPoint("TOPRIGHT", -40, -70)
-	lootContainer.noBagSlots = lootContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	lootContainer.noBagSlots:SetPoint("BOTTOM", bf.CompleteAll, "TOP", 0, 10)
-	lootContainer.noBagSlots:SetText(("|cffff2020%s|r|n%s"):format(L"You have no free bag slots.", L"Additional mission loot may be delivered via mail."))
-	lootContainer:SetScript("OnShow", function(self)
-		local totalFree = 0
-		for i = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-			local freeSlots, bagFamily = GetContainerNumFreeSlots(i)
-			if bagFamily == 0 then
-				totalFree = totalFree + freeSlots
-			end
-		end
-		lootContainer.noBagSlots:SetShown(totalFree == 0)
-		if self.onShowSound then
-			PlaySound(self.onShowSound)
-			self.onShowSound = nil
-		end
-	end)
-	lootContainer:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-	lootContainer:SetScript("OnEvent", function(self)
-		for i=1,#self.items do
-			local ii = self.items[i]
-			if ii.itemID and ii:IsShown() then
-				ii:SetIcon(select(10, GetItemInfo(ii.itemID)) or "Interface\\Icons\\Temp")
-			end
-		end
-		if not self:IsShown() and displayedMissionSet then
-			updateMissionStatusList(displayedMissionSet)
-		end
-	end)
-	local SetFollower do
-		local function AnimateXP(self, elapsed)
-			if self.levelUp:IsShown() then return end
-			local elapsed = self.xpGainElapsed + elapsed
-			local prog = elapsed > 0.75 and 1 or (elapsed/0.75)
-			self.xpProgressTex2:SetWidth(math.max(0.01, sin(90*prog) * self.xpGainWidth))
-			if prog == 1 then
-				self.xpGainWidth, self.xpGainElapsed = nil
-				self:SetScript("OnUpdate", nil)
-			else
-				self.xpGainElapsed = elapsed
-			end
-		end
-		function SetFollower(btn, info, award, oldQuality)
-			GarrisonMissionFrame_SetFollowerPortrait(btn, info, false)
-			if info.levelXP > info.xp and award > 0 then
-				local baseXP = info.xp - math.min(info.xp, award)
-				btn.xpProgressTex:SetWidth(math.max(0.01,46*baseXP/info.levelXP))
-				btn.xpProgressTex2:SetWidth(0.01)
-				btn.xpGainWidth, btn.xpGainElapsed = 46*math.min(info.xp - baseXP, award)/info.levelXP, 0
-				btn.xpProgressTex2:Show()
-				btn:SetScript("OnUpdate", AnimateXP)
-				btn.xpProgressTex:SetShown(baseXP > 0)
-				btn.xpProgressTex2:Show()
-			else
-				btn:SetScript("OnUpdate", nil)
-				btn.xpProgressTex:Hide()
-				btn.xpProgressTex2:Hide()
-			end
-			btn.info, btn.awardXP = info, award or 0
-			if award and award > (info.xp or 0) or (oldQuality and oldQuality ~= info.quality) then
-				lootContainer.onShowSound = "UI_Garrison_CommandTable_Follower_LevelUp"
-				btn.levelUp:Show()
-				btn.levelUp:SetAlpha(1)
-				btn.levelUp.Anim:Play()
-				btn.Level:SetFontObject(GameFontNormalSmall)
-			else
-				btn.levelUp:SetAlpha(0)
-				btn.levelUp:Hide()
-				btn.Level:SetFontObject(GameFontHighlightSmall)
-			end
-			btn:Show()
-		end
-	end
-	lootContainer.followers = {} do
-		local function FollowerButton_OnEnter(self)
-			local tip = GarrisonFollowerTooltip
-			GarrisonMissionPageFollowerFrame_OnEnter(self)
-			local data = tip.lastShownData
-			if tip.XP:IsShown() and self.awardXP and self.awardXP > 0 then
-				tip.XP:SetText(tip.XP:GetText() .. "|n|cff10ff10" .. (L"%s XP gained"):format(BreakUpLargeNumbers(self.awardXP)))
-				if tip.XPGained and data then
-					tip.XPGained:ClearAllPoints()
-					tip.XPGained:SetPoint("TOPRIGHT", tip.XPBar)
-					tip.XPGained:SetPoint("BOTTOMRIGHT", tip.XPBar)
-					tip.XPGained:SetWidth(math.max(0.01, math.min(data.xp, self.awardXP)*tip.XPBarBackground:GetWidth()/data.levelxp))
-					tip.XPGained:Show()
-				end
-			end
-		end
-		local function createFollowerButton()
-			local b = CreateFrame("Button", nil, lootContainer, "GarrisonFollowerPortraitTemplate")
-			b.levelUp = CreateFrame("Frame", nil, b, "GarrisonFollowerLevelUpTemplate")
-			b.levelUp:SetScale(0.5)
-			b.levelUp:SetPoint("BOTTOM", 0, -47)
-			b.xpProgressTex = b:CreateTexture(nil, "ARTWORK", nil, 2)
-			b.xpProgressTex:SetPoint("TOPLEFT", b.LevelBorder, "TOPLEFT", 6, -6)
-			b.xpProgressTex:SetTexture("Interface\\Buttons\\GradBlue")
-			b.xpProgressTex:SetAlpha(0.4)
-			b.xpProgressTex:SetSize(30, 12)
-			b.xpProgressTex2 = b:CreateTexture(nil, "ARTWORK", nil, 2)
-			b.xpProgressTex2:SetTexture("Interface\\Buttons\\GradBlue")
-			b.xpProgressTex2:SetAlpha(0.6)
-			b.xpProgressTex2:SetSize(30, 12)
-			b.xpProgressTex2:SetPoint("LEFT", b.xpProgressTex, "RIGHT")
-			b:SetScript("OnEnter", FollowerButton_OnEnter)
-			b:SetScript("OnLeave", GarrisonMissionPageFollowerFrame_OnLeave)
-			b:Hide()
-			return b
-		end
-		setmetatable(lootContainer.followers, {__index=function(self, k)
-			local b = createFollowerButton()
-			self[k] = b
-			return b
-		end})
-	end
-	lootContainer.items = {} do
-		local function OnEnter(self)
-			GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-			if self.itemID then
-				GameTooltip:SetItemByID(self.itemID)
-			elseif self.tooltipHeader and self.tooltipText then
-				GameTooltip:AddLine(self.tooltipHeader)
-				GameTooltip:AddLine(self.tooltipText, 1,1,1)
-			elseif self.currencyID then
-				GameTooltip:SetCurrencyByID(self.currencyID)
-			else
-				GameTooltip:Hide()
-				return
-			end
-			if self.tooltipExtra then
-				GameTooltip:AddLine(self.tooltipExtra, 1,1,1)
-			end
-			GameTooltip:Show()
-		end
-		local function OnLeave(self)
-			if GameTooltip:IsOwned(self) then
-				GameTooltip:Hide()
-			end
-		end
-		local function SetIcon(self, texture)
-			self.Icon:SetTexture(texture)
-			self.Icon:SetTexCoord(4/64, 60/64, 4/64, 60/64)
-		end
-		setmetatable(lootContainer.items, {__index=function(self, k)
-			local i = CreateFrame("Button", nil, lootContainer)
-			i:SetSize(46, 46)
-			i.Icon = i:CreateTexture(nil, "ARTWORK")
-			i.Icon:SetPoint("TOPLEFT", 3*46/64, -3*46/64)
-			i.Icon:SetPoint("BOTTOMRIGHT", -3*46/64, 3*46/64)
-			i.Border = i:CreateTexture(nil, "ARTWORK", 2)
-			i.Border:SetAllPoints()
-			i.Border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-			i.Border:SetTexCoord(12/64,52/64,12/64,52/64)
-			i.Quantity = i:CreateFontString(nil, "OVERLAY", "GameFontHighlightOutline")
-			i.Quantity:SetPoint("BOTTOMRIGHT", -3, 4)
-			i:SetScript("OnEnter", OnEnter)
-			i:SetScript("OnLeave", OnLeave)
-			self[k], i.SetIcon = i, SetIcon
-			return i
-		end})
-	end
-	function lootContainer:Layout(numTotal)
-		local perRow, baseX, baseY = 9, 0, 0
-		if numTotal <= 9 then
-			perRow, baseX, baseY = 9, 56*(9-numTotal)/2, -76
-		elseif numTotal <= 18 then
-			perRow, baseX, baseY = 6, 56, numTotal <= 12 and -64 or -32
-		elseif numTotal <= 32 then
-			perRow, baseX, baseY = 8, 32, numTotal <= 24 and -24 or 0
-		end
-		for i=1,numTotal do
-			self.followers[i]:SetPoint("TOPLEFT", baseX + ((i-1) % perRow) * 56, baseY - 64*floor((i-1)/perRow))
-		end
-		self.count = numTotal
-	end
-	
-	local function UpdateCompleteButton(isBusy, isFinished, hasLoot)
-		bf.CompleteAll:SetShown(not isBusy)
-		bf.CompleteAll:SetText(isFinished and ((lootContainer:IsShown() or not hasLoot) and L"Done" or L"View Rewards") or L"Complete Missions")
-		bf.CompleteAll.isBusy, bf.CompleteAll.isFinished = isBusy, isFinished
-	end
-	function updateMissionStatusList(completeMissions)
-		for i=1,#completeMissions do
-			local mi, mb = completeMissions[i], bf.missions[i]
-			local _, _, _, sc, _, _, _, mm = C_Garrison.GetPartyMissionInfo(mi.missionID)
-			if mi.successChance then sc = mi.successChance end
-			if mi.materialMultiplier then mm = mi.materialMultiplier end
-			mi.successChance, mi.materialMultiplier = sc, mm
-			mb:SetText(mi.name)
-			mb.level:SetFormattedText("%s[%d]", ITEM_QUALITY_COLORS[mi.isRare and 3 or 2].hex or "", mi.level)
-			local sct = sc and " (" .. floor(sc)  .. "%)" or ""
-			mb.status:SetText(mi.failed and ("|cffff2020%s%s|r"):format(L"Failed", sct) or (mi.state >= 0 or mi.succeeded) and ("|cff20ff20%s%s|r"):format(L"Success", sct) or (NORMAL_FONT_COLOR_CODE .. L"Ready" .. sct))
-			if sc and mm then
-				local rew, tail = "", ":0:0:0:0:64:64:4:60:4:60|t"
-				for k,v in pairs(mi.rewards) do
-					if v.followerXP then
-						rew = rew .. " " .. AbbreviateLargeNumbers(v.followerXP) .. " |T" .. v.icon .. tail
-					elseif v.currencyID == GARRISON_CURRENCY then
-						rew = rew .. " " .. AbbreviateLargeNumbers(floor(v.quantity * mm)) .. " |T" .. v.icon .. tail
-					elseif v.currencyID == 0 then
-						rew = rew .. " " .. GOLD_AMOUNT_TEXTURE:format(v.quantity/10000, 0, 0)
-					elseif v.itemID then
-						rew = rew .. " " .. (v.quantity > 1 and AbbreviateLargeNumbers(v.quantity) .. " |T" or "|T") .. (select(10, GetItemInfo(v.itemID)) or "Interface\\Icons\\Temp") .. tail
-					elseif v.icon then
-						rew = rew .. " " .. (v.quantity > 1 and AbbreviateLargeNumbers(v.quantity) .. " |T" or "|T") .. v.icon .. tail
-					end
-				end
-				mb.rewards:SetText(rew)
-			elseif mb.mid ~= mi.missionID then
-				mb.rewards:SetText("")
-			end
-			mb.mid, mb.info = mi.missionID, mi
-			mb:SetEnabled(not (mi.succeeded or mi.failed))
-			mb:Show()
-		end
-		for i=#completeMissions+1,#bf.missions do
-			bf.missions[i]:Hide()
-		end
-		displayedMissionSet = completeMissions
-	end
-	function UpdateCompletedMissionList(reset)
-		local self = GarrisonMissionFrame
-		self.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
-		if reset then lootContainer:Hide() end
-		updateMissionStatusList(not reset and displayedMissionSet or self.MissionComplete.completeMissions)
-		UpdateCompleteButton(false, false, false)
-	end
-	local function completionCallback(state, stack, rewards, followers)
-		updateMissionStatusList(stack)
-		UpdateCompleteButton(state == "STEP", state == "DONE", rewards and next(rewards) or followers and next(followers))
-		if state == "DONE" then
-			lootContainer.onShowSound = rewards and next(rewards) and "UI_Garrison_CommandTable_ChestUnlock_Gold_Success" or "UI_Garrison_CommandTable_ChestUnlock"
-			local fi, fn = G.GetFollowerInfo(), 1
-			for k,v in pairs(followers) do
-				SetFollower(lootContainer.followers[fn], fi[k], v.xpAward, v.oqual)
-				fn = fn + 1
-			end
-			for i=fn, #lootContainer.followers do
-				lootContainer.followers[i]:Hide()
-			end
-
-			local ni = 1
-			for k,v in pairs(rewards) do
-				local quantity, icon, tooltipHeader, tooltipText, _, tooltipExtra = v.quantity
-				if v.itemID then
-					icon, tooltipExtra = select(10, GetItemInfo(v.itemID)) or "Interface\\Icons\\Temp", v.itemID == 120205 and rewards.xp and rewards.xp.playerXP and XP_GAIN:format(BreakUpLargeNumbers(rewards.xp.playerXP)) or nil
-				elseif v.currencyID == 0 then
-					icon, tooltipHeader, tooltipText = "Interface\\Icons\\INV_Misc_Coin_02", GARRISON_REWARD_MONEY, GetMoneyString(v.quantity)
-					quantity = floor(quantity/10000)
-				elseif v.currencyID then
-					_, _, icon = GetCurrencyInfo(v.currencyID)
-				end
-				if icon then
-					local ib = lootContainer.items[ni]
-					ib:SetPoint("CENTER", lootContainer.followers[fn], "CENTER", 0, 4)
-					ib:SetIcon(icon)
-					ib.Quantity:SetText(quantity > 1 and quantity)
-					ib.itemID, ib.currencyID, ib.tooltipHeader, ib.tooltipText, ib.tooltipExtra = v.itemID, v.currencyID, tooltipHeader, tooltipText, tooltipExtra
-					ib:Show()
-					ni, fn = ni + 1, fn + 1
-				end
-			end
-			for i=ni,#lootContainer.items do
-				lootContainer.items[i]:Hide()
-			end
-			lootContainer:Layout(fn - 1)
-		end
-	end
-	bf.CompleteAll:SetScript("OnClick", function(self)
-		if (displayedMissionSet == nil or #displayedMissionSet == 0) or lootContainer:IsShown() or (self.isFinished and lootContainer.count == 0) then
-			PlaySound("UI_Garrison_CommandTable_ViewMissionReport")
-			GarrisonMissionFrameMissions.CompleteDialog:Hide()
-			GarrisonMissionList_UpdateMissions()
-		elseif self.isFinished then
-			displayedMissionSet = nil
-			for i=1,#bf.missions do
-				bf.missions[i]:Hide()
-			end
-			lootContainer:Show()
-			self:SetText(L"Done")
-		elseif IsAltKeyDown() == bf.batch:GetChecked() then
-			local ml = {}
-			for i=1,#displayedMissionSet do
-				local mi = displayedMissionSet[i]
-				if not (mi.failed or mi.succeeded) then
-					ml[#ml + 1] = mi
-				end
-			end
-			GarrisonMissionFrame.MissionComplete.completeMissions = ml
-			bf.ViewButton:Click()
-		else
-			PlaySound("UI_Garrison_CommandTable_ViewMissionReport")
-			G.CompleteMissions(displayedMissionSet, completionCallback)
-		end
-	end)
-	GarrisonMissionFrame.MissionComplete.NextMissionButton:SetScript("OnClick", function(self, ...)
-		local mi, cmi = displayedMissionSet and displayedMissionSet[self.returnToOverview], GarrisonMissionFrame.MissionComplete.currentMission
-		if self.returnToOverview == false then
-			GarrisonMissionComplete_Initialize()
-		elseif not (mi and cmi and mi.missionID == cmi.missionID) then
-			GarrisonMissionCompleteNextButton_OnClick(self, ...)
-		else
-			mi.failed, mi.succeeded = not cmi.succeeded or nil, cmi.succeeded or nil
-			GarrisonMissionComplete_Initialize()
-			GarrisonMissionFrameMissions.CompleteDialog:Show()
-			updateMissionStatusList(displayedMissionSet)
-		end
-		self.returnToOverview = nil
-	end)
-	GarrisonMissionFrame.MissionComplete.NextMissionButton:SetScript("OnHide", function(self)
-		self.returnToOverview = nil
-	end)
-end
-
-function GarrisonMissionFrame_CheckCompleteMissions(onShow)
-	local self = GarrisonMissionFrame
-	local ca = GarrisonMissionFrameMissions.CompleteDialog.BorderFrame.CompleteAll
-	if self.MissionComplete:IsShown() or lootContainer:IsVisible() or (GarrisonMissionFrameMissions.CompleteDialog:IsVisible() and (ca.isBusy or ca.isFinished or ca:IsMouseOver())) then return end
-	UpdateCompletedMissionList(true)
-	if #self.MissionComplete.completeMissions == 0 or not self:IsShown() then return end
-	self.MissionTab.MissionList.CompleteDialog.BorderFrame.Model.Summary:SetFormattedText(GARRISON_NUM_COMPLETED_MISSIONS, #self.MissionComplete.completeMissions)
-	self.MissionTab.MissionList.CompleteDialog:Show()
-	self.MissionTab.MissionList.CompleteDialog.BorderFrame.ViewButton:SetEnabled(true)
-	self.MissionTab.MissionList.CompleteDialog.BorderFrame.LoadingFrame:Hide()
-	CloseDropDownMenus()
-	if onShow then
-		GarrisonMissionFrame_SelectTab(1)
-		GarrisonMissionList_SetTab(self.MissionTab.MissionList.Tab1)
-	end
-end
-
 local function SetFollowerIgnore(_, fid, val)
 	MasterPlan:SetFollowerIgnored(fid, val)
 	GarrisonMissionFrame.FollowerList.dirtyList = true
@@ -1604,3 +1286,64 @@ hooksecurefunc(GarrisonFollowerOptionDropDown, "initialize", function(self)
 		UIDropDownMenu_AddButton(info)
 	end
 end)
+
+do -- Follower headcounts
+	local mf = GarrisonMissionFrame.MissionTab.MissionList.MaterialFrame
+	local ff, fs = CreateFrame("Frame", nil, mf), mf:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+	local ni, nw, nx, nm = 0, 0, 0, 0
+	ff:SetWidth(190) ff:SetPoint("TOPLEFT") ff:SetPoint("BOTTOMLEFT")
+	fs:SetPoint("LEFT", 16, 0)
+	ff:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+		GameTooltip:AddLine(GARRISON_FOLLOWERS_TITLE, 1,1,1)
+		if ni > 0 then
+			GameTooltip:AddLine("|cff40ff40" .. ni .. " " .. L"Idle")
+		end
+		if nx > 0 then
+			GameTooltip:AddLine("|cffc864ff" .. nx .. " " .. L"Idle (max-level)")
+		end
+		if nw > 0 then
+			GameTooltip:AddLine(nw .. " " .. GARRISON_FOLLOWER_WORKING)
+		end
+		if nm > 0 then
+			GameTooltip:AddLine("|cff80dfff" .. nm .. " " .. GARRISON_FOLLOWER_ON_MISSION)
+		end
+		GameTooltip:Show()
+	end)
+	ff:SetScript("OnLeave", function(self)
+		if GameTooltip:IsOwned(self) then
+			GameTooltip:Hide()
+		end
+	end)
+	for _, s in pairs({mf:GetRegions()}) do
+		if s:IsObjectType("FontString") and s:GetText() == GARRISON_YOUR_MATERIAL then
+			s:Hide()
+		end
+	end
+	local function sync()
+		ni, nw, nx, nm = 0, 0, 0, 0
+		for k, v in pairs(G.GetFollowerInfo()) do
+			if not v.isCollected or T.config.ignore[k] then
+			elseif v.status == GARRISON_FOLLOWER_WORKING then
+				nw = nw + 1
+			elseif v.status == GARRISON_FOLLOWER_ON_MISSION then
+				nm = nm + 1
+			elseif (v.status or "") ~= "" then
+			elseif v.level == 100 and v.quality == 4 then
+				nx = nx + 1
+			else
+				ni = ni + 1
+			end
+		end
+		local ico, spacer, t = "|TInterface\\FriendsFrame\\UI-Toast-FriendOnlineIcon:11:11:3:0:32:32:8:24:8:24:", "|TInterface\\Buttons\\UI-Quickslot2:9:9:0:0:64:64:31:32:31:32|t"
+		if ni > 0 then t = ni .. ico .. "50:255:50|t" end
+		if nx > 0 then t = (t and t .. spacer or "") .. nx .. ico .. "200:100:255|t" end
+		if nw > 0 then t = (t and t .. spacer or "") .. nw .. ico .. "255:208:0|t" end
+		if nm > 0 then t = (t and t .. spacer or "") .. nm .. ico .. "125:230:255|t" end
+		fs:SetText(t or "")
+	end
+	
+	hooksecurefunc("GarrisonMissionFrame_UpdateCurrency", sync)
+	EV.RegisterEvent("GARRISON_MISSION_NPC_OPENED", sync)
+	mf:HookScript("OnShow", sync)
+end
