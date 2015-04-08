@@ -44,6 +44,30 @@ T.SpecCounters = { nil, {1,2,7,8,10}, {1,4,7,8,10}, {1,2,7,8,10}, {6,7,9,10}, ni
 
 T.EquivTrait = {[244]=4, [250]=221, [202]=48}
 
+T.AlwaysTraits = {__index={[221]=1, [201]=1, [202]=1, [47]=1}}
+
 T.XPMissions = {[5]=1, [173]=1, [215]=1, [336]=1, [364]=1,}
 
 T.FOLLOWER_ITEM_LEVEL_CAP = 675
+T.MENTOR_FOLLOWER = ("0x%016X"):format(645)
+
+T.MissionLocationBanners = { [101]="GarrMissionLocation-FrostfireRidge", [102]="GarrMissionLocation-TannanJungle", [103]="GarrMissionLocation-Gorgrond", [104]="GarrMissionLocation-Nagrand", [105]="GarrMissionLocation-Talador", [106]="GarrMissionLocation-ShadowmoonValley", [107]="GarrMissionLocation-SpiresofArak", [164]="_GarrMissionLocation-BlackrockMountain", }
+
+T.MissionRewardSets = {
+	[118529]={
+		{118531,15,9285,9289,9294,9300,9304,9311,9315},
+		{118531,15,9284,9288,9293,9298,9303,9310,9314},
+		{118530,15,9282,9287,9292,9297,9302,9308,9313},
+	},
+	[122484]={
+		{122486,21,9319,9323,9329,9333,9338,9342,9357,9361,9365},
+		{122486,8,9289,9294,9300,9304,9311,9315},
+		{122486,21,9318,9322,9328,9332,9337,9341,9356,9360,9364},
+		{122485,21,9317,9321,9327,9331,9336,9340,9355,9359,9363},
+	},
+}
+
+T.MissionCoalescing = {
+	[118529]={4,8,12},
+	[122484]={-19,4,8},
+}

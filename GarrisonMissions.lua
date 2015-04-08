@@ -230,8 +230,16 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	end
 end)
 local function Mechanic_OnClick(self)
-	if self:IsMouseOver() then
-		T.Mechanic_OnClick(self)
+	T.Mechanic_OnClick(self)
+end
+local function Mechanic_OnEnter(self)
+	GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+	G.SetThreatTooltip(GameTooltip, self.info.icon:lower())
+	GameTooltip:Show()
+end
+local function Mechanic_OnLeave(self)
+	if GameTooltip:IsOwned(self) then
+		GameTooltip:Hide()
 	end
 end
 hooksecurefunc("GarrisonMissionPage_SetEnemies", function(enemies)
@@ -244,7 +252,10 @@ hooksecurefunc("GarrisonMissionPage_SetEnemies", function(enemies)
 				m[i].highlight:SetAllPoints()
 				m[i].highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
 				m[i].highlight:SetBlendMode("ADD")
-				m[i]:SetScript("OnMouseUp", Mechanic_OnClick)
+				m[i]:SetScript("OnClick", Mechanic_OnClick)
+
+				m[i]:SetScript("OnEnter", Mechanic_OnEnter)
+				m[i]:SetScript("OnLeave", Mechanic_OnLeave)
 			end
 			m[i].hasCounter = nil
 			m[i].Check:Hide()
@@ -424,6 +435,7 @@ do -- GarrisonFollowerTooltip xp textures
 end
 do -- Projected XP rewards
 	local function MissionFollower_OnEnter(self)
+		G.ExtendMissionInfoWithXPRewardData(MISSION_PAGE_FRAME.missionInfo, true)
 		G.ExtendFollowerTooltipMissionRewardXP(MISSION_PAGE_FRAME.missionInfo, self.info)
 	end
 	for i=1,3 do
@@ -538,7 +550,7 @@ do -- Counter-follower lists
 	end)
 	
 	GarrisonMissionMechanicTooltip:HookScript("OnShow", function(self)
-		local mech = T.Garrison.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
+		local mech = G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
 		local text = GetCounterListText(mech, self.missionLevel)
 		if text ~= "" then
 			local height, dt = self:GetHeight()-self.Description:GetHeight(), self.Description:GetText()
@@ -671,7 +683,7 @@ do -- Scary follower warning
 	local fol = GarrisonMissionFrame.MissionTab.MissionPage.Followers
 	for i=1,#fol do
 		fol[i]:HookScript("OnEnter", function(self)
-			local mi, td = MISSION_PAGE_FRAME.missionInfo, GarrisonFollowerTooltip.data
+			local mi, td = MISSION_PAGE_FRAME.missionInfo, GarrisonFollowerTooltip.lastShownData
 			if td and mi and self.info and td.underBiased and mi.level <= self.info.level and self.info.quality < 4 then
 				local ub = GarrisonFollowerTooltip.UnderBiased
 				local oh = ub:GetHeight()
