@@ -1,4 +1,4 @@
-local api, bgapi, addonName, T = {}, {}, ...
+local api, addonName, T = {}, ...
 if T.Mark ~= 16 then
 	local m = "You must restart World of Warcraft after installing this update."
 	if type(T.L) == "table" and type(T.L[m]) == "string" then m = T.L[m] end
@@ -13,7 +13,6 @@ local defaults = {
 	riskReward=1,
 	xpPerGold=0,
 	xpCapGrace=2000,
-	announceLoss=false,
 	goldRewardThreshold=2000000,
 	ignore={}
 }
@@ -21,28 +20,14 @@ local defaults = {
 local conf = setmetatable({}, {__index=defaults})
 T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 	if addon == addonName then
-		local pc
+		local pc, seen
 		if type(MasterPlanPC) == "table" then
 			pc, MasterPlanPC = MasterPlanPC
 		else
 			pc = {}
-			if type(MasterPlanConfig) == "table" then
-				for k,v in pairs(MasterPlanConfig) do
-					pc[k] = v
-				end
-			end
-			local n, r = UnitFullName("player")
-			local ckey = (r or "?") .. "#" .. n
-			if type(MasterPlanData) == "table" then
-				local cd = MasterPlanData[ckey]
-				if type(cd) == "table" then
-					pc.ignore, pc.seen, cd.__ignore = cd.__ignore, cd
-				end
-				MasterPlanData[ckey] = nil
-			end
 		end
 		
-		pc.seen = type(pc.seen) == "table" and pc.seen or {}
+		seen, pc.seen = type(pc.seen) == "table" and pc.seen or {}
 		for k,v in pairs(pc) do
 			local tv = type(v)
 			if k ~= "ignore" and k ~= "seen" and tv == type(defaults[k]) then
@@ -51,10 +36,9 @@ T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 				for k,v in pairs(v) do
 					conf.ignore[k] = v
 				end
-			elseif k == "seen" and tv == "table" then
-				T._SetMissionSeenTable(v)
 			end
 		end
+		T._SetMissionSeenTable(seen)
 		conf.version = GetAddOnMetadata(addonName, "Version")
 		T.Evie.RaiseEvent("MP_SETTINGS_CHANGED")
 		
@@ -66,8 +50,8 @@ T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
 	T._ObserveMissions()
 end)
 
-setmetatable(api, {__index=bgapi})
-bgapi.GarrisonAPI, T.config = T.Garrison, conf
+setmetatable(api, {__index={GarrisonAPI=T.Garrison}})
+T.config = conf
 
 do -- Localizer stub
 	local LL, L = type(T.L) == "table" and T.L or {}, newproxy(true)
@@ -90,9 +74,6 @@ function api:SetMissionOrder(order)
 	assert(type(order) == "string", 'Syntax: MasterPlan:SetMissionOrder("order")')
 	conf.availableMissionSort = order
 	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "availableMissionSort")
-	if GarrisonMissionFrameMissions and GarrisonMissionFrameMissions:IsShown() then
-		GarrisonMissionList_UpdateMissions()
-	end
 end
 function api:GetMissionOrder()
 	return conf.availableMissionSort
