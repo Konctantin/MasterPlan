@@ -279,7 +279,7 @@ local lfgButton do
 	local ico = lfgButton:CreateTexture(nil, "ARTWORK")
 	ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking28")
 	ico:SetAllPoints()
-	lfgButton:SetPoint("TOPRIGHT", GarrisonMissionFrame.MissionTab.MissionPage.Stage, "TOPRIGHT", -6, -25)
+	lfgButton:SetPoint("TOPRIGHT", GarrisonMissionFrame.MissionTab.MissionPage.Stage, "TOPRIGHT", -6, -28)
 	local curIco, nextSwap, overTime, overTimeState = 28, 0.08, 0
 	lfgButton:SetScript("OnUpdate", function(self, elapsed)
 		local goal, isOver
@@ -349,19 +349,19 @@ hooksecurefunc("GarrisonMissionPage_ShowMission", function()
 	end
 	sb.clearText = nil
 	local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
-	local min, max, exp = G.GetMissionSeen(mi and mi.missionID)
-	if exp and exp > 0 then
-		local text = math.max(0,exp-floor(max/3600+0.5))
-		if min - max >= 3600 and text > 0 then
-			text = math.max(0, exp-floor(min/3600+0.5)) .. "-" .. text
-		end
-		GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionSeen:SetText(L"Expires in:" .. " " .. HIGHLIGHT_FONT_COLOR_CODE .. LASTONLINE_HOURS:gsub("%%[%d$]*d", "%%s"):format(text))
+	local _, expTime = G.GetMissionSeen(mi and mi.missionID, mi)
+	if expTime ~= "" then
+		GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionSeen:SetText(L"Expires in:" .. " " .. HIGHLIGHT_FONT_COLOR_CODE .. expTime)
 	else
 		GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionSeen:SetText("")
 	end
 	lfgButton:Show()
 end)
 
+do -- Mission details close button size [6.1]
+	GarrisonMissionFrame.MissionTab.MissionPage.CloseButton:SetSize(32, 32)
+	GarrisonMissionFrame.MissionTab.MissionPage.CloseButton:SetPoint("TOPRIGHT", 2, 2)
+end
 do -- Minimize mission
 	local min = CreateFrame("Button", nil, GarrisonMissionFrame.MissionTab.MissionPage, "UIPanelCloseButton")
 	GarrisonMissionFrame.MissionTab.MissionPage.MinimizeButton = min

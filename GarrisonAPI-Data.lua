@@ -2,9 +2,9 @@ local _, T = ...
 if T.Mark ~= 23 then return end
 
 T.Affinities = {} do
-	local ht, hp = [[ ƒKİä12I^œœ|ŞÛĞ‰Œbú,ÑSŞG‘Ãœ§mÓ3€ö¿YªÆÕ²?V=;‰ÀÔê&ë£XÅÒğD	ê…™è¥”íJÊUÑwU“Ü|M‹ãeör>Î•—¡&[äÇ¡_œşíèFßâtÖ‘yÊœÍ{Áê«kh›ç[Ñß$şb£sb³«ó`°~YMHÙİ™zN©Y¸‰&YH~™d¯DÉZ>ÕŒfˆö>d©Ÿ¼‹Për6{ÌÖ*¥¾äE6ƒ„!d•µ¶r›×Ñ‰"×$ë>”Aî"Ü´¥ğ“>xZB"N!Óò!ïzú3ƒ•¾+!ÜøÄ‡I'J	"&ÔtoÒ…œíBÖ91ZPD!ò‹ß)R¢PôI“[è'ë›Èç:N='óÁi;ÃÑÔ¡#¡gyæÉ6M£Õ°î9Ø”¾){3¦“aÚr9+i„ÊˆDò&G”ãH#—ÎkÉ~4!È´¡ˆ#æ˜¥[ÖøÁ} †Ñ,aGElŠèy­p|ŞvÎ'dHHºGD$ÍJ%G¾la#¥+J·Î$bÉEÑ’B>“s#œôrĞz1u6‚È¸¢(rv¡ÏƒZtÉhbÏÊQt·Ê+„ØÃºƒœèü‹bY%¡’ØF äŒVù²'#H¦‘‚ÓDDñ›%)R$KŞÄ9g{„®i]Æ1‘ÿş×0’]], [[(((h((inq(pjgkrso(lm]]
-	local p, G, V, Vp, by, hk, ak = {}, 101, 541, 203, ht.byte, UnitFactionGroup('player') == 'Horde' and 15030 or 3110, 55683
-	for i=1,#hp do p[i] = by(hp, i) - 40 end
+	local ht, hp = [[ì:¾'00Ç¸jášĞ­C1 ç±G9uïÂ‚®°&|c{ÖÙ†Ü•wÌĞ°ÛÄÅ{O`=ç\1é‚Ş›?g«Úø«-sDê$sJ¶çşè¥>aOwÊ_Uw ár=ÀsÕíMêÌ2s½#H4\?Ñ7búËöt‚Ó]g…p¨JtWcP€ôUR%:¡÷Rî4kí9ˆ°(Î+^% F»ç:ÿÉÿjæt¯é"ÙOü“Éó¥‘'ÒŸ¡Î,ˆÓ­HOá@‘y å­é#¥tLæE!ÿ#¦šE­$\·Î/BØBûcÿı\Ñ'Ê_ûÙ#ÿK¡éJÆP§y)ôM…rNO¦nzSùPŸ?â¶8ñd‘5sŠã;ì;¡5ıÄ"è™ é\fÏ¡k"ÑõÑrgÑDîc’‚%‡_Èú}‰Dã é|–!¯…"ß£éü_5‘‰"hüƒš‰²+š^ˆEÑ$¾×ÇœœÂ/ì"6A”Ğs©¤"sÍ<š‚EçIÖgÌîAG$OÕ¥;Ï‘%>†?óû¢˜‹JÓ%°ëd^é’GBt¹­M>Ç/ìwİù.dVsüXµĞMöQsGŞê1ĞüsÈ‰úh˜Eò$	ùŒsQÅ’D“ÿZ!óœrüÏO¦Oz%A1„`Çµ‘¡VE½sdcÉË[šy“åY·Åçù%$qrI/‘ğtå’o'ş‡$„ÎÂHæ1¹—ì‘‡èOÙóRƒçC¥Ñƒáù'ëÿÿÿÿç]], [[((­h®¯inp(qj¬krgolms]]
+	local p, G, V, Vp, by, hk, ak = {}, 79, 673, 159, ht.byte, UnitFactionGroup('player') == 'Horde' and 12131 or 53327, 47122
+	for i=1,#hp do p[i] = by(hp, i) p[i] = p[i] + (p[i] > 128 and 80 or -40) end
 	setmetatable(T.Affinities, {__index=function(t, k)
 		local k, c, a, v, r, b, d, e = k or false, k, type(k)
 		if a == "string" then
@@ -27,7 +27,7 @@ end
 
 T.MissionExpire = {} do
 	local expire = T.MissionExpire
-	for n, r in ("000210611621id2e56516c16o17i0:0ga6b:0o2103rz4rz5r86136716e26q37ji9549eja23ai1al3aqg:102zd3h86vm82mak0ap0:1y9a39y3:20050100190:9b8pfb7a"):gmatch("(%w%w)(%w+)") do
+	for n, r in ("000210611621id2e56516c16o17i0:0ga6b:0o2103rz4rz5r86136716e26q37ji9549eja23ai0am1aq4ax0b40cq0dcedx1:102zd3h86vm82maj2ao1av1ay5b51bicc0dczcdr1dz0:1y9a39y3dt3:20050100190cr7:9b8pfb7abv3ceb"):gmatch("(%w%w)(%w+)") do
 		local n = tonumber(n, 36)
 		for s, l in r:gmatch("(%w%w)(%w)") do
 			local s = tonumber(s, 36)
@@ -42,6 +42,6 @@ T.EnvironmentCounters = {[11]=4, [12]=38, [13]=42, [14]=43, [15]=37, [16]=36, [1
 
 T.SpecCounters = { nil, {1,2,7,8,10}, {1,4,7,8,10}, {1,2,7,8,10}, {6,7,9,10}, nil, {1,2,6,10}, {1,2,6,9}, {3,4,7,9}, {1,6,7,9,10}, nil, {6,7,8,9,10}, {2,6,7,9,10}, {6,8,9,10}, {6,7,8,9,10}, {2,7,8,9,10}, {1,2,3,6,9}, {3,4,6,8}, {1,6,8,9,10}, {3,4,8,9}, {1,2,4,8,9}, {2,7,8,9,10}, {3,4,6,9}, {3,4,6,7}, {4,6,7,9,10}, {2,6,8,9,10}, {6,7,8,9,10}, {2,6,7,8,9}, {3,7,8,9,10}, {3,6,7,9,10}, {3,4,7,8}, {4,7,8,9,10}, {2,7,8,10,10}, {3,8,9,10,10}, {1,6,7,8,10}, nil, {2,6,7,8,10}, {1,2,6,7,8} }
 
-T.EquivTrait = {[244]=4, }
+T.EquivTrait = {[244]=4, [250]=221}
 
 T.XPMissions = {[5]=1, [173]=1, [215]=1, [336]=1, [364]=1,}

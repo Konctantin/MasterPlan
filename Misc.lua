@@ -2,7 +2,7 @@ local _, T = ...
 if T.Mark ~= 23 then return end
 local L = T.L
 
-do -- trait books tooltip warning
+if select(4,GetBuildInfo()) < 60100 then -- trait books tooltip warning
 	local function OnItem(self)
 		local _, link = self:GetItem()
 		local id = link and link:match("item:(%d+)")
