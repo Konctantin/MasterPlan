@@ -127,9 +127,19 @@ function api.GetFollowerLevelDescription(fid, mlvl, finfo)
 	end
 	return ("%s[%d]|r %s%s|r%s"):format(lc, finfo.level < 100 and finfo.level or finfo.iLevel, HIGHLIGHT_FONT_COLOR_CODE, finfo.name, away)
 end
+function api.GetNumIdleCombatFollowers(followers)
+	local ret = 0
+	for k,v in pairs(followers or api.GetFollowerInfo()) do
+		if v.isCollected and (v.status == nil or v.status == GARRISON_FOLLOWER_IN_PARTY) then
+			ret = ret + 1
+		end
+	end
+	return ret
+end
 
 do -- CompleteMissions/AbortCompleteMissions
 	local curStack, curRewards, curFollowers, curCallback
+	local curSalvage = {[114120]=0, [114119]=0, [114116]=0}
 	local curState, curIndex, completionStep, lastAction, delayIndex, delayMID
 	local delayOpen, delayRoll, delayStep do
 		local function delay(state, f, d)
@@ -154,6 +164,17 @@ do -- CompleteMissions/AbortCompleteMissions
 			completionStep("GARRISON_MISSION_NPC_OPENED")
 		end
 	end
+	local function checkSalvage(addRewards)
+		for k,v in pairs(curSalvage) do
+			local nv = GetItemCount(k) or 0
+			if addRewards and nv > v then
+				local ik = "item:" .. k
+				curRewards[ik] = curRewards[ik] or {itemID=k, quantity=0}
+				curRewards[ik].quantity = curRewards[ik].quantity + nv - v
+			end
+			curSalvage[k] = nv
+		end
+	end
 	function completionStep(ev, ...)
 		if not curState then return end
 		local mi = curStack[curIndex]
@@ -161,6 +182,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			mi, curIndex = curStack[curIndex+1], curIndex + 1
 		end
 		if (ev == "GARRISON_MISSION_NPC_CLOSED" and mi) or not mi then
+			checkSalvage(true)
 			securecall(curCallback, mi and "ABORT" or "DONE", curStack, curRewards, curFollowers)
 			curState, curStack, curRewards, curFollowers, curIndex, curCallback, delayMID, delayIndex = nil
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
@@ -214,16 +236,6 @@ do -- CompleteMissions/AbortCompleteMissions
 			securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
 		end
 	end
-	local function lootEvent(event, msg)
-		if curState then
-			local id = msg:match("item:(%d+)")
-			if id == "114120" or id == "114119" or id == "114116" then
-				local ik = "item:" .. id
-				curRewards[ik] = curRewards[ik] or {itemID=tonumber(id), quantity=0}
-				curRewards[ik].quantity = (curRewards[ik].quantity or 0) + 1
-			end
-		end
-	end
 	EV.RegisterEvent("GARRISON_FOLLOWER_XP_CHANGED", function(ev, fid, xpAward, oldXP, olvl, oqual)
 		if curState then
 			curFollowers[fid] = curFollowers[fid] or {olvl=olvl, oqual=oqual, xpAward=0, oxp=oldXP}
@@ -234,10 +246,9 @@ do -- CompleteMissions/AbortCompleteMissions
 	EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", completionStep)
 	EV.RegisterEvent("GARRISON_MISSION_BONUS_ROLL_COMPLETE", completionStep)
 	EV.RegisterEvent("GARRISON_MISSION_COMPLETE_RESPONSE", completionStep)
-	EV.RegisterEvent("CHAT_MSG_LOOT", lootEvent)
 	function api.CompleteMissions(stack, callback)
 		curStack, curCallback, curRewards, curFollowers = stack, callback, {}, {}
-		curState, curIndex = "NEXT", 1
+		curState, curIndex = "NEXT", 1, checkSalvage(false)
 		completionStep("GARRISON_MISSION_NPC_OPENED", "IMMEDIATE")
 	end
 	function api.AbortCompleteMissions()

@@ -33,7 +33,7 @@ local function countFreeFollowers(f, finfo)
 	return ret
 end
 
-setmetatable(icons, {__index=function(self, k)
+GarrisonMissionFrame.FollowerTab.threatIcons = setmetatable(icons, {__index=function(self, k)
 	local f = CreateFrame("Button", nil, GarrisonMissionFrame.FollowerTab, "GarrisonAbilityCounterTemplate")
 	f:SetNormalFontObject(GameFontHighlightOutline) f:SetText("0")
 	f.Count = f:GetFontString()
@@ -64,7 +64,7 @@ local function syncTotals()
 		end
 	end
 	for k, f in pairs(cinfo) do
-		if k > 10 then
+		if k > 10 and i < 19 then
 			local ico, _, name, tex = icons[i], T.Garrison.GetMechanicInfo(k)
 			ico.Icon:SetTexture(tex)
 			ico.Count:SetText(countFreeFollowers(f, finfo))
