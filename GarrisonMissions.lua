@@ -112,7 +112,7 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 			self[i].followerID = f
 		end
 		if changed and GarrisonMissionFrame:IsVisible() and GarrisonMissionFrame.selectedTab == 1 then
-			GarrisonMissionList_Update()
+			GarrisonMissionList_UpdateMissions()
 		end
 	end
 	function roamingParty:Clear()
@@ -130,7 +130,8 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 			end
 			PlaySound(follower and "UI_Garrison_CommandTable_AssignFollower" or "UI_Garrison_CommandTable_UnassignFollower")
 			roamingParty[slot].followerID = follower
-			GarrisonMissionList_Update()
+			roamingParty:Update()
+			GarrisonMissionList_UpdateMissions()
 		end
 	end
 	local function cmp(a,b)
@@ -426,7 +427,8 @@ do -- Garrison_SortMissions
 		if (not MISSION_PAGE_FRAME.missionInfo.missionID) then
 			return
 		end
-		C_Garrison.StartMission(MISSION_PAGE_FRAME.missionInfo.missionID)
+		G.StartMission(MISSION_PAGE_FRAME.missionInfo.missionID)
+		roamingParty:Clear()
 		PlaySound("UI_Garrison_CommandTable_MissionStart")
 		GarrisonMissionPage_Close()
 		if (not GetCVarBitfield("closedInfoFrames", LE_FRAME_TUTORIAL_GARRISON_LANDING)) then
@@ -776,19 +778,31 @@ local lfgButton, GetSuggestedGroups do
 		return out or ""
 	end
 	local function addToMenu(mm, groups, mi, finfo, base)
-		local ml = G.GetFMLevel(mi)
+		local ml, primary = G.GetFMLevel(mi), mi._primaryGoal or select(2, G.GetMissionDefaultGroupRank(mi))
+		mi._primaryGoal = primary
+		
 		for i=1,#groups do
 			local gi, tg = groups[i]
 			for i=1,mi.numFollowers do
 				tg = (i > 1 and tg .. "|n" or "") .. G.GetFollowerLevelDescription(gi[4+i], ml, finfo[gi[4+i]])
 			end
 			G.AnnotateMissionParty(gi, finfo, mi)
-			local text = gi[1] .. "%"
+			local sc, xp, res, text = gi[1] .. "%"
 			if gi.expectedXP and gi.expectedXP > 0 then
 				local exp = BreakUpLargeNumbers(floor(gi.expectedXP))
-				text, tg = text .. "; " .. (L"%s XP"):format(exp), tg .. "|n" .. (L"+%s experience expected"):format(exp)
+				xp = (L"%s XP"):format(exp)
+				tg = tg .. "|n" .. (L"+%s experience expected"):format(exp)
+			end
+			if gi[1] and gi[1] > 0 and gi[3] and gi[3] > 0 then
+				res = floor(gi[1]*gi[3]/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:20:20:0:-2:128:128:12:52:12:52|t"
+			end
+			if (primary == "xp" and xp) or (primary == "resources" and res) then
+				text = (primary == "xp" and xp or res) .. "; " .. sc .. (primary == "resources" and xp and "; " .. xp or "")
+			else
+				text = sc .. (xp and "; " .. xp or "")
 			end
 			text = text .. "; " .. SecondsToTime(gi[4])
+			
 			mm[#mm+1] = { text = text, notCheckable=true, tooltipText=tg, tooltipTitle=NORMAL_FONT_COLOR_CODE .. (L"Group %d"):format((base or 0) + i), tooltipOnButton=true, func=SetGroup, arg1=gi, arg2=mi}
 		end
 	end

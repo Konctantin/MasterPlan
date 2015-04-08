@@ -102,7 +102,7 @@ local dropFollowers = {} do -- Start/Available capture
 			end
 		end
 	end)
-	hooksecurefunc(C_Garrison, "StartMission", function(id)
+	function api.StartMission(id)
 		local t = C_Garrison.GetAvailableMissions()
 		for i=1,#t do
 			if t[i].missionID == id then
@@ -113,7 +113,8 @@ local dropFollowers = {} do -- Start/Available capture
 			end
 		end
 		complete[id] = it
-	end)
+		C_Garrison.StartMission(id)
+	end
 	EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", function()
 		wipe(complete)
 		wipe(dropFollowers)
@@ -494,9 +495,7 @@ do -- GetMissionSeen
 		if type(t) == "table" then
 			dt, lt = {}, type(t) == "table" and type(t.__time) == "number" and t.__time or 0
 			for k,v in pairs(t) do
-				if type(k) == "number" and type(v) == "number" then
-					dt[k] = v
-				end
+				dt[k] = v
 			end
 		end
 	end
@@ -867,7 +866,8 @@ api.GroupRank, api.GroupFilter = {}, {} do
 end
 function api.GetMissionDefaultGroupRank(mi)
 	local rew = api.HasSignificantRewards(mi)
-	return api.GroupRank[rew == false and "xp" or rew == "resource" and "resources" or "threats"]
+	local key = rew == false and "xp" or rew == "resource" and "resources" or "threats"
+	return api.GroupRank[key], key
 end
 function api.GroupFilter.IDLE(res, finfo, minfo)
 	local mid = minfo.missionID

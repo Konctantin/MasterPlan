@@ -15,8 +15,7 @@ local defaults = {
 	xpCapGrace=2000,
 	announceLoss=false,
 	goldRewardThreshold=2000000,
-	ignore={},
-	version="0.16",
+	ignore={}
 }
 
 local conf = setmetatable({}, {__index=defaults})
@@ -43,6 +42,7 @@ T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 			end
 		end
 		
+		pc.seen = type(pc.seen) == "table" and pc.seen or {}
 		for k,v in pairs(pc) do
 			local tv = type(v)
 			if k ~= "ignore" and k ~= "seen" and tv == type(defaults[k]) then
@@ -55,15 +55,14 @@ T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 				T._SetMissionSeenTable(v)
 			end
 		end
-		conf.version = defaults.version
+		conf.version = GetAddOnMetadata(addonName, "Version")
 		T.Evie.RaiseEvent("MP_SETTINGS_CHANGED")
 		
 		return "remove"
 	end
 end)
 T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
-	MasterPlanPC = conf
-	conf.seen, conf.ignore = T._GetMissionSeenTable(), next(conf.ignore) and conf.ignore
+	MasterPlanPC, conf.seen, conf.ignore = conf, securecall(T._GetMissionSeenTable) or conf.seen, next(conf.ignore) and conf.ignore
 	T._ObserveMissions()
 end)
 
