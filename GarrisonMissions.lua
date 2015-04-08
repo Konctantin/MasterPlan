@@ -29,9 +29,26 @@ GarrisonMissionFrameTab1:SetText("Available Missions")
 tab:SetPoint("LEFT", GarrisonMissionFrameTab1, "RIGHT", -5, 0)
 GarrisonMissionFrameTab2:SetPoint("LEFT", tab, "RIGHT", -5, 0)
 PanelTemplates_DeselectTab(tab)
+local function updateMissionCounts(useCachedData)
+	if not useCachedData then
+		C_Garrison.GetAvailableMissions(GarrisonMissionFrameMissions.availableMissions)
+		C_Garrison.GetInProgressMissions(GarrisonMissionFrameMissions.inProgressMissions)
+	end
+	tab:SetFormattedText("Active Missions (%d)", #GarrisonMissionFrameMissions.inProgressMissions)
+	GarrisonMissionFrameTab1:SetFormattedText("Available Missions (%d)", #GarrisonMissionFrameMissions.availableMissions)
+	PanelTemplates_TabResize(tab, 10)
+	PanelTemplates_TabResize(GarrisonMissionFrameTab1, 10)
+	if #GarrisonMissionFrameMissions.inProgressMissions == 0 then
+		PanelTemplates_SetDisabledTabState(tab)
+	else
+		(GarrisonMissionFrame.selectedTab == 3 and PanelTemplates_SelectTab or PanelTemplates_DeselectTab)(tab)
+	end
+end
+hooksecurefunc("GarrisonMissionList_UpdateMissions", function() updateMissionCounts(true) end)
 hooksecurefunc("PanelTemplates_UpdateTabs", function(frame)
 	if frame == GarrisonMissionFrame then
-		if tab.isDisabled then
+		updateMissionCounts()
+		if #GarrisonMissionFrameMissions.inProgressMissions == 0 then
 			PanelTemplates_SetDisabledTabState(tab)
 		else
 			(frame.selectedTab == 3 and PanelTemplates_SelectTab or PanelTemplates_DeselectTab)(tab)
@@ -43,7 +60,7 @@ GarrisonMissionFrameTab1:SetScript("OnClick", function()
 	GarrisonMissionFrameMissionsTab1:Click()
 end)
 hooksecurefunc("GarrisonMissionList_SetTab", function(id)
-	(id == 2 and PanelTemplates_SelectTab or PanelTemplates_DeselectTab)(tab)
+	PanelTemplates_UpdateTabs(GarrisonMissionFrame)
 end)
 
 local remainingTimeSort do
@@ -89,8 +106,10 @@ local mitigatedThreatSort do
 		for i=1,#threats do
 			local c, quality = cinfo[threats[i]], 0
 			for i=1,c and #c or 0 do
-				local ld, mt = finfo[c[i]].level - lvl, finfo[c[i]].missionTimeLeft
-				if ld >= 0 then
+				local fi = finfo[c[i]]
+				local ld, mt = fi.level - lvl, fi.missionTimeLeft
+				if not fi.isCombat then
+				elseif ld >= 0 then
 					quality = math.max(quality, mt and 2 or 4)
 				elseif ld >= -2 then
 					quality = math.max(quality, mt and 1 or 3)
@@ -134,35 +153,27 @@ _G.Garrison_SortMissions = mitigatedThreatSort
 local missionFollowerSort do
 	local finfo, cinfo, tinfo, mlvl
 	local statusPriority = {
-	  [GARRISON_FOLLOWER_IN_PARTY] = 1,
-	  [GARRISON_FOLLOWER_WORKING] = 2,
-	  [GARRISON_FOLLOWER_ON_MISSION] = 3,
-	  [GARRISON_FOLLOWER_EXHAUSTED] = 4,
-	  [GARRISON_FOLLOWER_INACTIVE] = 5,
+	  [GARRISON_FOLLOWER_WORKING] = 5,
+	  [GARRISON_FOLLOWER_ON_MISSION] = 4,
+	  [GARRISON_FOLLOWER_EXHAUSTED] = 3,
+	  [GARRISON_FOLLOWER_INACTIVE] = 2,
+	  [""]=1,
 	}
 	local function cmp(a, b)
 		local af, bf = finfo[a], finfo[b]
-		if af.isCollected ~= bf.isCollected then
-			return af.isCollected
+		local ac, bc = af.isCollected and 1 or 0, bf.isCollected and 1 or 0
+		if ac == bc then
+			ac, bc = statusPriority[af.status] or 6, statusPriority[bf.status] or 6
 		end
-		local ac, bc = af.status ~= GARRISON_FOLLOWER_IN_PARTY and af.status or nil, bf.status ~= GARRISON_FOLLOWER_IN_PARTY and bf.status or nil
-		if ac ~= bc then
-			if (not ac) ~= (not bc) then
-				return not ac
-			end
-			-- TODO: maybe check mission time here
-			ac, bc = statusPriority[ac], statusPriority[bc]
-		else
-			ac, bc = 0, 0
-		end
+
 		if ac == bc then
 			ac, bc = cinfo[af.followerID] and (#cinfo[af.followerID])*100 or 0, cinfo[bf.followerID] and (#cinfo[bf.followerID])*100 or 0
 			ac, bc = ac + (tinfo[af.followerID] and #tinfo[af.followerID] or 0), bc + (tinfo[bf.followerID] and #tinfo[bf.followerID] or 0)
-		end
-		if (ac > 0) ~= (bc > 0) then
-			return ac > 0
-		elseif ac > 0 and ((af.level >= mlvl) ~= (bf.level >= mlvl)) then
-			return af.level >= mlvl
+			if (ac > 0) ~= (bc > 0) then
+				return ac > 0
+			elseif ac > 0 and ((af.level >= mlvl) ~= (bf.level >= mlvl)) then
+				return af.level >= mlvl
+			end
 		end
 		if ac == bc then
 			ac, bc = af.level, bf.level
@@ -194,7 +205,24 @@ function GarrisonFollowerList_SortFollowers(self)
 	return oldSortFollowers(self)
 end
 
-local threatColors={[0]={1,0,0}, {0.15, 0.45, 1}, {0.20, 0.45, 1}, {1, 0.25, 0}, {0,1,0}}
+local GetThreatColor do
+	local threatColors={[0]={1,0,0}, {0.15, 0.45, 1}, {0.20, 0.45, 1}, {1, 0.55, 0}, {0,1,0}}
+	function GetThreatColor(counters, missionLevel, finfo)
+		if not missionLevel then return 1,1,1 end
+		local finfo, quality = finfo or GetFollowerInfo(), 0
+		for i=1,counters and #counters or 0 do
+			local fi = finfo[counters[i]]
+			local ld, mt = fi.level - missionLevel, fi.missionTimeLeft
+			if not fi.isCombat then
+			elseif ld >= 0 then
+				quality = math.max(quality, mt and 2 or 4)
+			elseif ld >= -2 then
+				quality = math.max(quality, mt and 1 or 3)
+			end
+		end
+		return unpack(threatColors[quality])
+	end
+end
 hooksecurefunc("GarrisonMissionButton_AddThreatsToTooltip", function(mid)
 	local missionLevel
 	for k, v in pairs(C_Garrison.GetAvailableMissions()) do
@@ -208,16 +236,8 @@ hooksecurefunc("GarrisonMissionButton_AddThreatsToTooltip", function(mid)
 	for i=1,#threats do
 		local f = threats[i]
 		if f:IsShown() then
-			local c, quality = cinfo[T.Garrison.GetMechanicInfo(f.Icon:GetTexture():lower())], 0
-			for i=1,c and #c or 0 do
-				local ld, mt = finfo[c[i]].level - missionLevel, finfo[c[i]].missionTimeLeft
-				if ld >= 0 then
-					quality = math.max(quality, mt and 2 or 4)
-				elseif ld >= -2 then
-					quality = math.max(quality, mt and 1 or 3)
-				end
-			end
-			f.Border:SetVertexColor(unpack(threatColors[quality]))
+			local c = cinfo[T.Garrison.GetMechanicInfo(f.Icon:GetTexture():lower())]
+			f.Border:SetVertexColor(GetThreatColor(c, missionLevel, finfo))
 		end
 	end
 end)
@@ -235,22 +255,106 @@ GarrisonMissionMechanicTooltip:HookScript("OnShow", function(self)
 	local finfo, cinfo = GetFollowerInfo(), GetCounterInfo()
 	local c = cinfo[T.Garrison.GetMechanicInfo(self.Icon:GetTexture():lower())]
 	if c then
-		local t = {}
+		local t, mlvl = {}, GarrisonMissionMechanicTooltip.missionLevel or GarrisonMissionFrame.MissionTab.MissionPage.missionInfo and GarrisonMissionFrame.MissionTab.MissionPage.missionInfo.level
 		T.Garrison.sortByFollowerLevels(c, finfo)
 		for i=1,#c do
-			local fid = c[i]
-			local q = C_Garrison.GetFollowerQuality(fid)
-			if GarrisonMissionFrame.MissionTab.MissionPage.missionInfo and finfo[fid].level - GarrisonMissionFrame.MissionTab.MissionPage.missionInfo.level < -2 then
-				q = 0
-			end
-			local away = finfo[fid].missionTimeLeft
-			away = away and (GRAY_FONT_COLOR_CODE .. " (" .. away .. ")") or ""
-			t[#t+1] = ("%s[%d]|r %s%s|r%s"):format(ITEM_QUALITY_COLORS[q].hex, finfo[fid].level, HIGHLIGHT_FONT_COLOR_CODE, finfo[fid].name, away)
+			t[#t+1] = T.Garrison.GetFollowerLevelDescription(c[i], mlvl, finfo[c[i]])
 		end
 		if #t > 0 then
 			local height = self:GetHeight()-self.Description:GetHeight()
 			self.Description:SetText(self.Description:GetText() .. NORMAL_FONT_COLOR_CODE .. "\n\nCountered by:\n" .. table.concat(t, "\n"))
-			self:SetHeight(height + self.Description:GetHeight())
+			self:SetHeight(height + self.Description:GetHeight() + 4)
 		end
+	end
+end)
+
+local threatListMT = {} do
+	local function HideTip(self)
+		GarrisonMissionMechanicTooltip:Hide()
+		if GameTooltip:IsOwned(self) then
+			GameTooltip:Hide()
+		end
+		self:GetParent():UnlockHighlight()
+	end
+	local function OnEnter(self)
+		if self.info.isFollowers then
+			GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+			GameTooltip:AddLine(self.info.name)
+			GameTooltip:Show()
+		else
+			GarrisonMissionMechanicTooltip.missionLevel = self.missionLevel
+			GarrisonMissionMechanic_OnEnter(self)
+			GarrisonMissionMechanicTooltip.missionLevel = nil
+		end
+		self:GetParent():LockHighlight()
+	end
+	local function SetThreat(self, info, level, counters, followers)
+		if info then
+			self.info, self.missionLevel = info, level
+			self.Icon:SetTexture(info.icon)
+			self.Border:SetShown(not (info.isEnvironment or info.isFollowers))
+			self.Border:SetVertexColor(GetThreatColor(counters, level, followers))
+			self.Count:SetText(info.count or "")
+			self:Show()
+		else
+			self:Hide()
+		end
+	end
+	function threatListMT:__index(k)
+		if k == 0 then return nil end
+		local sib = self[k-1]
+		local b = CreateFrame("Button", nil, sib and sib:GetParent(), "GarrisonAbilityCounterTemplate")
+		b.Count = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightOutline")
+		b.Count:SetPoint("BOTTOMRIGHT", 0, 2)
+		if sib then
+			b:SetPoint("LEFT", sib, "RIGHT", 10, 0)
+		end
+		b:SetScript("OnEnter", OnEnter)
+		b:SetScript("OnLeave", HideTip)
+		self[k], b.SetThreat = b, SetThreat
+		return b
+	end
+end
+local function MissionButton_OnEnter(self)
+	if self.info.inProgress then
+		GarrisonMissionButton_OnEnter(self)
+	end
+end
+hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRewards)
+	local index = 1
+	for id, reward in pairs(rewards) do
+		local btn = self.Rewards[index]
+		if reward.followerXP then
+			btn.Quantity:SetText(reward.followerXP)
+			btn.Quantity:Show()
+		end
+		index = index + 1
+	end
+	if not self.Threats then
+		self.Threats = setmetatable({}, threatListMT)
+		self.Threats[1]:SetParent(self)
+		self.Threats[1]:SetPoint("TOPLEFT", self.Title, "BOTTOMLEFT", 0, -5)
+		self.Threats[2]:SetPoint("LEFT", self.Threats[1], "RIGHT", 5, 0)
+		self.Threats[3]:SetPoint("LEFT", self.Threats[2], "RIGHT", 7.5, 0)
+		self:SetScript("OnEnter", MissionButton_OnEnter)
+	end
+		
+	local nt, tt, mi = 1, self.Threats, self.info
+	local cinfo, finfo = T.Garrison.GetCounterInfo(), T.Garrison.GetFollowerInfo()
+	if not mi.inProgress then
+		self.Title:SetPoint("LEFT", 165, 10)
+		local _, _xp, ename, edesc, etex, _, _, enemies = C_Garrison.GetMissionInfo(mi.missionID)
+		nt = nt + 1, tt[nt]:SetThreat({name=GARRISON_MISSION_TOOLTIP_NUM_REQUIRED_FOLLOWERS:format(mi.numFollowers), count="|cffffcc33".. mi.numFollowers, icon="Interface/Icons/INV_MISC_GroupLooking", isFollowers=true})
+		nt = nt + 1, tt[nt]:SetThreat({name=ename, icon=etex, description=edesc, isEnvironment=true})
+	
+		for i=1,#enemies do
+			for id, minfo in pairs(enemies[i].mechanics) do
+				nt = nt + 1, tt[nt]:SetThreat(minfo, mi.level, cinfo[id], finfo)
+			end
+		end
+	end
+		
+	for i=nt,#tt do
+		tt[i]:Hide()
 	end
 end)

@@ -9,11 +9,7 @@ local function Mechanic_OnEnter(self)
 		GameTooltip:AddLine("Countered by:", 1,1,1)
 		T.Garrison.sortByFollowerLevels(ci, fi)
 		for i=1,#ci do
-			local fid = ci[i]
-			local q = C_Garrison.GetFollowerQuality(fid)
-			local away = fi[fid].missionTimeLeft
-			away = away and (GRAY_FONT_COLOR_CODE .. " (" .. away .. ")") or ""
-			GameTooltip:AddLine(("%s[%d]|r %s%s|r%s"):format(ITEM_QUALITY_COLORS[q].hex, fi[fid].level, HIGHLIGHT_FONT_COLOR_CODE, fi[fid].name, away), 1,1,1)
+			GameTooltip:AddLine(T.Garrison.GetFollowerLevelDescription(ci[i], nil, fi[ci[i]]), 1,1,1)
 		end
 	else
 		GameTooltip:AddLine("You have no followers to counter this mechanic.", 1,0.50,0)
@@ -35,15 +31,24 @@ local function CreateMechanicFrame(parent)
 	f:SetScript("OnLeave", Mechanic_OnLeave)
 	return f
 end
+local function countFreeFollowers(f, finfo)
+	local ret = 0
+	for i=1,#f do
+		local st = finfo[f[i]].status
+		if not (st == GARRISON_FOLLOWER_INACTIVE or st == GARRISON_FOLLOWER_WORKING) then
+			ret = ret + 1
+		end
+	end
+	return ret
+end
 
 local function syncTotals()
 	local finfo, i, ico = T.Garrison.GetFollowerInfo(), 1
 	for k, f in pairs(T.Garrison.GetCounterInfo()) do
 		ico = icons[i] or CreateMechanicFrame(GarrisonMissionFrame.FollowerTab)
 		ico:SetPoint("LEFT", icons[i-1] or GarrisonMissionFrame.FollowerTab.NumFollowers, "RIGHT", i == 1 and 15 or 4, 0)
-		local _, title, tex = T.Garrison.GetMechanicInfo(k)
-		ico.Icon:SetTexture(tex)
-		ico.Count:SetText(#f)
+		ico.Icon:SetTexture((select(3,T.Garrison.GetMechanicInfo(k))))
+		ico.Count:SetText(countFreeFollowers(f, finfo))
 		ico:Show()
 		ico.id, icons[i], i = k, ico, i + 1
 	end
