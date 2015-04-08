@@ -1,6 +1,6 @@
 local api, bgapi, addonName, T = {}, {}, ...
 
-local defaults = {
+local defaults, mdata = {
 	availableMissionSort="threats",
 	batchMissions=true,
 	version="0.7"
@@ -17,11 +17,19 @@ T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 		end
 		conf.version = defaults.version
 		T.Evie.RaiseEvent("MP_SETTINGS_CHANGED")
+		
+		mdata = type(MasterPlanData) == "table" and MasterPlanData or {}
+		local n, r = UnitFullName("player")
+		local ckey = (r or "?") .. "#" .. n
+		mdata[ckey] = type(mdata[ckey]) == "table" and mdata[ckey] or {}
+		T._SetMissionSeenTable(mdata[ckey])
+		
 		return "remove"
 	end
 end)
 T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
-	MasterPlanConfig = conf
+	MasterPlanConfig, MasterPlanData = conf, mdata
+	T._ObserveMissions()
 end)
 
 setmetatable(api, {__index=bgapi})

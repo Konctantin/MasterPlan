@@ -1,4 +1,4 @@
-local icons, _, T = {}, ...
+local _, T = ...
 local G, L = T.Garrison, T.L
 
 local function countFreeFollowers(f, finfo)
@@ -12,7 +12,9 @@ local function countFreeFollowers(f, finfo)
 	return ret
 end
 
-local floatingMechanics = CreateFrame("Frame", nil, GarrisonMissionFrame.FollowerTab)
+local mechanicsFrame = CreateFrame("Frame")
+mechanicsFrame:SetSize(1,1) mechanicsFrame:Hide()
+local floatingMechanics = CreateFrame("Frame", nil, mechanicsFrame)
 local CreateMechanicButton do
 	local function Mechanic_OnEnter(self)
 		local ci, fi = self.info, G.GetFollowerInfo()
@@ -62,8 +64,11 @@ local CreateMechanicButton do
 		f.Border:Hide()
 		f:SetScript("OnClick", function(self)
 			if self.name then
-				GarrisonMissionFrameFollowers.SearchBox:SetText(self.name)
-				GarrisonMissionFrameFollowers.SearchBox.clearText = self.name
+				local sb = GarrisonMissionFrameFollowers.SearchBox:IsVisible() and GarrisonMissionFrameFollowers.SearchBox or GarrisonLandingPage.FollowerList.SearchBox:IsVisible() and GarrisonLandingPage.FollowerList.SearchBox
+				if sb then
+					sb:SetText(self.name)
+					sb.clearText = self.name
+				end
 			end
 		end)
 		f:SetScript("OnEnter", Mechanic_OnEnter)
@@ -118,16 +123,14 @@ GameTooltip:HookScript("OnShow", function(self)
 end)
 
 
-GarrisonMissionFrame.FollowerTab.threatIcons = setmetatable(icons, {__index=function(self, k)
-	local f = CreateMechanicButton(GarrisonMissionFrame.FollowerTab)
-	f:SetPoint("LEFT", k == 1 and GarrisonMissionFrame.FollowerTab.NumFollowers or self[k-1], "RIGHT", k == 1 and 15 or 4, 0)
+local icons = setmetatable({}, {__index=function(self, k)
+	local f = CreateMechanicButton(mechanicsFrame)
+	f:SetPoint("LEFT", 24*k-20, 0)
 	self[k] = f
 	return f
 end})
 
-
-local traits = {221, 76, 77, 79}
-local traitGroups = {
+local traits, traitGroups = {221, 76, 77, 79}, {
 	{80, 236, icon="Interface\\Icons\\XPBonus_Icon"},
 	{63,64,65,66,67,68,69,70,71,72,73,74,75,78, icon="Interface\\Icons\\PetBattle_Health"},
 	{4,36,37,38,39,40,41,42,43,244, icon="Interface\\Icons\\Ability_Hunter_MarkedForDeath"},
@@ -165,4 +168,18 @@ local function syncTotals()
 		i = i + 1
 	end
 end
-GarrisonMissionFrame.FollowerTab:HookScript("OnShow", syncTotals)
+
+GarrisonMissionFrame.FollowerTab:HookScript("OnShow", function(self)
+	mechanicsFrame:SetParent(self)
+	mechanicsFrame:ClearAllPoints()
+	mechanicsFrame:SetPoint("LEFT", self.NumFollowers, "RIGHT", 11, 0)
+	mechanicsFrame:Show()
+	syncTotals()
+end)
+GarrisonLandingPage.FollowerTab:HookScript("OnShow", function(self)
+	mechanicsFrame:SetParent(self)
+	mechanicsFrame:ClearAllPoints()
+	mechanicsFrame:SetPoint("LEFT", GarrisonLandingPage.HeaderBar, "LEFT", 200, 0)
+	mechanicsFrame:Show()
+	syncTotals()
+end)
