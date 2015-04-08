@@ -2,7 +2,8 @@ local api, bgapi, addonName, T = {}, {}, ...
 
 local defaults = {
 	availableMissionSort="threats",
-	version="0.4"
+	batchMissions=true,
+	version="0.7"
 }
 local conf = setmetatable({}, {__index=defaults})
 T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
@@ -36,6 +37,46 @@ function api:SetMissionOrder(order)
 end
 function api:GetMissionOrder()
 	return conf.availableMissionSort
+end
+
+function api:SetBatchMissionCompletion(batch)
+	assert(type(batch) == "boolean", 'Syntax: MasterPlan:SetBatchMissionCompletion(batch)')
+	conf.batchMissions = batch
+	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "batchMissions")
+end
+function api:GetBatchMissionCompletion()
+	return conf.batchMissions
+end
+
+local parties, tentativeState = {}, {}
+local function dissolve(mid)
+	local p = parties[mid]
+	if p then
+		local f1, f2, f3 = p[1], p[2], p[3]
+		parties[mid], tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = nil
+		return f1, f2, f3
+	end
+end
+function api:GetMissionParty(mid)
+	return dissolve(mid)
+end
+function api:SaveMissionParty(mid, f1, f2, f3)
+	dissolve(mid)
+	dissolve(tentativeState[f1])
+	dissolve(tentativeState[f2])
+	dissolve(tentativeState[f3])
+	parties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
+	tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
+end
+function api:GetFollowerTentativeMission(fid)
+	return tentativeState[fid]
+end
+function api:DissolveMissionByFollower(fid)
+	dissolve(tentativeState[fid])
+end
+function api:DissolveAllMissions()
+	wipe(parties)
+	wipe(tentativeState)
 end
 
 MasterPlan = api

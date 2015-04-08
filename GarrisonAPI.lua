@@ -1,5 +1,5 @@
 local api, _, T = {}, ...
-local EV = T.Evie
+local EV, L = T.Evie, T.L
 
 local f, data, mechanics = CreateFrame("Frame"), {}, {}
 f:SetScript("OnUpdate", function() wipe(data) f:Hide() end)
@@ -15,21 +15,27 @@ local function populateMechanics()
 end
 local function AddCounterMechanic(fit, fabid)
 	if fabid and fabid > 0 then
+		if C_Garrison.GetFollowerAbilityIsTrait(fabid) then
+			fit.traits[fabid] = fabid
+		end
 		local mid, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(fabid)
 		if tex then
 			fit.counters[mid], mechanics[mid], mechanics[tex:lower():gsub("%.blp$","")] = fabid, fabid, fabid
 		end
 	end
 end
-function api.GetFollowerInfo()
-	if not data.followers then
+function api.GetFollowerInfo(refresh)
+	if not data.followers or refresh then
 		local ft = {}
 		local t = C_Garrison.GetFollowers()
 		for i=1,#t do
 			local v = t[i]
 			if v.isCollected then
 				local fid, fit = v.followerID, v
-				v.counters, v.isCombat = {}, v.isCollected and not unfreeStatusOrder[v.status] or false
+				v.counters, v.traits, v.isCombat = {}, {}, v.isCollected and not unfreeStatusOrder[v.status] or false
+				if v.status == nil and MasterPlan and MasterPlan:GetFollowerTentativeMission(v.followerID) then
+					v.status = L"In Tentative Party"
+				end
 				for i=1,4 do
 					AddCounterMechanic(fit, C_Garrison.GetFollowerAbilityAtIndex(fid, i))
 					AddCounterMechanic(fit, C_Garrison.GetFollowerTraitAtIndex(fid, i))
@@ -47,19 +53,38 @@ function api.GetFollowerInfo()
 	end
 	return data.followers
 end
+function api.PushFollowerPartyStatus(fid)
+	if data.followers and data.followers[fid] then
+		data.followers[fid].status = GARRISON_FOLLOWER_IN_PARTY
+	end
+end
 function api.GetCounterInfo()
 	if not data.counters then
 		local ci = {}
 		for fid, info in pairs(api.GetFollowerInfo()) do
 			for k,v in pairs(info.counters) do
-				ci[k] = ci[k] or {}
-				ci[k][#ci[k]+1] = fid
+				local t = ci[k] or {}
+				ci[k], t[#t+1] = t, fid
 			end
 		end
 		data.counters = ci
 		f:Show()
 	end
 	return data.counters
+end
+function api.GetFollowerTraits()
+	if not data.traits then
+		local ci = {}
+		for fid, info in pairs(api.GetFollowerInfo()) do
+			for k in pairs(info.traits) do
+				local t = ci[k] or {}
+				ci[k], t[#t+1] = t, fid
+			end
+		end
+		data.traits = ci
+		f:Show()
+	end
+	return data.traits
 end
 function api.GetMechanicInfo(mid)
 	if populateMechanics then
@@ -138,32 +163,9 @@ function api.GetNumIdleCombatFollowers(followers)
 end
 
 do -- CompleteMissions/AbortCompleteMissions
-	local curStack, curRewards, curFollowers, curCallback
-	local curSalvage = {[114120]=0, [114119]=0, [114116]=0}
+	local curStack, curRewards, curFollowers, curCallback, curLog
+	local curSalvage, curPlayerXP = {[114120]=0, [114119]=0, [114116]=0}, {}
 	local curState, curIndex, completionStep, lastAction, delayIndex, delayMID
-	local delayOpen, delayRoll, delayStep do
-		local function delay(state, f, d)
-			local function delay(minDelay)
-				if curState == state and curIndex == delayIndex and curStack[delayIndex].missionID == delayMID then
-					local time = GetTime()
-					if minDelay then lastAction = math.max(lastAction or (time-d), time - minDelay) end
-					if not lastAction or (time-lastAction >= d) then
-						lastAction = GetTime()
-						f(curStack[curIndex].missionID)
-						C_Timer.After(d, delay)
-					else
-						C_Timer.After(math.max(0.1, d + lastAction - time), delay)
-					end
-				end
-			end
-			return delay
-		end
-		delayOpen = delay("COMPLETE", C_Garrison.MarkMissionComplete, 0.4)
-		delayRoll = delay("BONUS", C_Garrison.MissionBonusRoll, 0.4)
-		function delayStep()
-			completionStep("GARRISON_MISSION_NPC_OPENED")
-		end
-	end
 	local function checkSalvage(addRewards)
 		for k,v in pairs(curSalvage) do
 			local nv = GetItemCount(k) or 0
@@ -174,6 +176,41 @@ do -- CompleteMissions/AbortCompleteMissions
 			end
 			curSalvage[k] = nv
 		end
+		local nxp, nlvl = UnitXP("player"), UnitLevel("player")
+		if addRewards and curPlayerXP[1] and (curPlayerXP[1] < nxp or curPlayerXP[3] < nlvl) then
+			curRewards.xp = curRewards.xp or {playerXP=0}
+			curRewards.xp.playerXP = curRewards.xp.playerXP + (curPlayerXP[3] < nlvl and curPlayerXP[2] or 0) + nxp - curPlayerXP[1]
+		end
+		curPlayerXP[1], curPlayerXP[2], curPlayerXP[3] = nxp, UnitXPMax("player"), nlvl
+	end
+	local delayOpen, delayRoll do
+		local function delay(state, f, d)
+			local function delay(minDelay)
+				if curState == state and curIndex == delayIndex and curStack[delayIndex].missionID == delayMID then
+					local time = GetTime()
+					if not minDelay and (not lastAction or (time-lastAction >= d)) then
+						lastAction, curLog[#curLog+1] = GetTime(), {GetTime(), "DELAY", state}
+						f(curStack[curIndex].missionID)
+						C_Timer.After(d, delay)
+					else
+						C_Timer.After(math.max(0.1, d + lastAction - time, minDelay or 0), delay)
+					end
+				end
+			end
+			return delay
+		end
+		delayOpen = delay("COMPLETE", C_Garrison.MarkMissionComplete, 0.4)
+		delayRoll = delay("BONUS", C_Garrison.MissionBonusRoll, 0.4)
+	end
+	local function delayStep()
+		completionStep("GARRISON_MISSION_NPC_OPENED")
+	end
+	local function delayDone()
+		if curState == "ABORT" or curState == "DONE" then
+			checkSalvage(true)
+			securecall(curCallback, curState, curStack, curRewards, curFollowers)
+			curState, curStack, curRewards, curFollowers, curIndex, curCallback, delayMID, delayIndex, curLog = nil
+		end
 	end
 	function completionStep(ev, ...)
 		if not curState then return end
@@ -181,59 +218,62 @@ do -- CompleteMissions/AbortCompleteMissions
 		while mi and (mi.succeeded or mi.failed) do
 			mi, curIndex = curStack[curIndex+1], curIndex + 1
 		end
+		curLog[#curLog+1] = {GetTime(), curState, curIndex, ev, ...}
 		if (ev == "GARRISON_MISSION_NPC_CLOSED" and mi) or not mi then
-			checkSalvage(true)
-			securecall(curCallback, mi and "ABORT" or "DONE", curStack, curRewards, curFollowers)
-			curState, curStack, curRewards, curFollowers, curIndex, curCallback, delayMID, delayIndex = nil
+			curState, MasterPlanLog, curLog[#curLog+1] = mi and "ABORT" or "DONE", MasterPlanLog or {}, {GetTime(), mi and "ABORT" or "DONE", curRewards, curFollowers}
+			table.insert(MasterPlanLog, curLog)
+			C_Timer.After(0.5, delayDone)
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
 			if mi.state == -1 then
 				curState, delayIndex, delayMID = "COMPLETE", curIndex, mi.missionID
-				delayOpen(... == "IMMEDIATE" and 0 or 0.2)
+				delayOpen(... ~= "IMMEDIATE" and 0.2)
 			else
 				mi.materialMultiplier = select(8, C_Garrison.GetPartyMissionInfo(mi.missionID))
 				curState, delayIndex, delayMID = "BONUS", curIndex, mi.missionID
-				delayRoll(... == "IMMEDIATE" and 0 or 0.2)
+				delayRoll(... ~= "IMMEDIATE" and 0.2)
 			end
 		elseif curState == "COMPLETE" and ev == "GARRISON_MISSION_COMPLETE_RESPONSE" then
 			local mid, cc, ok = ...
 			if mid ~= mi.missionID and not cc then return end
-			assert(mid == mi.missionID, "Unexpected mission completion")
-			if ok then
-				mi.state, curState = 0, "BONUS"
-				if not mi.materialMultiplier then
-					mi.materialMultiplier = select(8, C_Garrison.GetPartyMissionInfo(mi.missionID))
+			if securecall(assert, mid == mi.missionID, "Unexpected mission completion") then
+				if ok then
+					mi.state, curState = 0, "BONUS"
+					if not mi.materialMultiplier then
+						mi.materialMultiplier = select(8, C_Garrison.GetPartyMissionInfo(mi.missionID))
+					end
+				else
+					mi.failed, curState, curIndex = cc and true or nil, "NEXT", curIndex + 1
 				end
-			else
-				mi.failed, curState, curIndex = cc and true or nil, "NEXT", curIndex + 1
-			end
-			securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
-			if ok then
-				delayIndex, delayMID = curIndex, mi.missionID
-				delayRoll(0.2)
-			else
-				C_Timer.After(0.25, delayStep)
+				securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
+				if ok then
+					delayIndex, delayMID = curIndex, mi.missionID
+					delayRoll(0.2)
+				else
+					C_Timer.After(0.25, delayStep)
+				end
 			end
 		elseif curState == "BONUS" and ev == "GARRISON_MISSION_BONUS_ROLL_COMPLETE" then
 			local mid, _ok = ...
-			assert(mid == mi.missionID, "Unexpected bonus roll completion")
-			mi.succeeded, curState, curIndex = true, "NEXT", curIndex + 1
-			if mi.rewards then
-				for k,r in pairs(mi.rewards) do
-					if r.currencyID and r.quantity then
-						local ik, q = "cur:" .. r.currencyID, r.quantity
-						if r.currencyID == GARRISON_CURRENCY then
-							q = floor(q*(mi.materialMultiplier or 1))
+			if securecall(assert, mid == mi.missionID, "Unexpected bonus roll completion") then
+				mi.succeeded, curState, curIndex = true, "NEXT", curIndex + 1
+				if mi.rewards then
+					for k,r in pairs(mi.rewards) do
+						if r.currencyID and r.quantity then
+							local ik, q = "cur:" .. r.currencyID, r.quantity
+							if r.currencyID == GARRISON_CURRENCY then
+								q = floor(q*(mi.materialMultiplier or 1))
+							end
+							curRewards[ik] = curRewards[ik] or {quantity=0, currencyID=r.currencyID}
+							curRewards[ik].quantity = curRewards[ik].quantity + q
+						elseif r.itemID and r.quantity then
+							local ik = "item:" .. r.itemID
+							curRewards[ik] = curRewards[ik] or {itemID=r.itemID, quantity=0}
+							curRewards[ik].quantity = curRewards[ik].quantity + r.quantity
 						end
-						curRewards[ik] = curRewards[ik] or {quantity=0, currencyID=r.currencyID}
-						curRewards[ik].quantity = curRewards[ik].quantity + q
-					elseif r.itemID and r.quantity then
-						local ik = "item:" .. r.itemID
-						curRewards[ik] = curRewards[ik] or {itemID=r.itemID, quantity=0}
-						curRewards[ik].quantity = curRewards[ik].quantity + r.quantity
 					end
 				end
+				securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
 			end
-			securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
 		end
 	end
 	EV.RegisterEvent("GARRISON_FOLLOWER_XP_CHANGED", function(ev, fid, xpAward, oldXP, olvl, oqual)
@@ -247,7 +287,7 @@ do -- CompleteMissions/AbortCompleteMissions
 	EV.RegisterEvent("GARRISON_MISSION_BONUS_ROLL_COMPLETE", completionStep)
 	EV.RegisterEvent("GARRISON_MISSION_COMPLETE_RESPONSE", completionStep)
 	function api.CompleteMissions(stack, callback)
-		curStack, curCallback, curRewards, curFollowers = stack, callback, {}, {}
+		curStack, curCallback, curRewards, curFollowers, curLog = stack, callback, {}, {}, {}
 		curState, curIndex = "NEXT", 1, checkSalvage(false)
 		completionStep("GARRISON_MISSION_NPC_OPENED", "IMMEDIATE")
 	end
