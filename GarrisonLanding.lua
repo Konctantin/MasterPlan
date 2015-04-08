@@ -58,3 +58,19 @@ hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
 		end
 	end
 end)
+local function addCacheResources(self, id)
+	if id == 824 then
+		local cv, mv = G.GetResourceCacheInfo()
+		if cv and cv > 0 then
+			self:AddLine(GARRISON_CACHE .. ": |cffff" .. (cv < mv and "ffff" or "1010") .. cv .. "/" .. mv)
+			return true
+		end
+	end
+end
+hooksecurefunc(GameTooltip, "SetCurrencyByID", addCacheResources)
+hooksecurefunc(GameTooltip, "SetCurrencyTokenByID", addCacheResources)
+hooksecurefunc(GameTooltip, "SetCurrencyToken", function(self, idx)
+	if addCacheResources(self, tonumber((GetCurrencyListLink(idx) or ""):match("currency:(%d+)") or 0)) then
+		self:Show()
+	end
+end)

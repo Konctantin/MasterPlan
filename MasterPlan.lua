@@ -93,28 +93,52 @@ end
 
 local parties, tentativeState = {}, {}
 T.tentativeState = tentativeState
-local function dissolve(mid)
+local function dissolve(mid, doNotUpdate)
 	local p = parties[mid]
 	if p then
 		local f1, f2, f3 = p[1], p[2], p[3]
 		parties[mid], tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = nil
+		if not doNotUpdate then
+			T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+		end
 		return f1, f2, f3
+	end
+end
+local function tentativeFullNext(self, mid)
+	local mid, p = next(parties, mid)
+	if mid then
+		if #p == C_Garrison.GetMissionMaxFollowers(mid) then
+			return mid, p[1], p[2], p[3]
+		end
+		return tentativeFullNext(self, mid)
 	end
 end
 function api:GetMissionParty(mid)
 	return dissolve(mid)
 end
 function api:SaveMissionParty(mid, f1, f2, f3)
-	dissolve(mid)
-	dissolve(tentativeState[f1])
-	dissolve(tentativeState[f2])
-	dissolve(tentativeState[f3])
+	dissolve(mid, true)
+	dissolve(tentativeState[f1], true)
+	dissolve(tentativeState[f2], true)
+	dissolve(tentativeState[f3], true)
+	if not f1 then f1, f2, f3 = f2, f3 end
 	parties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
 	tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
+	T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
 end
 function api:HasTentativeParty(mid)
 	local p = parties[mid]
-	return p ~= nil and ((p[1] and 1 or 0) + (p[2] and 1 or 0) + (p[3] and 1 or 0)) or 0
+	return p and #p or 0
+end
+function api:HasFullTentativeParties()
+	for k,v in pairs(parties) do
+		if #v == C_Garrison.GetMissionMaxFollowers(k) then
+			return true
+		end
+	end
+end
+function api:GetFullTentativeParties()
+	return tentativeFullNext
 end
 function api:GetFollowerTentativeMission(fid)
 	return tentativeState[fid]
@@ -125,7 +149,15 @@ end
 function api:DissolveAllMissions()
 	wipe(parties)
 	wipe(tentativeState)
+	T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
 end
+T.Evie.RegisterEvent("MP_MISSION_START", function(mid, f1, f2, f3)
+	dissolve(mid, true)
+	dissolve(tentativeState[f1], true)
+	dissolve(tentativeState[f2], true)
+	dissolve(tentativeState[f3], true)
+	T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+end)
 
 function api:IsFollowerIgnored(fid)
 	return not not conf.ignore[fid]

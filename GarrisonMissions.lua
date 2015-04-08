@@ -212,8 +212,12 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 			local status = buttons[i].info.status or ""
 			if tmid then
 				status = tmid == mid and GARRISON_FOLLOWER_IN_PARTY or L"In Tentative Party"
-			elseif fi.status == nil and status == GARRISON_FOLLOWER_WORKING and T.config.ignore[fi.followerID] then
-				status = L"Ignored"
+			elseif T.config.ignore[fi.followerID] then
+				if fi.status == nil and status == GARRISON_FOLLOWER_WORKING then
+					status = L"Ignored"
+				elseif fi.status == GARRISON_FOLLOWER_INACTIVE or fi.status == GARRISON_FOLLOWER_WORKING then
+					status = fi.status .. " " .. L"Ignored"
+				end
 			end
 			if fi.missionEndTime then
 				buttons[i].Status:SetFormattedText("%s (%s)", status, G.GetTimeStringFromSeconds(fi.missionEndTime-time()))
@@ -291,32 +295,15 @@ local lfgButton do
 	ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking28")
 	ico:SetAllPoints()
 	lfgButton:SetPoint("TOPRIGHT", GarrisonMissionFrame.MissionTab.MissionPage.Stage, "TOPRIGHT", -6, -28)
-	local curIco, nextSwap, overTime, overTimeState = 28, 0.08, 0
+	local curIco, nextSwap = 28, 0.08
 	lfgButton:SetScript("OnUpdate", function(self, elapsed)
-		local goal, isOver
+		local goal, animate
 		if easyDrop:IsOpen(self) then
-			goal, isOver = 17, self:IsMouseOver() or (DropDownList1:IsVisible() and DropDownList1:IsMouseOver(4,-4,-4,4))
-			if isOver ~= overTimeState then overTimeState, overTime = isOver, 0 end
-			overTime = overTime + elapsed
-			if not overTimeState and self.clickOpen == "hover" and overTime > 0.20 then
-				CloseDropDownMenus()
-				self.clickOpen = false
-			end
+			goal = 17
 		else
-			goal, isOver = 28, self:IsMouseOver()
-			if isOver ~= overTimeState then
-				overTimeState, overTime = isOver, 0
-				if overTimeState == false and self.clickOpen then
-					self.clickOpen = false
-				end
-			end
-			overTime = overTime + elapsed
-			if overTimeState and overTime > 0.15 and not easyDrop:IsOpen(self) and not self.clickOpen then
-				self:Click()
-				self.clickOpen = "hover"
-			end
+			goal, animate = 28, self:IsMouseOver()
 		end
-		if curIco ~= goal or (goal ~= 17 and overTimeState) then
+		if curIco ~= goal or animate then
 			if nextSwap < elapsed then
 				curIco, nextSwap = (curIco + 1) % 29, 0.08
 				local curIco = curIco > 4 and curIco < 9 and (8-curIco) or (curIco == 16 and 15) or curIco
@@ -333,23 +320,21 @@ local lfgButton do
 			CloseDropDownMenus()
 		end
 	end)
+	lfgButton:SetScript("OnEnter", function(self)
+		easyDrop:DelayOpenClick(self)
+	end)
 
 	lfgButton:SetScript("OnClick", function(self)
-		if easyDrop:IsOpen(self) and (not overTimeState or overTime > 0.85 or self.clickOpen ~= "hover") then
-			self.clickOpen = true
-			CloseDropDownMenus()
-			return
-		end
-		self.clickOpen = true
+		if easyDrop:CheckToggle(self) then
+			local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
+			local ff = GarrisonMissionFrame.MissionTab.MissionPage.Followers
+			local f1, f2, f3 = ff[1].info, ff[2].info, ff[3].info
+			f1, f2, f3 = f1 and f1.followerID, mi.numFollowers > 1 and f2 and f2.followerID, mi.numFollowers > 1 and f3 and f3.followerID
 
-		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
-		local ff = GarrisonMissionFrame.MissionTab.MissionPage.Followers
-		local f1, f2, f3 = ff[1].info, ff[2].info, ff[3].info
-		f1, f2, f3 = f1 and f1.followerID, mi.numFollowers > 1 and f2 and f2.followerID, mi.numFollowers > 1 and f3 and f3.followerID
-
-		local mm = G.GetSuggestedGroups(mi, false, f1, f2, f3)
-		if #mm > 1 then
-			easyDrop:Open(self, mm, "TOPRIGHT", self, "TOPLEFT", -2, 12)
+			local mm = G.GetSuggestedGroups(mi, false, f1, f2, f3)
+			if #mm > 1 then
+				easyDrop:Open(self, mm, "TOPRIGHT", self, "TOPLEFT", -2, 12)
+			end
 		end
 	end)
 end
@@ -612,7 +597,7 @@ local function SetFollowerIgnore(_, fid, val)
 end
 hooksecurefunc(GarrisonFollowerOptionDropDown, "initialize", function(self)
 	local fi = self.followerID and C_Garrison.GetFollowerInfo(self.followerID)
-	if fi and fi.isCollected and fi.status ~= GARRISON_FOLLOWER_INACTIVE then
+	if fi and fi.isCollected then
 		DropDownList1.numButtons = DropDownList1.numButtons - 1
 		
 		local info, ignored = UIDropDownMenu_CreateInfo(), T.config.ignore[fi.followerID]

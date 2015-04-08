@@ -232,21 +232,71 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 	function easyDrop:IsOpen(owner)
 		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
 	end
-	local function CheckOwner(self)
+	local function CheckOwner(self, elapsed)
+		local keep = false
 		if self.owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown() then
 			if self.owner:IsVisible() then
-				return
+				keep = true
 			end
-			CloseDropDownMenus()
 		end
-		self:SetScript("OnUpdate", nil)
+		if self.delayOwner then
+			local isOpen = self:IsOpen(self.delayOwner)
+			local isNotOver = not (self.delayOwner:IsMouseOver(4,-4,-4,4) or isOpen and DropDownList1:IsMouseOver(4,-4,-4,4))
+			if isNotOver == isOpen then
+				local dl = self.delayLeft - elapsed
+				if dl > 0 then
+					self.delayLeft = dl
+				elseif not isOpen then
+					self.delayOwner, self.delayGrace = self.delayOwner, 0.5, self.delayOwner:Click()
+					return
+				else
+					keep = false
+				end
+			elseif isOpen then
+				self.delayLeft, self.delayGrace = 0.2, (self.delayGrace or 0) > elapsed and (self.delayGrace - elapsed) or nil
+			else
+				self.delayOwner = nil
+			end
+		end
+		if not keep then
+			if UIDROPDOWNMENU_OPEN_MENU == self then
+				CloseDropDownMenus()
+			end
+			self.owner = nil
+			if not self.delayOwner then
+				self:SetScript("OnUpdate", nil)
+			end
+		end
 	end
 	function easyDrop:Open(owner, menu, ...)
-		self.owner = owner
+		self.owner, self.delayOwner = owner
 		self:SetScript("OnUpdate", CheckOwner)
 		EasyMenu(menu, self, "cursor", 9000, 9000, "MENU", 4)
 		DropDownList1:ClearAllPoints()
 		DropDownList1:SetPoint(...)
+	end
+	function easyDrop:CheckToggle(owner)
+		if self:IsOpen(owner) then
+			local hoverGrace = self.delayOwner == owner and self.delayGrace
+			self.delayOwner = nil
+			if hoverGrace then
+				return
+			end
+			CloseDropDownMenus()
+		else
+			return true
+		end
+	end
+	function easyDrop:Toggle(owner, ...)
+		if self:CheckToggle(owner) then
+			self:Open(owner, ...)
+		end
+	end
+	function easyDrop:DelayOpenClick(owner)
+		if not self:IsOpen(owner) then
+			self.delayOwner, self.delayLeft = owner, 0.2
+			self:SetScript("OnUpdate", CheckOwner)
+		end
 	end
 end
 local activeUI = CreateFrame("Frame", nil, missionList) do
@@ -628,24 +678,48 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 	availUI:SetSize(880, 22)
 	availUI:SetPoint("BOTTOMLEFT", GarrisonMissionFrameMissions, "TOPLEFT", 0, 4)
 	availUI:Hide()
-	local sortIndicator = CreateFrame("Button", nil, availUI) do
-		sortIndicator:SetPoint("BOTTOMLEFT", 6, -5)
-		sortIndicator:SetSize(320, 43)
-		local bg = sortIndicator:CreateTexture(nil, "BACKGROUND")
-		bg:SetAtlas("Garr_Mission_MaterialFrame", true)
-		bg:SetAllPoints()
-		local lab = sortIndicator:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-		lab:SetPoint("LEFT", 15, 0) lab:SetText(L"Mission order:")
-		sortIndicator.label = lab
-		sortIndicator:SetNormalFontObject(GameFontHighlight)
-		sortIndicator:SetHighlightFontObject(GameFontGreen)
-		sortIndicator:SetText("!")
-		local fs = sortIndicator:GetFontString()
-		fs:ClearAllPoints() fs:SetPoint("RIGHT", -15, 0)
+	local ctlContainer = CreateFrame("Frame", nil, availUI) do
+		ctlContainer:SetPoint("BOTTOMLEFT", 6, -5)
+		ctlContainer:SetSize(43, 43)
+		local t, is, ts = ctlContainer:CreateTexture(nil, "BACKGROUND"), 18, 1/16
+		t:SetAtlas("Garr_Mission_MaterialFrame")
+		t:SetTexCoord(0, ts, 0, 1)
+		t:SetPoint("TOPLEFT")
+		t:SetPoint("BOTTOMRIGHT", ctlContainer, "BOTTOMLEFT", is, 0)
+		t = ctlContainer:CreateTexture(nil, "BACKGROUND")
+		t:SetTexCoord(ts, 1-ts, 0, 1)
+		t:SetAtlas("Garr_Mission_MaterialFrame")
+		t:SetPoint("TOPLEFT", is, 0)
+		t:SetPoint("BOTTOMRIGHT", -is, 0)
+		t = ctlContainer:CreateTexture(nil, "BACKGROUND")
+		t:SetTexCoord(1-ts, 1, 0, 1)
+		t:SetAtlas("Garr_Mission_MaterialFrame")
+		t:SetPoint("TOPRIGHT")
+		t:SetPoint("BOTTOMLEFT", ctlContainer, "BOTTOMRIGHT", -is, 0)
+	end
+	local sortIndicator = CreateFrame("Button", nil, ctlContainer) do
+		sortIndicator:SetPoint("LEFT", 12, 0)
+		sortIndicator:SetSize(20, 20)
+		for i=1, 2 do
+			local t = sortIndicator:CreateTexture(nil, i == 1 and "BACKGROUND" or "HIGHLIGHT")
+			t:SetTexture("Interface\\Buttons\\SquareButtonTextures")
+			t:SetTexCoord(0.45312500, 0.64062500, 0.01562500, 0.20312500)
+			t:SetSize(14, 18)
+			t:SetPoint("LEFT", 2, 4)
+			if i == 1 then t:SetVertexColor(3/4, 3/4, 3/4) end
+			t = sortIndicator:CreateTexture(nil, i == 1 and "BACKGROUND" or "HIGHLIGHT")
+			t:SetTexture("Interface\\Buttons\\SquareButtonTextures")
+			t:SetTexCoord(0.45312500, 0.64062500, 0.20312500, 0.01562500)
+			t:SetSize(14, 18)
+			t:SetPoint("LEFT", 2, -4)
+			if i == 1 then t:SetVertexColor(3/4, 3/4, 3/4) end
+		end
+		
 		local function isChecked(self)
 			return sortIndicator.value == self.arg1
 		end
 		local menu, sortOrders = {
+			{text=L"Mission order:", isTitle=true, notCheckable=true},
 			{text=L"Chance of success", checked=isChecked, func=MasterPlan.SetMissionOrder, arg1="threats"},
 			{text=L"Follower experience", checked=isChecked, func=MasterPlan.SetMissionOrder, arg1="xp"},
 			{text=L"Follower experience per hour", checked=isChecked, func=MasterPlan.SetMissionOrder, arg1="xptime"},
@@ -654,33 +728,25 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			{text=L"Mission duration", checked=isChecked, func=MasterPlan.SetMissionOrder, arg1="duration"},
 			{text=L"Mission expiration", checked=isChecked, func=MasterPlan.SetMissionOrder, arg1="expire"},
 		}, {}
-		for i=1,#menu do sortOrders[menu[i].arg1] = menu[i].text end
+		for i=2,#menu do sortOrders[menu[i].arg1] = menu[i].text end
 		EV.RegisterEvent("MP_SETTINGS_CHANGED", function(_, s)
 			if s == nil or s == "availableMissionSort" then
 				local nv = MasterPlan:GetMissionOrder()
 				nv = sortOrders[nv] and nv or "threats"
-				sortIndicator:SetText(sortOrders[nv])
 				sortIndicator.value = nv
 				availMissionsHandle:Refresh(true)
 			end
 		end)
-
+		
 		sortIndicator:SetScript("OnClick", function(self)
-			if easyDrop:IsOpen(self) then
-				CloseDropDownMenus()
-				return
-			end
-			easyDrop:Open(self, menu, "TOPRIGHT", self, "BOTTOMRIGHT", -6, 12)
+			easyDrop:Toggle(self, menu, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
 		end)
-		sortIndicator:SetScript("OnHide", function(self)
-			if easyDrop:IsOpen(self) then
-				CloseDropDownMenus()
-			end
+		sortIndicator:SetScript("OnEnter", function(self)
+			easyDrop:DelayOpenClick(self)
 		end)
 	end
 	local roamingParty = CreateFrame("Frame", nil, availUI) do
-		roamingParty:SetPoint("BOTTOM", 110, -2)
-		roamingParty:SetSize(40, 36)
+		roamingParty:SetPoint("BOTTOMRIGHT", availUI, "BOTTOM", 130, -2)
 		function roamingParty:GetFollowers()
 			local a, b, c
 			for i=#self,1,-1 do
@@ -815,14 +881,9 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				easyDrop:Open(self, mn, "TOP", self, "BOTTOM", 0, -2)
 			end
 		end
-		local function Roamer_OnHide(self)
-			if easyDrop:IsOpen(self) then
-				CloseDropDownMenus()
-			end
-		end
 		for i=1,1 do
 			local x = CreateFrame("Button", nil, roamingParty, nil, i)
-			x:SetSize(36, 36)	x:SetPoint("LEFT", 40*i-36, 0) x:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+			x:SetSize(36, 36)	x:SetPoint("LEFT", 40*i-38, 0) x:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			local v = x:CreateTexture(nil, "ARTWORK", nil, 1) v:SetPoint("TOPLEFT", 3, -3) v:SetPoint("BOTTOMRIGHT", -3, 3) v:SetTexture("Interface\\Garrison\\Portraits\\FollowerPortrait_NoPortrait")
 			roamingParty[i], x.portrait = x, v
 			local v = x:CreateTexture(nil, "ARTWORK", nil, 2) v:SetAllPoints() v:SetAtlas("Garr_FollowerPortrait_Ring", true)
@@ -830,9 +891,64 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			x:SetScript("OnClick", Roamer_OnClick)
 			x:SetScript("OnEnter", Roamer_OnEnter)
 			x:SetScript("OnLeave", Roamer_OnLeave)
-			x:SetScript("OnHide", Roamer_OnHide)
 		end
+		roamingParty:SetSize(#roamingParty*40, 36)
 		EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", function() roamingParty:Clear() end)
+	end
+	availUI.SendTentative = CreateFrame("Button", nil, availUI, "UIPanelButtonTemplate") do
+		local b = availUI.SendTentative
+		b:SetSize(200, 26)
+		b:SetPoint("BOTTOM", -64, 5)
+		b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+		b:SetText(L"Send Tentative Parties")
+		b:Hide()
+		b:SetScript("OnLeave", dismissTooltip)
+		b:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+			GameTooltip:SetText(L"Start Missions")
+			for mid, f1, f2, f3 in MasterPlan:GetFullTentativeParties() do
+				local p1,p2,p3 = f1,f2,f3
+				while p1 do
+					p1,p2,p3 = p2, p3, C_Garrison.AddFollowerToMission(mid, p1) and nil
+				end
+				local sc = select(4,C_Garrison.GetPartyMissionInfo(mid))
+				GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(mid), sc .. "%", 1,1,1,1,1,1)
+				p1,p2,p3 = f1,f2,f3
+				while p1 do
+					p1,p2,p3 = p2, p3, C_Garrison.RemoveFollowerFromMission(mid, p1) and nil
+				end
+			end
+			GameTooltip:AddLine("|n" .. L"Right-click to clear all tentative parties.")
+			GameTooltip:Show()
+		end)
+		b:SetScript("OnClick", function(_, button)
+			if button == "RightButton" then
+				MasterPlan:DissolveAllMissions()
+				return
+			end
+			for mid, p1, p2, p3 in MasterPlan:GetFullTentativeParties() do
+				G.StartMissionQueue(mid, p1, p2, p3)
+			end
+			PlaySound("UI_Garrison_CommandTable_MissionStart")
+		end)
+		
+		local synced = true
+		local function sync()
+			b:SetShown(MasterPlan:HasFullTentativeParties())
+			if b:IsShown() and GameTooltip:IsOwned(b) then
+				b:GetScript("OnEnter")(b)
+			end
+			if availUI:IsVisible() then
+				RefreshAvailMissionsView(true)
+			end
+			synced = true
+		end
+		EV.RegisterEvent("MP_TENTATIVE_PARTY_UPDATE", function()
+			if synced then
+				C_Timer.After(0, sync)
+				synced = false
+			end
+		end)
 	end
 	api.roamingParty = roamingParty
 end
@@ -1778,7 +1894,7 @@ do -- availMissionsHandle
 			GameTooltip:AddLine(g[1] .. "% |cffc0c0c0(" .. SecondsToTime(g[4]) .. ")")
 			local finfo, ml = G.GetFollowerInfo(), G.GetFMLevel(mi)
 			for i=1,mi.numFollowers do
-				GameTooltip:AddLine(G.GetFollowerLevelDescription(g[4+i], ml, finfo[g[4+i]], g[10]))
+				GameTooltip:AddLine(G.GetFollowerLevelDescription(g[4+i], ml, finfo[g[4+i]], g[10], mi.missionID))
 			end
 			local _, exp = G.GetMissionGroupXP(g, mi)
 			if (exp or 0) > 0 then
@@ -1946,9 +2062,6 @@ do -- availMissionsHandle
 		if d.durationSeconds >= GARRISON_LONG_MISSION_TIME then
 			summary = format(GARRISON_LONG_MISSION_TIME_FORMAT, summary)
 		end
-		if d.cost and d.cost > 0 and false then
-			summary = summary .. "; " .. d.cost .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:0:0:0:0:128:128:13:46:13:46|t"
-		end
 		self.stats:SetFormattedText(PARENS_TEMPLATE, summary)
 		local _, _, expTimeShort = G.GetMissionSeen(d.missionID, d)
 		self.expire:SetText(expTimeShort or "")
@@ -2018,9 +2131,9 @@ do -- availMissionsHandle
 		for i=1,#sg do
 			local b, g, text = self.groups[i], sg[i]
 			local sc = "|cffffffff" .. g[1] .. "%"
-			if g[3] and g[3] > 0 then
+			if g[3] and g[3] > 0 and g[1] > 0 then
 				text = floor(g[1]*g[3]/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t"
-			elseif g[9] and g[9] > 0 then
+			elseif g[9] and g[9] > 0 and g[1] > 0 and G.HasSignificantRewards(d) == "gold" then
 				local eg = g[1]*g[9]/100
 				text = GetMoneyString(eg - eg % 1e4)
 			else
@@ -2032,7 +2145,7 @@ do -- availMissionsHandle
 					text = (L"%s XP"):format(abridge(floor(exp)))
 				end
 			end
-			local edt = G.GetMissionGroupDeparture(g)
+			local edt = G.GetMissionGroupDeparture(g, d)
 			if edt then
 				if g[3] and g[3] > 0 then
 					text = text .. ", " .. sc
@@ -2047,7 +2160,7 @@ do -- availMissionsHandle
 			end
 			b:SetText(text)
 			local bw = b:GetFontString():GetStringWidth()+14
-			bw = math.max(110, bw)
+			bw = math.max(GetLocale():match("zh") and 125 or 110, bw)
 			b:SetWidth(bw + (10 - bw % 10) % 10)
 			b:Show()
 		end
@@ -2064,7 +2177,10 @@ do -- availMissionsHandle
 			if a.reqCheckFailed ~= b.reqCheckFailed then
 				return b.reqCheckFailed
 			end
-			local ac, bc = a.ord, b.ord
+			local ac, bc = a.ord0, b.ord0
+			if ac == bc then
+				ac, bc = a.ord, b.ord
+			end
 			if ac == bc then
 				ac, bc = a.level, b.level
 			end
@@ -2103,51 +2219,43 @@ do -- availMissionsHandle
 			local field = fields[order] or 1
 			G.PrepareAllMissionGroups()
 			local groupCache = G.GetSuggestedMissionGroups(missions, roamingParty:GetFollowers())
+			
+			if order == "threats2" then
+				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
+			end
+			
+			local nf, nr = GetAvailableResources(droppedMissionCost)
+			local checkReq = (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire"
+			
 			for i=1, #missions do
 				local mi, g = missions[i]
 				local sg = groupCache[mi.missionID]
-				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1]) and sg[1] or nil
+				mi.groups, g, mi.ord0 = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or nil, 0
 				
-				if g and (field == "equivXPTime" or field == "equivXP") then
+				if order == "duration" then
+					mi.ord = -mi.durationSeconds
+				elseif order == "expire" then
+					local max = mi.offerEndTime or G.GetMissionSeen(mi.missionID, mi)
+					mi.ord = (max or -1) >= 0 and -floor(max/1800) or -math.huge
+				elseif order == "level" then
+					mi.ord = 0
+				elseif order == "threats2" then
+					mi.ord = g and g[1] and g[1][1] == 100 and computeThreat(mi) or -1
+				elseif g and (field == "equivXPTime" or field == "equivXP") then
 					local xp = G.GetMissionGroupXP(g, mi) or 0
 					mi.ord = field == "equivXPTime" and xp/g[4] or xp
 				else
 					mi.ord = g and g[field] or -math.huge
 				end
-			end
-			if order == "duration" then
-				for i=1, #missions do
-					missions[i].ord = -missions[i].durationSeconds
+				if MasterPlan:HasTentativeParty(mi.missionID) == C_Garrison.GetMissionMaxFollowers(mi.missionID) then
+					mi.ord0 = -1
 				end
-			elseif order == "expire" then
-				for i=1, #missions do
-					local mi = missions[i]
-					local max = mi.offerEndTime or G.GetMissionSeen(mi.missionID, mi)
-					mi.ord = (max or -1) >= 0 and -floor(max/1800) or -math.huge
-				end
-			elseif order == "level" then
-				for i=1, #missions do
-					missions[i].ord = 0
-				end
-			elseif order == "threats2" then
-				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
-				for i=1, #missions do
-					local mi = missions[i]
-					local g = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, G.GroupRank.threats, 1, roamingParty:GetFollowers())
-					mi.ord = g and g[1] and g[1][1] == 100 and computeThreat(mi) or -1
-				end
-				finfo = nil
-			end
-			local nf, nr = GetAvailableResources(droppedMissionCost)
-			if (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire" then
-				for i=1, #missions do
-					local mi = missions[i]
-					if mi.cost > nr or mi.numFollowers > nf then
-						mi.reqCheckFailed = true
-					end
-				end
+				mi.reqCheckFailed = checkReq and (mi.numFollowers > nf or mi.cost > nr)
 			end
 			table.sort(missions, cmp)
+			cinfo, finfo = nil
+			GarrisonMissionFrame.MissionTab.MissionList.EmptyListString:SetText(#missions > 0 and "" or GARRISON_EMPTY_MISSION_LIST)
+			
 			return missions
 		end
 	end
@@ -2256,7 +2364,7 @@ do -- interestMissionsHandle
 			wipe(usefulTraits)
 			usefulTraits[T.EnvironmentCounters[s[5]] or 0] = 1
 			usefulTraits[best.ttrait or 0] = 1
-			usefulTraits[s[4] > 0 and s[4] or 0] = 1
+			usefulTraits[T.TraitStack[s[4]] or 0] = 1
 			usefulTraits[232] = best.dtrait
 			for i=1,data.s[2] do
 				local fi = fi[best[i]]
@@ -2456,7 +2564,7 @@ do -- interestMissionsHandle
 			self.chance:SetTextColor(1, 0.55, 0)
 		end
 		
-		local r, rt = self.rewards[1], mappedRewards[d[4]] or d[4]
+		local r, rt = self.rewards[1], mappedRewards[s[4]] or s[4]
 		if rt == 0 then
 			local rq = d[3] * (1+(best and best[4] or 0))
 			r.tooltipTitle, r.tooltipText, r.currencyID, r.itemID = GARRISON_REWARD_MONEY, GetMoneyString(rq), 0
@@ -2476,57 +2584,54 @@ do -- interestMissionsHandle
 	end
 	interestMissionsHandle = core:CreateHandle(CreateInterestMission, SetInterestMission, 60)
 	local unusedEntry, emptyTable, missions = {unused={}}, {}, {
-		{313, 104, 1, 118529, s={645, 3, 28800, 256, 28, 1, 2, 6, 8, 9, 10}}, -- Highmaul Raid
-		{314, 104, 1, 118529, s={645, 3, 28800, 256, 17, 1, 3, 3, 4, 6, 7}}, -- Highmaul Raid
-		{315, 104, 1, 118529, s={645, 3, 28800, 256, 12, 2, 4, 7, 9, 10, 10}}, -- Highmaul Raid
-		{316, 104, 1, 118529, s={645, 3, 28800, 256, 29, 1, 6, 8, 9, 9, 10}}, -- Highmaul Raid
-		{446, 103, 1, 122484, s={660, 3, 28800, 256, 18, 1, 2, 3, 6, 7, 9, 10}}, -- Slagworks
-		{447, 103, 1, 122484, s={660, 3, 28800, 256, 21, 1, 2, 3, 3, 6, 8, 10}}, -- Black Forge
-		{448, 103, 1, 122484, s={660, 3, 28800, 256, 24, 3, 4, 4, 6, 7, 7, 8}}, -- Iron Assembly
-		{449, 103, 1, 122484, s={660, 3, 28800, 256, 11, 1, 2, 3, 6, 8, 9, 10}}, -- Blackhand's Crucible
-		{311, 103, 300, 824, s={630, 3, 21600, 79, 11, 2, 3, 6, 10}}, -- Can't Go Home This Way
-		{312, 104, 300, 824, s={630, 3, 21600, 79, 25, 2, 4, 8, 10}}, -- Magical Mystery Tour
-		{268, 103, 225, 824, s={615, 2, 14400, 79, 22, 2, 3, 7}}, -- Who's the Boss?
-		{269, 104, 225, 824, s={615, 2, 14400, 79, 20, 1, 6, 10}}, -- Griefing with the Enemy
-		{132, 107, 175, 824, s={100, 2, 21600, 79, 15, 4, 6}}, -- The Basilisk's Stare
-		{133, 101, 175, 824, s={100, 2, 21600, 79, 18, 3, 8}}, -- Elemental Territory
-		{503, 105, 1, 123858, s={675, 2, 21600, -1, 11, 1, 2, 3, 6, 10}}, -- Lessons of the Blade
-		{361, 102, 5000000, 0, s={100, 3, 36000, 256, 25, 2, 3, 7, 9}}, -- Blingtron's Secret Vault
-		{407, 105, 3, 115280, s={100, 3, 86000, 0, 13, 3, 4, 6, 8, 8}}, -- Tower of Terror
-		{405, 102, 3, 115280, s={100, 3, 86000, 0, 20, 1, 2, 4, 7, 9}}, -- Lost in the Weeds
-		{403, 104, 3, 115280, s={100, 3, 86000, 0, 27, 3, 6, 7, 8}}, -- Rock the Boat
-		{404, 101, 3, 115280, s={100, 3, 86000, 0, 12, 2, 6, 7, 8}}, -- He Keeps it Where?
-		{406, 104, 3, 115280, s={100, 3, 86000, 0, 27, 1, 2, 3, 10}}, -- It's Rigged!
-		{410, 105, 18, 115510, s={100, 3, 86000, 0, 16, 2, 3, 4, 8, 9}}, -- A Rune With a View
-		{412, 107, 18, 115510, s={100, 3, 86000, 0, 24, 2, 2, 3, 3, 7, 9}}, -- Beyond the Pale
-		{413, 101, 18, 115510, s={100, 3, 86000, 0, 27, 1, 2, 4, 6, 7, 8}}, -- Pumping Iron
-		{411, 104, 18, 115510, s={100, 3, 86000, 0, 29, 2, 3, 3, 6, 8, 9}}, -- Rocks Fall. Everyone Dies.
-		{409, 103, 18, 115510, s={100, 3, 86000, 0, 22, 1, 2, 3, 6, 9, 9}}, -- The Great Train Robbery
-		{408, 103, 18, 115510, s={100, 3, 86000, 0, 11, 1, 2, 3, 6, 7, 10}}, -- The Pits
-		{358, 103, 1, 994, s={100, 3, 36000, 0, 22, 2, 3, 6}}, -- Drov the Ruiner
-		{359, 107, 1, 994, s={100, 3, 36000, 0, 21, 1, 3, 7}}, -- Rukhmar
+		{313, 104,   1, s={645, 3, 28800, 118529, 28, 1, 2, 6, 8, 9, 10}}, -- Highmaul Raid
+		{314, 104,   1, s={645, 3, 28800, 118529, 17, 1, 3, 3, 4, 6, 7}}, -- Highmaul Raid
+		{315, 104,   1, s={645, 3, 28800, 118529, 12, 2, 4, 7, 9, 10, 10}}, -- Highmaul Raid
+		{316, 104,   1, s={645, 3, 28800, 118529, 29, 1, 6, 8, 9, 9, 10}}, -- Highmaul Raid
+		{446, 103,   1, s={660, 3, 28800, 122484, 18, 1, 2, 3, 6, 7, 9, 10}}, -- Slagworks
+		{447, 103,   1, s={660, 3, 28800, 122484, 21, 1, 2, 3, 3, 6, 8, 10}}, -- Black Forge
+		{448, 103,   1, s={660, 3, 28800, 122484, 24, 3, 4, 4, 6, 7, 7, 8}}, -- Iron Assembly
+		{449, 103,   1, s={660, 3, 28800, 122484, 11, 1, 2, 3, 6, 8, 9, 10}}, -- Blackhand's Crucible
+		{311, 103, 300, s={630, 3, 21600, 824, 11, 2, 3, 6, 10}}, -- Can't Go Home This Way
+		{312, 104, 300, s={630, 3, 21600, 824, 25, 2, 4, 8, 10}}, -- Magical Mystery Tour
+		{268, 103, 225, s={615, 2, 14400, 824, 22, 2, 3, 7}}, -- Who's the Boss?
+		{269, 104, 225, s={615, 2, 14400, 824, 20, 1, 6, 10}}, -- Griefing with the Enemy
+		{132, 107, 175, s={100, 2, 21600, 824, 15, 4, 6}}, -- The Basilisk's Stare
+		{133, 101, 175, s={100, 2, 21600, 824, 18, 3, 8}}, -- Elemental Territory
+		{503, 105,   1, s={675, 2, 21600, 123858, 11, 1, 2, 3, 6, 10}}, -- Lessons of the Blade
+		{361, 102, 5e6, s={100, 3, 36000, 0, 25, 2, 3, 7, 9}}, -- Blingtron's Secret Vault
+		{407, 105,   3, s={100, 3, 86000, 115280, 13, 3, 4, 6, 8, 8}}, -- Tower of Terror
+		{405, 102,   3, s={100, 3, 86000, 115280, 20, 1, 2, 4, 7, 9}}, -- Lost in the Weeds
+		{403, 104,   3, s={100, 3, 86000, 115280, 27, 3, 6, 7, 8}}, -- Rock the Boat
+		{404, 101,   3, s={100, 3, 86000, 115280, 12, 2, 6, 7, 8}}, -- He Keeps it Where?
+		{406, 104,   3, s={100, 3, 86000, 115280, 27, 1, 2, 3, 10}}, -- It's Rigged!
+		{410, 105,  18, s={100, 3, 86000, 115510, 16, 2, 3, 4, 8, 9}}, -- A Rune With a View
+		{412, 107,  18, s={100, 3, 86000, 115510, 24, 2, 2, 3, 3, 7, 9}}, -- Beyond the Pale
+		{413, 101,  18, s={100, 3, 86000, 115510, 27, 1, 2, 4, 6, 7, 8}}, -- Pumping Iron
+		{411, 104,  18, s={100, 3, 86000, 115510, 29, 2, 3, 3, 6, 8, 9}}, -- Rocks Fall. Everyone Dies.
+		{409, 103,  18, s={100, 3, 86000, 115510, 22, 1, 2, 3, 6, 9, 9}}, -- The Great Train Robbery
+		{408, 103,  18, s={100, 3, 86000, 115510, 11, 1, 2, 3, 6, 7, 10}}, -- The Pits
+		{358, 103,   1, s={100, 3, 36000, 994, 22, 2, 3, 6}}, -- Drov the Ruiner
+		{359, 107,   1, s={100, 3, 36000, 994, 21, 1, 3, 7}}, -- Rukhmar
 	}
-	local function GetRewardFromSet(r)
-		for i=1,#r do
-			local c, r = 0, r[i]
-			for i=3,r[2] > 0 and #r or 0 do
-				c = c + (tonumber(GetStatistic(r[i]) or 0) or 0)
-			end
-			if c >= r[2] then
-				r[2] = 0
-				return r[1]
-			end
-		end
-	end
 	local function loadAndRefresh(id)
+		local ls, ts = T.config.legendStep, T.TraitStack
 		core:SetData(emptyTable, interestMissionsHandle)
 		if missions[#missions] == unusedEntry then
 			missions[#missions] = nil
 		end
-		for k,v in pairs(T.MissionRewardSets) do
-			mappedRewards[k] = GetRewardFromSet(v)
+		for k,r in pairs(T.MissionRewardSets) do
+			for i=1,#r do
+				local c, r = 0, r[i]
+				for i=3,r[2] > 0 and #r or 0 do
+					c = c + (tonumber(GetStatistic(r[i]) or 0) or 0)
+				end
+				if c >= r[2] then
+					mappedRewards[k], r[2], ts[k] = r[1], 0, ts[k] or r.ts
+					break
+				end
+			end
 		end
-		local ls = T.config.legendStep
 		local c2, c3 = ls > 0 or IsQuestFlaggedCompleted(35998), ls > 1 or IsQuestFlaggedCompleted(36013)
 		if c2 or c3 then
 			T.config.legendStep = c3 and 2 or c2 and 1 or nil
