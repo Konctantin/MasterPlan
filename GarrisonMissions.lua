@@ -1,3 +1,7 @@
+local _, T = ...
+
+local GetFollowerInfo, GetCounterInfo = T.Garrison.GetFollowerInfo, T.Garrison.GetCounterInfo
+
 local Hide do
 	local dungeon = CreateFrame("Frame")
 	dungeon:Hide()
@@ -78,57 +82,116 @@ hooksecurefunc(C_Garrison, "GetInProgressMissions", function(t)
 		remainingTimeSort(t)
 	end
 end)
+local mitigatedThreatSort do
+	local finfo, cinfo
+	local function computeThreat(a)
+		local ret, threats, lvl = 0, T.Garrison.GetMissionThreats(a.missionID), a.level
+		for i=1,#threats do
+			local c, quality = cinfo[threats[i]], 0
+			for i=1,c and #c or 0 do
+				local ld, mt = finfo[c[i]].level - lvl, finfo[c[i]].missionTimeLeft
+				if ld >= 0 then
+					quality = math.max(quality, mt and 2 or 4)
+				elseif ld >= -2 then
+					quality = math.max(quality, mt and 1 or 3)
+				end
+				if quality == 4 then break end
+			end
+			ret = ret + (quality-4)*100
+		end
+		return ret, ret
+	end
+	local function cmp(a, b)
+		local ac, bc = a.mitigatedThreatScore, b.mitigatedThreatScore
+		if ac == nil then
+			ac, a.mitigatedThreatScore = computeThreat(a)
+		end
+		if bc == nil then
+			bc, b.mitigatedThreatScore = computeThreat(b)
+		end
+		if ac == bc or (ac == 0) == (bc == 0) then
+			ac, bc = a.level, b.level
+		end
+		if ac == bc then
+			ac, bc = a.iLevel, b.iLevel
+		end
+		if ac == bc then
+			ac, bc = 0, strcmputf8i(a.name, b.name)
+		end
+		if ac == bc then
+			ac, bc = a.missionID, b.missionID
+		end
+		return ac > bc
+	end
+	function mitigatedThreatSort(t)
+		finfo, cinfo = GetFollowerInfo(), GetCounterInfo()
+		table.sort(t, cmp)
+		finfo, cinfo = nil, nil
+	end
+end
+_G.Garrison_SortMissions = mitigatedThreatSort
 
-local GetFollowerInfo, GetCounterInfo do
-	local f, data = CreateFrame("Frame"), {}
-	f:SetScript("OnUpdate", function() wipe(data) f:Hide() end)
-	local function AddCounterMechanic(fit, fabid)
-		if fabid and fabid > 0 then
-			local _, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(fabid)
-			if tex then
-				fit.counters[tex:lower():gsub("%.blp$", "")] = fabid
-			end
+local missionFollowerSort do
+	local finfo, cinfo, tinfo, mlvl
+	local statusPriority = {
+	  [GARRISON_FOLLOWER_IN_PARTY] = 1,
+	  [GARRISON_FOLLOWER_WORKING] = 2,
+	  [GARRISON_FOLLOWER_ON_MISSION] = 3,
+	  [GARRISON_FOLLOWER_EXHAUSTED] = 4,
+	  [GARRISON_FOLLOWER_INACTIVE] = 5,
+	}
+	local function cmp(a, b)
+		local af, bf = finfo[a], finfo[b]
+		if af.isCollected ~= bf.isCollected then
+			return af.isCollected
 		end
-	end
-	function GetFollowerInfo()
-		if not data.followers then
-			local ft = {}
-			local t = C_Garrison.GetFollowers()
-			for i=1,#t do
-				local v = t[i]
-				if v.isCollected then
-					local fid, fit = v.followerID, {counters={}, gfid=v.garrFollowerID, level=v.level, name=v.name}
-					for i=1,4 do
-						AddCounterMechanic(fit, C_Garrison.GetFollowerAbilityAtIndex(fid, i))
-						AddCounterMechanic(fit, C_Garrison.GetFollowerTraitAtIndex(fid, i))
-					end
-					ft[fid] = fit
-				end
+		local ac, bc = af.status ~= GARRISON_FOLLOWER_IN_PARTY and af.status or nil, bf.status ~= GARRISON_FOLLOWER_IN_PARTY and bf.status or nil
+		if ac ~= bc then
+			if (not ac) ~= (not bc) then
+				return not ac
 			end
-			for k, v in pairs(C_Garrison.GetInProgressMissions()) do
-				for i=1,#v.followers do
-					ft[v.followers[i]].mission, ft[v.followers[i]].missionTimeLeft = v.missionID, v.timeLeft
-				end
-			end
-			data.followers = ft
-			f:Show()
+			-- TODO: maybe check mission time here
+			ac, bc = statusPriority[ac], statusPriority[bc]
+		else
+			ac, bc = 0, 0
 		end
-		return data.followers
-	end
-	function GetCounterInfo()
-		if not data.counters then
-			local ci = {}
-			for fid, info in pairs(GetFollowerInfo()) do
-				for k,v in pairs(info.counters) do
-					ci[k] = ci[k] or {}
-					ci[k][#ci[k]+1] = fid
-				end
-			end
-			data.counters = ci
-			f:Show()
+		if ac == bc then
+			ac, bc = cinfo[af.followerID] and (#cinfo[af.followerID])*100 or 0, cinfo[bf.followerID] and (#cinfo[bf.followerID])*100 or 0
+			ac, bc = ac + (tinfo[af.followerID] and #tinfo[af.followerID] or 0), bc + (tinfo[bf.followerID] and #tinfo[bf.followerID] or 0)
 		end
-		return data.counters
+		if (ac > 0) ~= (bc > 0) then
+			return ac > 0
+		elseif ac > 0 and ((af.level >= mlvl) ~= (bf.level >= mlvl)) then
+			return af.level >= mlvl
+		end
+		if ac == bc then
+			ac, bc = af.level, bf.level
+		end
+		if ac == bc then
+			ac, bc = af.iLevel, bf.iLevel
+		end
+		if ac == bc then
+			ac, bc = af.quality, bf.quality
+		end
+		if ac == bc then
+			ac, bc = 0, strcmputf8i(af.name, bf.name)
+		end
+		return ac > bc
 	end
+	function missionFollowerSort(t, followers, counters, traits, level)
+		finfo, cinfo, tinfo, mlvl = followers, counters, traits, level
+		table.sort(t, cmp)
+		finfo, cinfo, tinfo, mlvl = nil
+	end
+end
+local oldSortFollowers = GarrisonFollowerList_SortFollowers
+function GarrisonFollowerList_SortFollowers(self)
+   local followerCounters = GarrisonMissionFrame.followerCounters
+   local followerTraits = GarrisonMissionFrame.followerTraits
+   if followerCounters and followerTraits and GarrisonMissionFrame.MissionTab:IsVisible() then
+		return missionFollowerSort(self.followersList, self.followers, followerCounters, followerTraits, GarrisonMissionFrame.MissionTab.MissionPage.missionInfo.level)
+	end
+	return oldSortFollowers(self)
 end
 
 local threatColors={[0]={1,0,0}, {0.15, 0.45, 1}, {0.20, 0.45, 1}, {1, 0.25, 0}, {0,1,0}}
@@ -145,7 +208,7 @@ hooksecurefunc("GarrisonMissionButton_AddThreatsToTooltip", function(mid)
 	for i=1,#threats do
 		local f = threats[i]
 		if f:IsShown() then
-			local c, quality = cinfo[f.Icon:GetTexture():lower()], 0
+			local c, quality = cinfo[T.Garrison.GetMechanicInfo(f.Icon:GetTexture():lower())], 0
 			for i=1,c and #c or 0 do
 				local ld, mt = finfo[c[i]].level - missionLevel, finfo[c[i]].missionTimeLeft
 				if ld >= 0 then
@@ -168,30 +231,16 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	end
 end)
 
-local sortByFollowerLevels do
-	local lvl
-	local function cmp(a,b)
-		local ac, bc = lvl[a], lvl[b]
-		ac, bc = ac and ac.level or 0, bc and bc.level or 0
-		if ac == bc then ac, bc = a, b end
-		return ac > bc
-	end
-	function sortByFollowerLevels(counters, finfo)
-		lvl = finfo
-		table.sort(counters, cmp)
-		return counters
-	end
-end
 GarrisonMissionMechanicTooltip:HookScript("OnShow", function(self)
 	local finfo, cinfo = GetFollowerInfo(), GetCounterInfo()
-	local c = cinfo[self.Icon:GetTexture():lower()]
+	local c = cinfo[T.Garrison.GetMechanicInfo(self.Icon:GetTexture():lower())]
 	if c then
 		local t = {}
-		sortByFollowerLevels(c, finfo)
+		T.Garrison.sortByFollowerLevels(c, finfo)
 		for i=1,#c do
 			local fid = c[i]
 			local q = C_Garrison.GetFollowerQuality(fid)
-			if finfo[fid].level - GarrisonMissionFrame.MissionTab.MissionPage.missionInfo.level < -2 then
+			if GarrisonMissionFrame.MissionTab.MissionPage.missionInfo and finfo[fid].level - GarrisonMissionFrame.MissionTab.MissionPage.missionInfo.level < -2 then
 				q = 0
 			end
 			local away = finfo[fid].missionTimeLeft
