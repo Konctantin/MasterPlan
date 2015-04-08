@@ -50,6 +50,7 @@ local sortIndicator = CreateFrame("Button", nil, GarrisonMissionFrameMissions) d
 		{text=L"Mitigated threats", checked=test, func=MasterPlan.SetMissionOrder, arg1="threats2"},
 		{text=L"Mission level", checked=test, func=MasterPlan.SetMissionOrder, arg1="level"},
 		{text=L"Mission duration", checked=test, func=MasterPlan.SetMissionOrder, arg1="duration"},
+		{text=L"Mission expiration", checked=test, func=MasterPlan.SetMissionOrder, arg1="expire"},
 	}, {}
 	for i=1,#menu do sortOrders[menu[i].arg1] = menu[i].text end
 	EV.RegisterEvent("MP_SETTINGS_CHANGED", function(ev, s)
@@ -167,6 +168,7 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 	local function Roamer_OnClick(self, button)
 		if button == "RightButton" then
 			Roamer_SetFollower(nil, self:GetID(), nil)
+			GarrisonFollowerTooltip:Hide()
 		elseif easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 			PlaySound("UChatScrollButton")
@@ -238,6 +240,9 @@ do -- Missions tab split
 		sortIndicator:SetShown(GarrisonMissionFrame.selectedTab == 1)
 		roamingParty:SetShown(GarrisonMissionFrame.selectedTab == 1)
 		roamingParty:Update()
+		if T.InProgressUI then
+			T.InProgressUI:SetShown(GarrisonMissionFrame.selectedTab == 3)
+		end
 	end
 	hooksecurefunc("GarrisonMissionList_UpdateMissions", updateMissionTabs)
 	hooksecurefunc("PanelTemplates_UpdateTabs", function(frame)
@@ -351,6 +356,13 @@ do -- Garrison_SortMissions
 			if order == "duration" then
 				for i=1, #missions do
 					missions[i].ord = -missions[i].durationSeconds
+				end
+				table.sort(missions, cmp)
+			elseif order == "expire" then
+				for i=1, #missions do
+					local mi = missions[i]
+					local max, _, dur = G.GetMissionSeen(mi.missionID)
+					mi.ord = dur and min(0, floor(max/1800 - dur*2)) or -math.huge
 				end
 				table.sort(missions, cmp)
 			elseif order == "level" then
@@ -932,7 +944,7 @@ local threatListMT = {} do
 	end
 end
 local function MissionButton_OnEnter(self)
-	if self.info.inProgress or IsAddOnLoaded("GarrisonCommander") then
+	if self.info.inProgress then
 		GarrisonMissionButton_OnEnter(self)
 	end
 end
@@ -977,11 +989,21 @@ hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRe
 		end
 		self.Projections[1]:SetPoint("BOTTOM")
 		self:SetScript("OnEnter", MissionButton_OnEnter)
+		self.Expire = CreateFrame("Frame", nil, self)
+		self.Expire:SetSize(100, 20)
+		self.Expire.Icon = self.Expire:CreateTexture()
+		self.Expire.Icon:SetSize(20,20)
+		self.Expire.Icon:SetPoint("LEFT")
+		self.Expire.Icon:SetTexture("Interface\\Icons\\INV_Misc_PocketWatch_01")
+		self.Expire.Text = self.Expire:CreateFontString(nil, nil, "GameFontHighlight")
+		self.Expire.Text:SetTextColor(0.85, 0.85, 0.85)
+		self.Expire.Text:SetPoint("LEFT", self.Expire.Icon, "RIGHT", 2, 0)
 	end
 		
 	local nt, tt, mi = 1, self.Threats, self.info
 	local cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
 	local mlvl = G.GetFMLevel(mi)
+	self.Expire:Hide()
 	if not mi.inProgress then
 		self.Title:SetPoint("LEFT", 165, 15)
 		local _, _xp, ename, edesc, etex, _, _, enemies = C_Garrison.GetMissionInfo(mi.missionID)
@@ -1013,6 +1035,16 @@ hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRe
 			self.Projections[3].Text:SetText("")
 		else
 			self.Projections[3].Text:SetText("|TInterface\\QuestFrame\\QuestTypeIcons:0:0:0:1:128:64:19:34:19:35|t" .. numMembers .. "/" .. mi.numFollowers)
+		end
+		local min, max, exp = G.GetMissionSeen(mi.missionID)
+		if exp and exp > 0 then
+			local text = math.max(0,exp-floor(max/3600+0.5))
+			if min - max >= 3600 and text > 0 then
+				text = math.max(0, exp-floor(min/3600+0.5)) .. "-" .. text
+			end
+			self.Expire:SetPoint("TOPLEFT", 400, (self.Threats[1]:GetTop() - self:GetTop())*self:GetScale())
+			self.Expire.Text:SetFormattedText(LASTONLINE_HOURS:gsub("%%[%d$]*d", "%%s"), text)
+			self.Expire:Show()
 		end
 	else
 		self.Projections:Hide()
@@ -1553,8 +1585,8 @@ function GarrisonMissionFrame_CheckCompleteMissions(onShow)
 	end
 end
 
-local function ToggleFollowerIgnore(_, fid)
-	T.config.ignore[fid] = T.config.ignore[fid] == nil and 1 or nil
+local function SetFollowerIgnore(_, fid, val)
+	MasterPlan:SetFollowerIgnored(fid, val)
 	GarrisonMissionFrame.FollowerList.dirtyList = true
 	GarrisonFollowerList_UpdateFollowers(GarrisonMissionFrame.FollowerList)
 end
@@ -1563,9 +1595,9 @@ hooksecurefunc(GarrisonFollowerOptionDropDown, "initialize", function(self)
 	if fi and fi.isCollected and fi.status ~= GARRISON_FOLLOWER_INACTIVE then
 		DropDownList1.numButtons = DropDownList1.numButtons - 1
 		
-		local info = UIDropDownMenu_CreateInfo()
-		info.text, info.notCheckable = T.config.ignore[fi.followerID] and L"Unignore" or L"Ignore", true
-		info.func, info.arg1 = ToggleFollowerIgnore, fi.followerID
+		local info, ignored = UIDropDownMenu_CreateInfo(), T.config.ignore[fi.followerID]
+		info.text, info.notCheckable = ignored and L"Unignore" or L"Ignore", true
+		info.func, info.arg1, info.arg2 = SetFollowerIgnore, fi.followerID, not ignored
 		UIDropDownMenu_AddButton(info)
 		
 		info.text, info.func = CANCEL

@@ -180,7 +180,10 @@ GarrisonLandingPage.FollowerTab:HookScript("OnShow", function(self)
 	mechanicsFrame:Show()
 	syncTotals()
 end)
-
+hooksecurefunc(C_Garrison, "SetFollowerInactive", function()
+	C_Timer.After(0.25, syncTotals)
+	C_Timer.After(1, syncTotals)
+end)
 
 local UpgradesFrame = CreateFrame("FRAME")
 UpgradesFrame:SetSize(237, 42)
@@ -211,7 +214,7 @@ T.Evie.RegisterEvent("PLAYER_REGEN_DISABLED", function()
 	UpgradesFrame:ClearAllPoints()
 end)
 T.Evie.RegisterEvent("BAG_UPDATE_DELAYED", function()
-	if UpgradesFrame:IsShown() then
+	if UpgradesFrame:IsVisible() then
 		UpgradesFrame:Update()
 	end
 end)
@@ -226,14 +229,14 @@ local function UpgradeItem_SetItem(self, id)
 		self.Name:SetTextColor(GetItemQualityColor(itemQuality))
 		self.ItemLevel:SetFormattedText("")
 	end
-	self:SetAttribute("macrotext", "/use item:" .. id)
+	self:SetAttribute("macrotext", SLASH_STOPSPELLTARGET1 .. "\n" .. SLASH_USE1 .. " item:" .. id)
 	self:Show()
 end
 local function UpgradeItem_OnClick(self)
 	C_Garrison.CastSpellOnFollower(GarrisonMissionFrame.FollowerTab.followerID)
 end
 local function UpgradeItem_OnEvent(self)
-	if self:IsShown() and self.itemID then
+	if self:IsVisible() and self.itemID then
 		UpgradeItem_SetItem(self, self.itemID)
 	end
 end

@@ -432,13 +432,19 @@ do -- GetMissionSeen
 	local function ObserveMissions()
 		isPendingObserve = nil
 		if not dt then return end
-		local avail, seen, now = C_Garrison.GetAvailableMissions(), {}, time()
+		local ip, avail, seen, now = nil, C_Garrison.GetAvailableMissions(), {}, time()
 		if #avail > 0 then
 			for i=1,#avail do
 				local mid = avail[i].missionID
+				if lt and dt[mid] and expire[mid] and (now - dt[mid]) > expire[mid]*3600 then
+					if T.config.announceLoss then
+						dt.__loss = dt.__loss or {}
+						dt.__loss[#dt.__loss + 1] = {now, mid, dt[-mid], dt[mid], expire[mid], "!"}
+					end
+					dt[-mid], dt[mid] = max(dt[-mid]+expire[mid]*3600, now-expire[mid]*3600, lt or -math.huge)
+				end
 				dt[mid], dt[-mid], seen[mid] = dt[mid] or now, dt[-mid] or lt or now, 1
 			end
-			local ip
 			for k in pairs(dt) do
 				if type(k) == "number" and not seen[k] and not seen[-k] then
 					if T.config.announceLoss then
@@ -764,7 +770,7 @@ api.GroupRank, api.GroupFilter = {}, {} do
 			ac, bc = computeDingScore(a, finfo), computeDingScore(b, finfo)
 		end
 		if ac == bc  then
-			ac, bc = a[4], b[4]
+			ac, bc = -a[4], -b[4]
 		end
 		if ac == bc then
 			ac, bc = a[3], b[3]
@@ -851,8 +857,8 @@ end
 
 do -- GetUpgradeItems(ilevel, isArmor)
 	local upgrades = {
-		WEAPON={114128, 650, 114129, 650, 114131, 650, 114616, 615, 114081, 630, 114622, 645},
-		ARMOR={114745, 650, 114808, 650, 114822, 650, 114807, 615, 114806, 630, 114746, 645}
+		WEAPON={114128, 655, 114129, 655, 114131, 655, 114616, 615, 114081, 630, 114622, 645},
+		ARMOR={114745, 655, 114808, 655, 114822, 655, 114807, 615, 114806, 630, 114746, 645}
 	}
 	local function walk(ilvl, t, pos)
 		for i=pos,#t,2 do

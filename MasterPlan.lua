@@ -7,6 +7,7 @@ local defaults, mdata, mcdata = {
 	dropLessSalvage=true,
 	riskReward=1,
 	announceLoss=false,
+	ignore={},
 	version="0.13",
 }
 local conf = setmetatable({}, {__index=defaults})
@@ -26,14 +27,19 @@ T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 		local n, r = UnitFullName("player")
 		local ckey = (r or "?") .. "#" .. n
 		mcdata = type(mdata[ckey]) == "table" and mdata[ckey] or {}
-		defaults.ignore, mdata[ckey] = type(mcdata["__ignore"]) == "table" and mcdata["__ignore"] or {}, mcdata
+		if type(mcdata.__ignore) == "table" then
+			for k,v in pairs(mcdata.__ignore) do
+				conf.ignore[k] = v
+			end
+			mcdata.__ignore = nil
+		end
 		T._SetMissionSeenTable(mcdata)
 		
 		return "remove"
 	end
 end)
 T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
-	MasterPlanConfig, MasterPlanData, mcdata["__ignore"] = conf, mdata, next(conf.ignore) and conf.ignore
+	MasterPlanConfig, MasterPlanData, mcdata.__ignore = conf, mdata, next(conf.ignore) and conf.ignore
 	T._ObserveMissions()
 end)
 
@@ -111,6 +117,14 @@ end
 function api:DissolveAllMissions()
 	wipe(parties)
 	wipe(tentativeState)
+end
+
+function api:IsFollowerIgnored(fid)
+	return not not conf.ignore[fid]
+end
+function api:SetFollowerIgnored(fid, ignore)
+	assert(type(fid) == "string", 'Syntax: MasterPlan:SetFollowerIgnored("followerID", ignore)')
+	conf.ignore[fid] = ignore and 1 or nil
 end
 
 MasterPlan = api
