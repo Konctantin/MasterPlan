@@ -232,6 +232,15 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 	function easyDrop:IsOpen(owner)
 		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
 	end
+	function easyDrop:Close()
+		if UIDROPDOWNMENU_OPEN_MENU == self then
+			CloseDropDownMenus()
+		end
+		if self.owner and self.owner.OnEasyDropHide then
+			securecall(self.owner.OnEasyDropHide, self.owner)
+		end
+		self.owner = nil
+	end
 	local function CheckOwner(self, elapsed)
 		local keep = false
 		if self.owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown() then
@@ -242,7 +251,7 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 		end
 		if self.delayOwner then
 			local isOpen = self:IsOpen(self.delayOwner)
-			local isNotOver = not (self.delayOwner:IsMouseOver(4,-4,-4,4) or isOpen and DropDownList1:IsMouseOver(4,-4,-4,4))
+			local isNotOver = not (self.delayOwner:IsVisible() and (self.delayOwner:IsMouseOver(4,-4,-4,4) or isOpen and DropDownList1:IsMouseOver(4,-4,-4,4)))
 			if isNotOver == isOpen then
 				local dl = self.delayLeft - elapsed
 				if dl > 0 then
@@ -260,16 +269,14 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 			end
 		end
 		if not keep then
-			if UIDROPDOWNMENU_OPEN_MENU == self then
-				CloseDropDownMenus()
-			end
-			self.owner = nil
+			self:Close()
 			if not self.delayOwner then
 				self:SetScript("OnUpdate", nil)
 			end
 		end
 	end
 	function easyDrop:Open(owner, menu, ...)
+		self:Close()
 		self.owner, self.delayOwner = owner
 		self:SetScript("OnUpdate", CheckOwner)
 		EasyMenu(menu, self, "cursor", 9000, 9000, "MENU", 4)
@@ -283,7 +290,7 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 			if hoverGrace then
 				return
 			end
-			CloseDropDownMenus()
+			self:Close()
 		else
 			return true
 		end
@@ -757,19 +764,37 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		end
 		local menu = {
 			{text=L"Time Horizon", isTitle=true, notCheckable=true},
-			{text=SPELL_CAST_TIME_INSTANT, checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=0},
-			{text=INT_GENERAL_DURATION_HOURS:format(1), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=3600},
-			{text=INT_GENERAL_DURATION_HOURS:format(2), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=7200},
-			{text=INT_GENERAL_DURATION_HOURS:format(4), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=14400},
-			{text=INT_GENERAL_DURATION_HOURS:format(8), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=28800},
-			{text=INT_GENERAL_DURATION_HOURS:format(12), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=43200},
-			{text=INT_GENERAL_DURATION_HOURS:format(24), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=86400},
+			{text=L"Instant", checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=0},
+			{arg1=3600},
+			{arg1=7200},
+			{arg1=10800},
+			{arg1=14400},
+			{arg1=21600},
+			{arg1=28800},
+			{arg1=43200},
+			{arg1=86400},
 		}
+		for i=3,#menu do
+			menu[i].text, menu[i].checked, menu[i].func = INT_GENERAL_DURATION_HOURS:format(menu[i].arg1/3600), isChecked, MasterPlan.SetTimeHorizon
+		end
+		local function showHint()
+			if easyDrop:IsOpen(horizon) then
+				GameTooltip:SetOwner(horizon, "ANCHOR_PRESERVE")
+				GameTooltip:ClearAllPoints()
+				GameTooltip:SetPoint("TOPLEFT", DropDownList1, "TOPRIGHT", 4, 0)
+				GameTooltip:SetText(L"Time Horizon")
+				GameTooltip:AddLine(L"Time until you next expect to be able to interact with garrison missions.\n\nThis may affect suggested groups and mission sorting order.", 1,1,1,1)
+				GameTooltip:Show()
+			end
+		end
 		horizon:SetScript("OnClick", function(self)
 			easyDrop:Toggle(self, menu, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
+			showHint()
 		end)
+		horizon.OnEasyDropHide = dismissTooltip
 		horizon:SetScript("OnEnter", function(self)
 			easyDrop:DelayOpenClick(self)
+			showHint()
 		end)
 	end
 	local roamingParty = CreateFrame("Frame", nil, availUI) do
@@ -790,8 +815,8 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			end
 			self:Update()
 		end
-		function roamingParty:Update()
-			local changed = false
+		function roamingParty:Update(changed)
+			changed = changed or false
 			for i=1,#self do
 				local f, fi = self[i].followerID
 				if f then
@@ -809,15 +834,15 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				end
 				self[i].followerID = f
 			end
-			if changed and GarrisonMissionFrameListScrollFrame:IsVisible() and GarrisonMissionFrame.selectedTab == 1 then
-				RefreshAvailMissionsView(true)
+			if changed then
+				availMissionsHandle:Refresh(true)
 			end
 		end
 		function roamingParty:Clear()
 			for i=1,#self do
 				self[i].followerID = nil
 			end
-			self:Update()
+			self:Update(true)
 		end
 		local function Roamer_SetFollower(_, slot, follower)
 			if roamingParty[slot].followerID ~= follower then
@@ -828,8 +853,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				end
 				PlaySound(follower and "UI_Garrison_CommandTable_AssignFollower" or "UI_Garrison_CommandTable_UnassignFollower")
 				roamingParty[slot].followerID = follower
-				roamingParty:Update()
-				RefreshAvailMissionsView(true)
+				roamingParty:Update(true)
 			end
 		end
 		local function cmp(a,b)
@@ -920,7 +944,10 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			x:SetScript("OnLeave", Roamer_OnLeave)
 		end
 		roamingParty:SetSize(#roamingParty*40, 36)
-		EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", function() roamingParty:Clear() end)
+		local function clearRP()
+			roamingParty:Clear()
+		end
+		EV.RegisterEvent("GARRISON_MISSION_NPC_CLOSED", function() C_Timer.After(0, clearRP) end)
 	end
 	availUI.SendTentative = CreateFrame("Button", nil, availUI, "UIPanelButtonTemplate") do
 		local b = availUI.SendTentative
@@ -961,14 +988,11 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		
 		local synced = true
 		local function sync()
+			synced = true
 			b:SetShown(MasterPlan:HasFullTentativeParties())
 			if b:IsShown() and GameTooltip:IsOwned(b) then
 				b:GetScript("OnEnter")(b)
 			end
-			if availUI:IsVisible() then
-				RefreshAvailMissionsView(true)
-			end
-			synced = true
 		end
 		EV.RegisterEvent("MP_TENTATIVE_PARTY_UPDATE", function()
 			if synced then
@@ -1467,12 +1491,17 @@ local CreateMissionButton do
 			t:SetAtlas("GarrMission_RewardsShadow")
 			t:SetPoint("CENTER")
 			t:SetSize(h+4, h+4)
-			t = r:CreateTexture(nil, "ARTWORK")
+			t = r:CreateTexture(nil, "BORDER")
+			t:SetPoint("CENTER")
+			t:SetSize(h+2, h+2)
+			t:Hide()
+			t, r.border = r:CreateTexture(nil, "BACKGROUND", nil, 1), t
 			t:SetAllPoints()
 			t:SetTexture("Interface\\ICONS\\Temp")
 			r.icon = t
-			t = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightOutline")
-			t:SetPoint("BOTTOMRIGHT", 1, h > 33 and 3 or 1)
+			t = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightOutline")
+			local ins = h > 33 and 3 or 1
+			t:SetPoint("BOTTOMRIGHT", 2-ins, ins)
 			r.quantity = t
 			r:SetScript("OnEnter", Reward_OnEnter)
 			r:SetScript("OnLeave", dismissTooltipAndHighlight)
@@ -1918,20 +1947,7 @@ do -- availMissionsHandle
 			GameTooltip:SetOwner(self, "ANCHOR_PRESERVE")
 			GameTooltip:ClearAllPoints()
 			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", -6, 0)
-			GameTooltip:AddLine(g[1] .. "% |cffc0c0c0(" .. SecondsToTime(g[4]) .. ")")
-			local finfo, ml = G.GetFollowerInfo(), G.GetFMLevel(mi)
-			for i=1,mi.numFollowers do
-				GameTooltip:AddLine(G.GetFollowerLevelDescription(g[4+i], ml, finfo[g[4+i]], g[10], mi.missionID))
-			end
-			local _, exp = G.GetMissionGroupXP(g, mi)
-			if (exp or 0) > 0 then
-				local exp = BreakUpLargeNumbers(floor(exp))
-				GameTooltip:AddLine((L"+%s experience expected"):format(exp))
-			end
-			if g[3] > 0 or g[9] > 0 then
-				local r = g[3] > 0 and g[3] .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t" or GetMoneyString(g[9])
-				GameTooltip:AddLine(REWARDS .. ": |cffffffff" .. r) --TODO
-			end
+			G.SetGroupTooltip(GameTooltip, g, mi)
 			GameTooltip:Show()
 		end
 	end
@@ -1950,7 +1966,10 @@ do -- availMissionsHandle
 	local function GroupButton_OnClick(self)
 		local mi = core:GetRowData(availMissionsHandle, self:GetParent())
 		local g = mi and mi.groups and mi.groups[self:GetID()]
-		if g then
+		if not g then
+		elseif IsAltKeyDown() then
+			MasterPlan:SaveMissionParty(mi.missionID, g[5], g[6], g[7])
+		else
 			OpenToMission(mi, g[5], g[6], g[7])
 		end
 	end
@@ -2112,6 +2131,7 @@ do -- availMissionsHandle
 				local icon, quant, r = v.icon, v.quantity ~= 1 and v.quantity
 				r, nr = self.rewards[nr], nr + 1
 				r.itemID, r.tooltipTitle, r.tooltipText, r.currencyID = v.itemID, v.title, v.tooltip, v.currencyID
+				r.border:Hide()
 				if v.followerXP then
 					quant = v.followerXP
 				elseif v.currencyID == 0 then
@@ -2120,13 +2140,23 @@ do -- availMissionsHandle
 				elseif v.currencyID == GARRISON_CURRENCY then
 					quant = v.quantity
 				elseif v.itemID then
-					local _, _, q, l, _, _, _, _, _, tex = GetItemInfo(v.itemID)
-					if not tex then tex = GetItemIcon(v.itemID) end
+					local _, _, q, l, _, _, _, _, _, tex, slot = GetItemInfo(v.itemID)
+					icon, slot = tex or GetItemIcon(v.itemID), T.TokenSlots[v.itemID]
 					if v.quantity == 1 and q and l and l > 500 then
 						quant = ITEM_QUALITY_COLORS[q].hex .. l
-					end
-					if tex then
-						icon = tex
+						if slot then
+							local cur
+							for slot=slot, slot + (slot > 10 and 1 or 0) do
+								local link = GetInventoryItemLink("player", slot)
+								local l = link and select(4, GetItemInfo(link))
+								cur = cur and l and cur > l and l or cur or l
+							end
+							if cur and cur <= l then
+								local ac = q == 3 and "blue" or q == 4 and "purple" or "green"
+								r.border:SetAtlas("loottoast-itemborder-" .. ac)
+								r.border:Show()
+							end
+						end
 					end
 				end
 				r.quantity:SetText(quant or "")
@@ -2244,9 +2274,7 @@ do -- availMissionsHandle
 		function GetAvailableMissions()
 			local order, missions, droppedMissionCost = T.config.availableMissionSort, G.GetAvailableMissions()
 			local field = fields[order] or 1
-			G.PrepareAllMissionGroups()
 			local groupCache = G.GetSuggestedMissionGroups(missions, roamingParty:GetFollowers())
-			
 			if order == "threats2" then
 				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
 			end
@@ -2276,14 +2304,13 @@ do -- availMissionsHandle
 					mi.ord = g and g[field] or -math.huge
 				end
 				if MasterPlan:HasTentativeParty(mi.missionID) == C_Garrison.GetMissionMaxFollowers(mi.missionID) then
-					mi.ord0 = -1
+					mi.ord0 = 1
 				end
 				mi.reqCheckFailed = checkReq and (mi.numFollowers > nf or mi.cost > nr)
 			end
 			table.sort(missions, cmp)
 			cinfo, finfo = nil
 			GarrisonMissionFrame.MissionTab.MissionList.EmptyListString:SetText(#missions > 0 and "" or GARRISON_EMPTY_MISSION_LIST)
-			
 			return missions
 		end
 	end
@@ -2306,12 +2333,46 @@ do -- availMissionsHandle
 	end
 	function availMissionsHandle:Refresh(reload)
 		if core:IsOwned(self) and core:IsShown() then
-			availMissionsHandle:Activate(reload)
+			if availUI:IsVisible() then
+				availMissionsHandle:Activate(reload)
+			else
+				core:SetData()
+			end
 		end
+	end
+	do -- RefreshAvailMissionsView
+		local isFullRefresh, ph, isDirty = true, {}
+		local function DoRefresh()
+			local reload = isFullRefresh
+			isDirty, isFullRefresh = nil
+			availMissionsHandle:Refresh(reload)
+		end
+		function RefreshAvailMissionsView(force)
+			if core:IsShown() and (force or core:IsOwned(availMissionsHandle)) then
+				if not isDirty then
+					isDirty, isFullRefresh = true, isFullRefresh or force or not core:IsOwned(availMissionsHandle)
+					if not core:IsOwned(availMissionsHandle) then
+						core:SetData(ph, availMissionsHandle)
+					end
+					C_Timer.After(0, DoRefresh)
+				end
+			end
+		end
+		availUI:SetScript("OnShow", RefreshAvailMissionsView)
+		EV.RegisterEvent("GARRISON_MISSION_LIST_UPDATE", function()
+			if availUI:IsVisible() then
+				RefreshAvailMissionsView(true)
+			end
+		end)
 	end
 	EV.RegisterEvent("MP_SETTINGS_CHANGED", function(_, s)
 		if s == "availableMissionSort" or s == "timeHorizon" then
 			availMissionsHandle:Refresh(true)
+		end
+	end)
+	EV.RegisterEvent("MP_TENTATIVE_PARTY_UPDATE", function()
+		if availUI:IsVisible() then
+			RefreshAvailMissionsView(true)
 		end
 	end)
 end
@@ -2746,33 +2807,6 @@ do -- RefreshActiveMissionsView
 		end
 	end
 	activeUI:SetScript("OnShow", RefreshActiveMissionsView)
-end
-do -- RefreshAvailMissionsView
-	local isFullRefresh, ph, isDirty = true, {}
-	local function DoRefresh()
-		local full = isFullRefresh
-		isDirty, isFullRefresh = nil
-		if core:IsOwned(availMissionsHandle) then
-			availMissionsHandle:Activate(full)
-		end
-	end
-	function RefreshAvailMissionsView(force)
-		if core:IsShown() and (force or core:IsOwned(availMissionsHandle)) then
-			if not isDirty then
-				isDirty, isFullRefresh = true, isFullRefresh or force or not core:IsOwned(availMissionsHandle)
-				if not core:IsOwned(availMissionsHandle) then
-					core:SetData(ph, availMissionsHandle)
-				end
-				C_Timer.After(0, DoRefresh)
-			end
-		end
-	end
-	availUI:SetScript("OnShow", RefreshAvailMissionsView)
-	EV.RegisterEvent("GARRISON_MISSION_LIST_UPDATE", function()
-		if availUI:IsVisible() then
-			RefreshAvailMissionsView(true)
-		end
-	end)
 end
 activeUI:SetScript("OnUpdate", function(self, elapsed)
 	local nr = self.nextRefresh or 0

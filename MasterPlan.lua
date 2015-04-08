@@ -154,9 +154,11 @@ function api:DissolveMissionByFollower(fid)
 	dissolve(tentativeState[fid])
 end
 function api:DissolveAllMissions()
-	wipe(parties)
-	wipe(tentativeState)
-	T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+	if next(parties) or next(tentativeState) then
+		wipe(parties)
+		wipe(tentativeState)
+		T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+	end
 end
 T.Evie.RegisterEvent("MP_MISSION_START", function(mid, f1, f2, f3)
 	dissolve(mid, true)
