@@ -519,7 +519,6 @@ local computeTotalXP do
 			for i=1,b and #b or 0 do
 				mul = mul + (xpGroupBuffs[b[i]] or 0)
 			end
-			if mul > 1 then print("!")end
 			for i=1, minfo.numFollowers do
 				local fi = finfo[g[4+i]]
 				if fi.level < 100 or fi.quality < 4 then
