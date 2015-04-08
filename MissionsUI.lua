@@ -1,7 +1,6 @@
 local _, T = ...
 if T.Mark ~= 23 then return end
 local L, EV, G, api = T.L, T.Evie, T.Garrison, {}
-local is61 = select(4,GetBuildInfo()) >= 60100
 
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
 local RefreshActiveMissionsView, activeMissionsHandle
@@ -2400,7 +2399,7 @@ do -- interestMissionsHandle
 		local r, ri = self.rewards[1], missionRewards[d[5]]
 		if d[5] > 0 then
 			r.currencyID, r.itemID, r.tooltipTitle, r.tooltipText = GARRISON_CURRENCY
-			r.quantity:SetText(d[5] * (1 + (is61 and 1 or 2)*(best and best[4] or 0)))
+			r.quantity:SetText(d[5] * (1 + (best and best[4] or 0)))
 			r.icon:SetTexture("Interface\\Icons\\inv_garrison_resource")
 		elseif ri[1] == 0 then
 			local rq = ri[2] * (1+(best and best[4] or 0))
@@ -2418,7 +2417,7 @@ do -- interestMissionsHandle
 		end
 		r:Show()
 	end
-	local missions, unusedEntry, emptyTable = is61 and {
+	local missions, unusedEntry, emptyTable = {
 		{313, 645, 3, 28800, 0, 28, 1, 2, 6, 8, 9, 10}, -- Highmaul Raid
 		{314, 645, 3, 28800, 0, 17, 1, 3, 3, 4, 6, 7}, -- Highmaul Raid
 		{315, 645, 3, 28800, 0, 12, 2, 4, 7, 9, 10, 10}, -- Highmaul Raid
@@ -2448,35 +2447,6 @@ do -- interestMissionsHandle
 		{408, 100, 3, 86000, -3, 11, 1, 2, 3, 6, 7, 10}, -- The Pits
 		{358, 100, 3, 36000, -5, 22, 2, 3, 6}, -- Drov the Ruiner
 		{359, 100, 3, 36000, -5, 21, 1, 3, 7}, -- Rukhmar
-	} or {
-		{313, 645, 3, 28800, 0, 28, 1, 2, 6, 8, 9, 10}, -- Highmaul Raid
-		{314, 645, 3, 28800, 0, 17, 1, 3, 3, 4, 6, 7}, -- Highmaul Raid
-		{315, 645, 3, 28800, 0, 12, 2, 4, 7, 9, 10, 10}, -- Highmaul Raid
-		{316, 645, 3, 28800, 0, 29, 1, 6, 8, 9, 9, 10}, -- Highmaul Raid
-		{311, 630, 3, 21600, 175, 11, 2, 3, 6, 10}, -- Can't Go Home This Way
-		{312, 630, 3, 21600, 175, 25, 2, 4, 8, 10}, -- Magical Mystery Tour
-		{268, 615, 3, 14400, 130, 22, 2, 3, 7}, -- Who's the Boss?
-		{269, 615, 3, 14400, 130, 20, 1, 6, 10}, -- Griefing with the Enemy
-		{132, 100, 2, 21600, 100, 15, 4, 6}, -- The Basilisk's Stare
-		{133, 100, 2, 21600, 100, 18, 3, 8}, -- Elemental Territory
-		{361, 100, 3, 36000, -1, 25, 2, 3, 7, 9}, -- Blingtron's Secret Vault
-		{407, 100, 3, 86000, -2, 13, 3, 4, 6, 8, 8}, -- Tower of Terror
-		{405, 100, 3, 86000, -2, 20, 1, 2, 4, 7, 9}, -- Lost in the Weeds
-		{403, 100, 3, 86000, -2, 27, 3, 6, 7, 8}, -- Rock the Boat
-		{404, 100, 3, 86000, -2, 12, 2, 6, 7, 8}, -- He Keeps it Where?
-		{406, 100, 3, 86000, -2, 27, 1, 2, 3, 10}, -- It's Rigged!
-		{410, 100, 3, 86000, -3, 16, 2, 3, 4, 8, 9}, -- A Rune with a View
-		{412, 100, 3, 86000, -3, 24, 2, 2, 3, 3, 7, 9}, -- Beyond the Pale
-		{413, 100, 3, 86000, -3, 27, 1, 2, 4, 6, 7, 8}, -- Pumping Iron
-		{411, 100, 3, 86000, -3, 29, 2, 3, 3, 6, 8, 9}, -- Rocks Fall. Everyone Dies.
-		{409, 100, 3, 86000, -3, 22, 1, 2, 3, 6, 9, 9}, -- The Great Train Robbery
-		{408, 100, 3, 86000, -3, 11, 1, 2, 3, 6, 7, 10}, -- The Pits
-		{358, 100, 3, 36000, -5, 22, 2, 3, 6}, -- Drov the Ruiner
-		{359, 100, 3, 36000, -5, 21, 1, 3, 7}, -- Rukhmar
-		{446, 660, 3, 28800, -4, 18, 1, 2, 3, 6, 7, 9, 10}, -- Slagworks
-		{447, 660, 3, 28800, -4, 21, 1, 2, 3, 3, 6, 8, 10}, -- Black Forge
-		{448, 660, 3, 28800, -4, 24, 3, 4, 4, 6, 7, 7, 8}, -- Iron Assembly
-		{449, 660, 3, 28800, -4, 11, 1, 2, 3, 6, 8, 9, 10}, -- Blackhand's Crucible
 	}, {unused={}}, {}
 	interestMissionsHandle = core:CreateHandle(CreateInterestMission, setData, 60)
 	local function loadAndRefresh(id)

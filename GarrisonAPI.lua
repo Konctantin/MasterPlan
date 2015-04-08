@@ -1,8 +1,8 @@
 local api, _, T = {}, ...
 if T.Mark ~= 23 then return end
-local is61 = select(4,GetBuildInfo()) >= 60100
 local EV, L = T.Evie, newproxy(true)
 getmetatable(L).__call = function(self,k) if T.L then L = T.L return L(k) end return k end
+local FOLLOWER_ITEM_LEVEL_CAP = T.FOLLOWER_ITEM_LEVEL_CAP
 
 local f, data = CreateFrame("Frame"), {}
 f:SetScript("OnUpdate", function(self) wipe(data) self:Hide() end)
@@ -595,24 +595,10 @@ do -- GetMissionSeen
 		end
 	end
 	local longHourFormat, shortHourFormat = LASTONLINE_HOURS:gsub("%%[%d$]*d", "%%s"), GARRISON_DURATION_HOURS:gsub("%%[%d$]*d", "%%s")
-	api.GetMissionSeen = is61 and function(mid, mi)
+	function api.GetMissionSeen(mid, mi)
 		local mi, lastComplete, now = mi or C_Garrison.GetBasicMissionInfo(mid), ct and ct[mid], time()
 		local tl, expire = mi and mi.offerEndTime and (mi.offerEndTime - GetTime()) or -1, expire[mid]
 		return tl, mi and mi.offerTimeRemaining or tl >= 0 and api.GetTimeStringFromSeconds(tl) or "", tl >= 0 and shortHourFormat:format(math.floor(tl/3600+0.5)) or "", lastComplete and (now-lastComplete)
-	end or function(mid)
-		local now, ex, lastComplete = time(), (expire[mid] or 0)*3600, ct and ct[mid]
-		local early, late = dt and dt[-mid] or now, dt and dt[mid] or now
-		if early == 0 then early = min(late, now - ex) end
-		if ex == 0 then
-			return -1, "", "", lastComplete and (now-lastComplete)
-		else
-			local maxR, minR = late + ex - now, early + ex - now
-			local text = math.max(0, math.floor(minR/3600+0.5))
-			if maxR-minR >= 3600 and text > 0 then
-				text = text .. "-" .. math.max(0, math.floor(maxR/3600+0.5))
-			end
-			return minR < 0 and 0 or minR, longHourFormat:format(text), shortHourFormat:format(text), lastComplete and (now-lastComplete)
-		end
 	end
 	function T._SetMissionSeenTable(t, t2)
 		if type(t) == "table" then
@@ -1169,7 +1155,7 @@ do -- api.GetSuggestedGroups(mi, onlyBackfill, f1, f2, f3)
 end
 
 do -- api.GetUpgradeItems(ilevel, isArmor)
-	local cap = is61 and 675 or 655
+	local cap = FOLLOWER_ITEM_LEVEL_CAP
 	local upgrades = {
 		WEAPON={114128, cap, 114129, cap-3, 114131, cap-6, 114616, 615, 114081, 630, 114622, 645},
 		ARMOR={114745, cap, 114808, cap-3, 114822, cap-6, 114807, 615, 114806, 630, 114746, 645}
@@ -1302,21 +1288,22 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 				local na, nw = na + (c and fc.active or 0), 3 - nw - (c and fc.working or 0)
 
 				local c6 = counters[6]
-				counters[6] = c6 + traits[232]*0.5
 				for i=1, mic do
 					local mi = mi[i]
-					local nc, cap, mlvl = traits[201]*2 + traits[202]*4, (#mi-6)*6, mi[2] do
+					local mlvl, tv = mi[2], mi[1] == 503 and 3 or 6
+					local nc, cap = traits[201]*2 + traits[202]*4, (#mi-6)*tv do
 						local time, env = mi[4]*2^-traits[221], mi[6]
 						nc = nc + (env == 13 and 1 or 2) * (traits[ec[env]] or 0) + traits[(time >= 25200) and 76 or 77]*2 + traits[47]*6
 						
 						local lc, cn = mi[7], 1
+						counters[6] = c6 + traits[232]*4/tv
 						for i=8, #mi+1 do
 							local c = mi[i]
 							if c == lc then
 								cn = cn + 1
 							else
 								local h = counters[lc] or 0
-								lc, cn, nc = c, 1, nc + 6 * (h > cn and cn or h)
+								lc, cn, nc = c, 1, nc + tv * (h > cn and cn or h)
 							end
 						end
 					end
@@ -1336,10 +1323,10 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 							ra, rb, sa, sb, rc = rb, rc, sb, sc
 						until nc >= cap or not ra
 					end
-					if nc < cap and mlvl ~= 100 then
+					if nc < cap then
 						local ng, la, lb, lc, lm, mx = c and 3 or 2
-						if mlvl > 100 then
-							la, lb, lc, lm, mx = fa.iLevel, fb.iLevel, fc.iLevel, 15, (is61 or mlvl >= 660) and 675 or 655
+						if mlvl >= 100 then
+							la, lb, lc, lm, mx, mlvl = fa.iLevel, fb.iLevel, fc.iLevel, 15, FOLLOWER_ITEM_LEVEL_CAP, mlvl == 100 and 600 or mlvl
 						else
 							la, lb, lc, lm, mx = fa.level, fb.level, fc.level, 3, 100
 						end
@@ -1451,7 +1438,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 				else
 					lc, cn, h = c, 1, counters[c] or 0
 				end
-				bt[i] = h >= cn or (h == cn-0.5 and 0.5 or nil)
+				bt[i] = h >= cn or (h == cn-0.5 and (mi[1] == 503 or 0.5) or nil)
 			end
 			missions[i].best = bt
 		else

@@ -667,3 +667,17 @@ do -- Follower headcounts
 	EV.RegisterEvent("GARRISON_MISSION_NPC_OPENED", sync)
 	mf:HookScript("OnShow", sync)
 end
+do -- Scary follower warning
+	local fol = GarrisonMissionFrame.MissionTab.MissionPage.Followers
+	for i=1,#fol do
+		fol[i]:HookScript("OnEnter", function(self)
+			local mi, td = MISSION_PAGE_FRAME.missionInfo, GarrisonFollowerTooltip.data
+			if td and mi and self.info and td.underBiased and mi.level <= self.info.level and self.info.quality < 4 then
+				local ub = GarrisonFollowerTooltip.UnderBiased
+				local oh = ub:GetHeight()
+				ub:SetText(GARRISON_FOLLOWER_BELOW_LEVEL_MAX_XP_TOOLTIP)
+				GarrisonFollowerTooltip:SetHeight(GarrisonFollowerTooltip:GetHeight()-oh+ub:GetHeight())
+			end
+		end)
+	end
+end
