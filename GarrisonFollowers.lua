@@ -22,15 +22,6 @@ local function Mechanic_OnLeave(self)
 		GameTooltip:Hide()
 	end
 end
-local function CreateMechanicFrame(parent)
-	local f = CreateFrame("Button", nil, parent, "GarrisonAbilityCounterTemplate")
-	f.Count = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightOutline")
-	f.Count:SetPoint("BOTTOMRIGHT", 0, 2)
-	f.Border:Hide()
-	f:SetScript("OnEnter", Mechanic_OnEnter)
-	f:SetScript("OnLeave", Mechanic_OnLeave)
-	return f
-end
 local function countFreeFollowers(f, finfo)
 	local ret = 0
 	for i=1,#f do
@@ -42,15 +33,44 @@ local function countFreeFollowers(f, finfo)
 	return ret
 end
 
+setmetatable(icons, {__index=function(self, k)
+	local f = CreateFrame("Button", nil, GarrisonMissionFrame.FollowerTab, "GarrisonAbilityCounterTemplate")
+	f:SetNormalFontObject(GameFontHighlightOutline) f:SetText("0")
+	f.Count = f:GetFontString()
+	f.Count:ClearAllPoints() f.Count:SetPoint("BOTTOMRIGHT", 0, 2)
+	f:SetFontString(f.Count)
+	f:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+
+	f.Border:Hide()
+	f:SetScript("OnClick", function(self)
+		GarrisonMissionFrameFollowers.SearchBox:SetText(self.name)
+	end)
+	f:SetScript("OnEnter", Mechanic_OnEnter)
+	f:SetScript("OnLeave", Mechanic_OnLeave)
+	f:SetPoint("LEFT", k == 1 and GarrisonMissionFrame.FollowerTab.NumFollowers or self[k-1], "RIGHT", k == 1 and 15 or 4, 0)
+	self[k] = f
+	return f
+end})
 local function syncTotals()
-	local finfo, i, ico = T.Garrison.GetFollowerInfo(), 1
-	for k, f in pairs(T.Garrison.GetCounterInfo()) do
-		ico = icons[i] or CreateMechanicFrame(GarrisonMissionFrame.FollowerTab)
-		ico:SetPoint("LEFT", icons[i-1] or GarrisonMissionFrame.FollowerTab.NumFollowers, "RIGHT", i == 1 and 15 or 4, 0)
-		ico.Icon:SetTexture((select(3,T.Garrison.GetMechanicInfo(k))))
-		ico.Count:SetText(countFreeFollowers(f, finfo))
-		ico:Show()
-		ico.id, icons[i], i = k, ico, i + 1
+	local finfo, cinfo, i = T.Garrison.GetFollowerInfo(), T.Garrison.GetCounterInfo(), 1
+	for k=1,10 do
+		local _, name, tex = T.Garrison.GetMechanicInfo(k)
+		if tex then
+			local ico = icons[i]
+			ico.Icon:SetTexture(tex)
+			ico.Count:SetText(cinfo[k] and countFreeFollowers(cinfo[k], finfo) or "")
+			ico:Show()
+			ico.id, ico.name, i = k, name, i + 1
+		end
+	end
+	for k, f in pairs(cinfo) do
+		if k > 10 then
+			local ico, _, name, tex = icons[i], T.Garrison.GetMechanicInfo(k)
+			ico.Icon:SetTexture(tex)
+			ico.Count:SetText(countFreeFollowers(f, finfo))
+			ico:Show()
+			ico.id, ico.name, i = k, name, i + 1
+		end
 	end
 	for i=i,#icons do
 		icons[i]:Hide()
