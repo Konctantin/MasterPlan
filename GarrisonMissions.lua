@@ -192,6 +192,17 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 		end
 	end
 end)
+hooksecurefunc("GarrisonFollowerButton_UpdateCounters", function(self)
+	for i=1,#self.Counters do
+		local self = self.Counters[i]
+		if not self:GetScript("OnHide") then
+			self:SetScript("OnHide", self:GetScript("OnLeave"))
+		end
+		if self:IsShown() and self:IsMouseOver() then
+			self:GetScript("OnEnter")(self)
+		end
+	end
+end)
 
 hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	local buttons, fl = self.FollowerList.listScroll.buttons, G.GetFollowerInfo()
@@ -322,7 +333,7 @@ local lfgButton do
 		local f1, f2, f3 = ff[1].info, ff[2].info, ff[3].info
 		f1, f2, f3 = f1 and f1.followerID, mi.numFollowers > 1 and f2 and f2.followerID, mi.numFollowers > 1 and f3 and f3.followerID
 
-		local mm = G.GetSuggestedGroups(mi, nil, false, f1, f2, f3)
+		local mm = G.GetSuggestedGroups(mi, false, f1, f2, f3)
 		if #mm > 1 then
 			easyDrop:Open(self, mm, "TOPRIGHT", self, "TOPLEFT", -2, 12)
 		end
@@ -504,8 +515,8 @@ do -- Counter-follower lists
 		local mech = T.Garrison.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
 		local text = GetCounterListText(mech, self.missionLevel)
 		if text ~= "" then
-			local height = self:GetHeight()-self.Description:GetHeight()
-			self.Description:SetText(self.Description:GetText() .. "\n\n" .. text)
+			local height, dt = self:GetHeight()-self.Description:GetHeight(), self.Description:GetText()
+			self.Description:SetText((dt and dt .. "\n\n" .. text or text))
 			self:SetHeight(height + self.Description:GetHeight() + 4)
 		end
 	end)

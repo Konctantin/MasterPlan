@@ -14,13 +14,14 @@ L == "deDE" and {
 	["Complete All"] = "Alle abschließen",
 	["Complete Missions"] = "Missionen abschließen",
 	["Complete party"] = "Gruppe vervollständigen",
+	["%dh %dm"] = "%dstd %dmin", -- Needs review
 	Done = "Fertig",
 	["%d%% success chance"] = "%d%% Erfolgschance",
 	["Expedited mission completion"] = "Beschleunigter Missionsabschluss",
 	["Expires in:"] = "Läuft ab in:",
 	Failed = "Fehlgeschlagen",
 	["Follower experience"] = "Anhängererfahrung",
-	["Follower experience per hour"] = "Anhängererfahrung pro Stunde", -- Needs review
+	["Follower experience per hour"] = "Anhänger EP pro Stunde",
 	["Followers with this trait:"] = "Anhänger mit dieser Eigenschaft:",
 	["Follower XP"] = "Anhänger EP",
 	["Garrison resources"] = "Garnisonsressourcen",
@@ -30,6 +31,7 @@ L == "deDE" and {
 	Ignore = "Ignorieren",
 	Ignored = "Ignoriert",
 	["In Tentative Party"] = "In vorläufiger Gruppe",
+	["Last completed: %s ago"] = "Zuletzt abgeschlossen: Vor %s", -- Needs review
 	["Mission duration"] = "Missionsdauer",
 	["Mission expiration"] = "Mission Ablaufzeit",
 	["Mission level"] = "Missionslevel",
@@ -42,8 +44,9 @@ L == "deDE" and {
 	Success = "Erfolgreich",
 	["Success chance"] = "Erfolgschance",
 	["Suggested groups"] = "Vorgeschlagene Gruppen",
-	["%s XP"] = "%s EP",
+	["%s XP"] = "%s EP", -- Needs review
 	["%s XP gained"] = "%s EP erhalten",
+	["%s XP/h"] = "%s EP/h", -- Needs review
 	Unignore = "Einbeziehen",
 	["View Rewards"] = "Belohnungen ansehen",
 	["You have no followers to counter this mechanic."] = "Du hast keine Begleiter, die diese Fähigkeit kontern können.",
@@ -63,6 +66,7 @@ L == "esES" and {
 	["Complete All"] = "Completar todos.",
 	["Complete Missions"] = "Completar Misiones",
 	["Complete party"] = "Completar Grupo",
+	["%dh %dm"] = "%dh %dm", -- Needs review
 	Done = "Listo",
 	["%d%% success chance"] = "%d%% probabilidad de éxito",
 	["Expedited mission completion"] = "Acelerar el completado de misiones",
@@ -91,7 +95,7 @@ L == "esES" and {
 	Success = "Éxito ",
 	["Success chance"] = "Probabilidad de éxito",
 	["Suggested groups"] = "Grupos Sugeridos",
-	["%s XP"] = "%s XP",
+	["%s XP"] = "%s XP", -- Needs review
 	["%s XP gained"] = "%s XP ganada",
 	Unignore = "Quitar Ignorar",
 	["View Rewards"] = "Mostrar Recompensas",
@@ -112,6 +116,7 @@ L == "esMX" and {
 	["Complete All"] = "Completar todos.",
 	["Complete Missions"] = "Completar Misiones",
 	["Complete party"] = "Completar Grupo",
+	["%dh %dm"] = "%dh %dm", -- Needs review
 	Done = "Listo",
 	["%d%% success chance"] = "%d%% probabilidad de éxito",
 	["Expedited mission completion"] = "Acelerar el completado de misiones",
@@ -140,7 +145,7 @@ L == "esMX" and {
 	Success = "Éxito ",
 	["Success chance"] = "Probabilidad de éxito",
 	["Suggested groups"] = "Grupos Sugeridos",
-	["%s XP"] = "%s XP",
+	["%s XP"] = "%s XP", -- Needs review
 	["%s XP gained"] = "%s XP ganada",
 	Unignore = "Quitar Ignorar",
 	["View Rewards"] = "Mostrar Recompensas",
@@ -151,7 +156,7 @@ L == "esMX" and {
 } or
 L == "frFR" and {
 	["*"] = "*",
-	["%.2gk"] = "%.2gk", -- Needs review
+	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "Missions en cours (%d)",
 	["Additional mission loot may be delivered via mail."] = "Le butin supplémentaire de mission sera renvoyé par courrier.",
 	["Available Missions (%d)"] = "Missions disponibles (%d)",
@@ -161,12 +166,14 @@ L == "frFR" and {
 	["Complete All"] = "Tout terminer",
 	["Complete Missions"] = "Terminer les missions",
 	["Complete party"] = "Groupe complet",
+	["%dh %dm"] = "%d h %d m ", -- Needs review
 	Done = "Terminé",
 	["%d%% success chance"] = "%d%% chances de succès",
 	["Expedited mission completion"] = "Rendre rapidement toutes les missions",
-	["Expires in:"] = "Expire dans :", -- Needs review
+	["Expires in:"] = "Expire dans :",
 	Failed = "Échec",
 	["Follower experience"] = "expérience de sujets",
+	["Follower experience per hour"] = "EXP/heure pour le sujet", -- Needs review
 	["Followers with this trait:"] = "Sujets avec ce profil :",
 	["Follower XP"] = "EXP du sujet",
 	["Garrison resources"] = "ressources de fief",
@@ -180,7 +187,7 @@ L == "frFR" and {
 	["Mission expiration"] = "expiration de mission",
 	["Mission level"] = "niveau de mission",
 	["Mission order:"] = "Missions triées par :",
-	["Mitigated threats"] = "menaces atténuées",
+	["Mitigated threats"] = "menaces allégées", -- Needs review
 	["Pending: %s |4hour:hours;"] = "Délai : %s |4h restante:h restantes;",
 	Ready = "Prêt",
 	["Reward: %s XP"] = "Récompense : %s d'EXP",
@@ -188,7 +195,7 @@ L == "frFR" and {
 	Success = "Réussite",
 	["Success chance"] = "Chances de réussite",
 	["Suggested groups"] = "Groupes suggérés",
-	["%s XP"] = "%s EXP",
+	["%s XP"] = "%s EXP", -- Needs review
 	["%s XP gained"] = "%s EXP gagnés",
 	Unignore = "Ne pas ignorer",
 	["View Rewards"] = "Voir les récompenses",
@@ -209,6 +216,7 @@ L == "itIT" and {
 	["Complete All"] = "Completa Tutto",
 	["Complete Missions"] = "Completa Missioni",
 	["Complete party"] = "Completa gruppo",
+	["%dh %dm"] = "%dh %dm", -- Needs review
 	Done = "Fine",
 	["%d%% success chance"] = "%d%% probabilità di successo",
 	["Expedited mission completion"] = "Completamento missioni rapido",
@@ -225,6 +233,7 @@ L == "itIT" and {
 	Ignore = "Ignora",
 	Ignored = "Ignorato",
 	["In Tentative Party"] = "Nel Gruppo Provvisorio",
+	["Last completed: %s ago"] = "Ultima completata: %s fa",
 	["Mission duration"] = "Durata missione",
 	["Mission expiration"] = "Scadenza missione",
 	["Mission level"] = "Livello missione",
@@ -237,8 +246,9 @@ L == "itIT" and {
 	Success = "Riuscita",
 	["Success chance"] = "Probabilità di successo",
 	["Suggested groups"] = "Gruppi suggeriti",
-	["%s XP"] = "%s XP",
+	["%s XP"] = "%s XP", -- Needs review
 	["%s XP gained"] = "%s XP ottenuti",
+	["%s XP/h"] = "%s XP/h", -- Needs review
 	Unignore = "Non ignorare",
 	["View Rewards"] = "Mostra Ricompense",
 	["You have no followers to counter this mechanic."] = "Non hai seguaci per contrastare questa meccanica.",
@@ -247,6 +257,7 @@ L == "itIT" and {
 	["You must restart World of Warcraft after installing this update."] = "È necessario riavviare World of Warcraft dopo l'installazione di questo aggiornamento.",
 } or
 L == "koKR" and {
+	["*"] = "*", -- Needs review
 	["%.2gk"] = "%.2g천",
 	["Active Missions (%d)"] = "진행중인 임무 (%d)",
 	["Additional mission loot may be delivered via mail."] = "추가적인 임무 보상이 우편으로 발송될수도 있습니다.",
@@ -257,15 +268,20 @@ L == "koKR" and {
 	["Complete All"] = "모두 완료",
 	["Complete Missions"] = "임무 완료하기",
 	["Complete party"] = "파티 완성시키기",
+	["%dh %dm"] = "%d시간 %d분", -- Needs review
 	Done = "완료",
 	["%d%% success chance"] = "성공 확률 %d%%",
 	["Expedited mission completion"] = "임무 완료 빠르게 보기",
+	["Expires in:"] = "만료 예상 시간:", -- Needs review
 	Failed = "실패",
 	["Follower experience"] = "추종자 경험치",
+	["Follower experience per hour"] = "시간당 추종자 경험치", -- Needs review
 	["Followers with this trait:"] = "이 특성을 지닌 추종자:",
 	["Follower XP"] = "추종자 경험치",
 	["Garrison resources"] = "주둔지 자원",
 	["Group %d"] = "%d 그룹 ",
+	Idle = "대기 중", -- Needs review
+	["Idle (max-level)"] = "대기 중 (최고레벨)", -- Needs review
 	Ignore = "무시",
 	Ignored = "무시됨",
 	["In Tentative Party"] = "임시 파티에 있음",
@@ -281,7 +297,7 @@ L == "koKR" and {
 	Success = "성공",
 	["Success chance"] = "성공 가능성",
 	["Suggested groups"] = "추천 그룹",
-	["%s XP"] = "경험치 %s",
+	["%s XP"] = "경험치 %s", -- Needs review
 	["%s XP gained"] = "경험치 %s 획득",
 	Unignore = "무시 취소",
 	["View Rewards"] = "보상 보기",
@@ -296,12 +312,13 @@ L == "ptBR" and {
 	["Active Missions (%d)"] = "Missões Ativas (%d)",
 	["Additional mission loot may be delivered via mail."] = "Saque adicional de missões poderá ser entregue por correio.",
 	["Available Missions (%d)"] = "Missões Disponíveis (%d)",
-	["Can be countered by:"] = "Pode ser combatido com:", -- Needs review
+	["Can be countered by:"] = "Combatido por:", -- Needs review
 	["Chance of success"] = "Chance de sucesso",
 	["Click to view upgrade options"] = "Aperte para ver as opções de melhoria",
 	["Complete All"] = "Completar Todas",
 	["Complete Missions"] = "Missões Completadas",
 	["Complete party"] = "Grupo completo",
+	["%dh %dm"] = "%dh %dm", -- Needs review
 	Done = "Feito",
 	["%d%% success chance"] = "%d%% chance de sucesso",
 	["Expedited mission completion"] = "Completar missões rapidamente",
@@ -310,12 +327,12 @@ L == "ptBR" and {
 	["Follower experience"] = "Experiência do seguidor",
 	["Follower experience per hour"] = "Experiência do seguidor por hora",
 	["Followers with this trait:"] = "Seguidores com esta característica:",
-	["Follower XP"] = "Seguidor XP", -- Needs review
+	["Follower XP"] = "XP do seguidor", -- Needs review
 	["Garrison resources"] = "Recursos da guarnição",
 	["Group %d"] = "Grupo %d",
 	Idle = "Desocupado(s)",
 	["Idle (max-level)"] = "Desocupado(s) (nível máximo)",
-	Ignore = "Ignorar", -- Needs review
+	Ignore = "Ignorar",
 	Ignored = "Ignorado",
 	["In Tentative Party"] = "Em Grupo Provisório",
 	["Mission duration"] = "Duração da missão",
@@ -330,9 +347,9 @@ L == "ptBR" and {
 	Success = "Sucesso",
 	["Success chance"] = "Change de sucesso",
 	["Suggested groups"] = "Grupos Sugeridos",
-	["%s XP"] = "%s XP",
+	["%s XP"] = "%s XP", -- Needs review
 	["%s XP gained"] = "%s XP obtido",
-	Unignore = "Designorar", -- Needs review
+	Unignore = "Designorar",
 	["View Rewards"] = "Ver Recompensas",
 	["You have no followers to counter this mechanic."] = "Você não tem seguidores para conter esta ameaça.",
 	["You have no followers with this trait."] = "Não tem seguidores com esta especialização.",
@@ -351,6 +368,7 @@ L == "ruRU" and {
 	["Complete All"] = "Завершить все",
 	["Complete Missions"] = "Завершить задания",
 	["Complete party"] = "Собрать отряд",
+	["%dh %dm"] = "%dч %dм", -- Needs review
 	Done = "Завершено",
 	["%d%% success chance"] = "%d%% вероятность успеха",
 	["Expedited mission completion"] = "Ускоренное завершение заданий",
@@ -367,6 +385,7 @@ L == "ruRU" and {
 	Ignore = "Игнорировать",
 	Ignored = "Игнорируется",
 	["In Tentative Party"] = "В предварительной группе",
+	["Last completed: %s ago"] = "Завершено в последний раз: %s назад",
 	["Mission duration"] = "Длительность задания",
 	["Mission expiration"] = "Истечение срока задания",
 	["Mission level"] = "Уровень задания",
@@ -379,8 +398,9 @@ L == "ruRU" and {
 	Success = "Успешно",
 	["Success chance"] = "Вероятность успеха",
 	["Suggested groups"] = "Предлагаемые группы",
-	["%s XP"] = "%s опыта",
+	["%s XP"] = "%s опыта", -- Needs review
 	["%s XP gained"] = "%s XP получено",
+	["%s XP/h"] = "%s опыта в час", -- Needs review
 	Unignore = "Не игнорировать",
 	["View Rewards"] = "Посмотреть награды",
 	["You have no followers to counter this mechanic."] = "У вас нет соратников, чтобы  противостоять данной способности.",
@@ -400,7 +420,7 @@ L == "zhCN" and {
 	["Complete All"] = "全部完成",
 	["Complete Missions"] = "任务完成",
 	["Complete party"] = "完成队伍",
-	["%dh %dm"] = "%d时 %d分",
+	["%dh %dm"] = "%d时 %d分", -- Needs review
 	Done = "完成",
 	["%d%% success chance"] = "%d%% 成功几率",
 	["Expedited mission completion"] = "加速完成任务",
@@ -429,7 +449,7 @@ L == "zhCN" and {
 	Success = "成功",
 	["Success chance"] = "成功几率",
 	["Suggested groups"] = "推荐组合",
-	["%s XP"] = "%s 经验",
+	["%s XP"] = "%s 经验", -- Needs review
 	["%s XP gained"] = "获得 %s 经验",
 	Unignore = "取消忽略",
 	["View Rewards"] = "查看奖励",
@@ -450,7 +470,7 @@ L == "zhTW" and {
 	["Complete All"] = "全部完成",
 	["Complete Missions"] = "完成任務",
 	["Complete party"] = "完成隊伍",
-	["%dh %dm"] = "%d小時 %d分",
+	["%dh %dm"] = "%d小時 %d分", -- Needs review
 	Done = "完成",
 	["%d%% success chance"] = "%d%% 成功機率",
 	["Expedited mission completion"] = "快速完成任務",
@@ -479,7 +499,7 @@ L == "zhTW" and {
 	Success = "成功",
 	["Success chance"] = "成功機率",
 	["Suggested groups"] = "建議的隊伍",
-	["%s XP"] = "%s 經驗值",
+	["%s XP"] = "%s 經驗值", -- Needs review
 	["%s XP gained"] = "獲得 %s 經驗值",
 	Unignore = "解除忽略",
 	["View Rewards"] = "檢視獎勵",
