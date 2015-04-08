@@ -27,6 +27,8 @@ local conf, api = setmetatable({}, {__index={
 	currencyWasteThreshold=0.25,
 	legendStep=0,
 	lastCacheTime=0,
+	timeHorizon=0,
+	timeHorizonMin=300,
 	ignore={},
 	complete={},
 }})
@@ -80,6 +82,11 @@ function api:SetMissionOrder(order)
 end
 function api:GetMissionOrder()
 	return conf.availableMissionSort
+end
+function api:SetTimeHorizon(sec)
+	assert(type(sec) == "number" and sec >= 0, 'Syntax: MasterPlan:SetTimeHorizon(sec)')
+	conf.timeHorizon = sec
+	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "timeHorizon")
 end
 
 function api:SetBatchMissionCompletion(batch)

@@ -237,8 +237,9 @@ local function Mechanic_OnClick(self)
 	T.Mechanic_OnClick(self)
 end
 local function Mechanic_OnEnter(self)
+	local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
 	GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-	G.SetThreatTooltip(GameTooltip, self.info.icon:lower())
+	G.SetThreatTooltip(GameTooltip, self.info.icon:lower(), nil, G.GetFMLevel(mi))
 	GameTooltip:Show()
 end
 local function Mechanic_OnLeave(self)

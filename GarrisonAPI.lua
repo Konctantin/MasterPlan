@@ -935,7 +935,7 @@ local risk = {} do
 	end)
 	cacheTables[#cacheTables+1] = risk
 end
-local computeEquivXP, computeEarliestDeparture do -- +api.GetSuggestedMissionGroups
+local timeHorizon, computeEquivXP, computeEarliestCompletion do -- +api.GetSuggestedMissionGroups
 	local max, min, inf, weakKeys = math.max, math.min, math.huge, {__mode="k"}
 	local equivXP, expectedXP, edtime = setmetatable({}, weakKeys), setmetatable({}, weakKeys), setmetatable({}, weakKeys)
 	function computeEquivXP(g, finfo, minfo, force)
@@ -970,12 +970,12 @@ local computeEquivXP, computeEarliestDeparture do -- +api.GetSuggestedMissionGro
 		end
 		return ret1, ret2
 	end
-	function computeEarliestDeparture(g, finfo, minfo, force, now)
-		local now, ret = now or time()
+	function computeEarliestCompletion(g, finfo, minfo, force, now)
+		local now, depart, complete = now or time()
 		if not force then
-			ret = edtime[g]
+			depart = edtime[g]
 		end
-		if ret == nil then
+		if depart == nil then
 			local finfo, mid = finfo or api.GetFollowerInfo(), minfo.missionID
 			for i=5, g[7] and 7 or g[6] and 6 or 5 do
 				local f = finfo[g[i]]
@@ -985,32 +985,50 @@ local computeEquivXP, computeEarliestDeparture do -- +api.GetSuggestedMissionGro
 					tl = drop and (missionEndTime[drop] or inf)
 				end
 				if not tl and (MasterPlan:GetFollowerTentativeMission(f.followerID) or mid) ~= mid then
-					tl = 0
+					tl = now
 				end
-				if tl and (ret or tl) <= tl then
-					ret = tl
+				if tl and (depart or tl) <= tl then
+					depart = tl
 				end
 			end
-			edtime[g] = ret == inf and (now + 35999) or ret or false
+			depart = depart == inf and (now + 35999) or depart or false
+			edtime[g] = depart
 		end
-		return (ret or now) <= now and now or ret, ret
+		if (timeHorizon or 0) > 0 then
+			local depart = (depart or now) <= now and now or depart
+			if depart < timeHorizon and depart - T.config.timeHorizonMin - now > 0 then
+				complete = timeHorizon + g[4]
+			else
+				complete = depart + g[4]
+				complete = complete > timeHorizon and complete or timeHorizon
+			end
+		else
+			complete = ((depart or now) <= now and now or depart) + g[4]
+		end
+		return complete, depart
 	end
 	function api.GetMissionGroupXP(g, minfo)
 		return computeEquivXP(g, nil, minfo, false)
 	end
 	function api.GetMissionGroupDeparture(g, minfo)
-		local _, edt = computeEarliestDeparture(g, nil, minfo)
+		local _, edt = computeEarliestCompletion(g, nil, minfo)
 		return edt
 	end
 
-	local groupCache = {}
+	local groupCache, lastTimeHorizon = {}
 	function api.GetSuggestedMissionGroups(missions, f1, f2, f3)
 		local finfo, fid = api.GetFollowerInfo(), api.GetFollowerIdentity(false, true)
 		fid = fid .. "#-ROAM-#" .. (f1 or "!") .. "-" .. (f2 or "!") .. "-" .. (f3 or "!")
-		if groupCache._identity ~= fid then
+		timeHorizon = time() + T.config.timeHorizon
+		if groupCache._identity ~= fid or math.abs((lastTimeHorizon or 0) - timeHorizon) > 180 then
 			wipe(groupCache)
+		end
+		if not next(groupCache) then
+			lastTimeHorizon = timeHorizon
 			groupCache._identity = fid
 		end
+		wipe(edtime)
+		
 		for i=1,#missions do
 			local mi, g, sg = missions[i]
 			local rank, rt = api.GetMissionDefaultGroupRank(mi)
@@ -1034,6 +1052,8 @@ local computeEquivXP, computeEarliestDeparture do -- +api.GetSuggestedMissionGro
 			end
 			groupCache[mi.missionID] = sg
 		end
+		
+		timeHorizon = nil
 		return groupCache
 	end
 	local function wipeAll()
@@ -1074,7 +1094,7 @@ api.GroupRank, api.GroupFilter = {}, {} do
 		return g.dingScore
 	end
 	local function success(a, b, finfo, minfo, now)
-		local ac, bc, ad, bd, ah, bh = a[1], b[1]
+		local ac, bc, ah, bh = a[1], b[1]
 		if ac == bc then
 			ac, bc = a[3] * risk[a[1]], b[3] * risk[b[1]]
 		end
@@ -1082,9 +1102,8 @@ api.GroupRank, api.GroupFilter = {}, {} do
 			ac, bc = a[9] * risk[a[1]], b[9] * risk[b[1]]
 		end
 		if ac == bc then
-			ad, ah = computeEarliestDeparture(a, finfo, minfo, false, now)
-			bd, bh = computeEarliestDeparture(b, finfo, minfo, false, now)
-			ac, bc = -(ad + a[4]), -(bd + b[4])
+			bc, ah = computeEarliestCompletion(a, finfo, minfo, false, now)
+			ac, bh = computeEarliestCompletion(b, finfo, minfo, false, now)
 		end
 		if ac == bc then
 			ac, bc = computeEquivXP(a, finfo, minfo), computeEquivXP(b, finfo, minfo)
@@ -1681,7 +1700,7 @@ local setModifierSensitiveTip do
 		end
 	end
 end
-local function addFollowerList(tip, info, finfo, showInactive, thisMech, specDup)
+local function addFollowerList(tip, info, finfo, mlvl, showInactive, thisMech, specDup)
 	api.sortByFollowerLevels(info, finfo)
 	for i=1,#info do
 		if info[i] ~= specDup then
@@ -1692,7 +1711,7 @@ local function addFollowerList(tip, info, finfo, showInactive, thisMech, specDup
 			end
 			local p = specDup and select(4, api.CountUniqueRerolls(T.SpecCounters[fi.classSpec], info[i]))
 			p = p and p .. " " or ""
-			tip:AddDoubleLine(api.GetFollowerLevelDescription(info[i], nil, finfo[info[i]]), p .. api.GetOtherCounterIcons(finfo[info[i]], thisMech), 1,1,1)
+			tip:AddDoubleLine(api.GetFollowerLevelDescription(info[i], mlvl, finfo[info[i]]), p .. api.GetOtherCounterIcons(finfo[info[i]], thisMech), 1,1,1)
 		end
 	end
 end
@@ -1777,7 +1796,7 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 		if sd and #sd > 1 then
 			self:AddLine(" ")
 			self:AddLine(L"Duplicate counters" .. ":")
-			addFollowerList(self, sd, finfo, true, nil, fi.followerID)
+			addFollowerList(self, sd, finfo, nil, true, nil, fi.followerID)
 		end
 	end
 	
@@ -1793,7 +1812,7 @@ function api.SetTraitTooltip(tip, id, info, showInactive)
 	if info == nil then info = api.GetFollowerTraits()[id] end
 	if info and #info > 0 then
 		tip:AddLine("|n" .. L"Followers with this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
-		addFollowerList(tip, info, finfo, showInactive)
+		addFollowerList(tip, info, finfo, nil, showInactive)
 	else
 		tip:AddLine("|n" .. L"You have no followers with this trait.", 1,0.50,0, 1)
 	end
@@ -1803,7 +1822,7 @@ function api.SetTraitTooltip(tip, id, info, showInactive)
 		tip:AddLine("|n" .. L"You have no followers who activate this trait.", 1,0.50,0, 1)
 	else
 		tip:AddLine("|n" .. L"Followers activating this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
-		addFollowerList(tip, info, finfo, showInactive)
+		addFollowerList(tip, info, finfo, nil, showInactive)
 	end
 end
 function api.SetThreatTooltip(tip, id, info, missionLevel, showInactive)
@@ -1816,7 +1835,7 @@ function api.SetThreatTooltip(tip, id, info, missionLevel, showInactive)
 	if info == nil then info = api.GetCounterInfo()[id] end
 	if info and #info > 0 then
 		tip:AddLine("|n" .. L"Can be countered by:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
-		addFollowerList(tip, info, finfo, showInactive, id)
+		addFollowerList(tip, info, finfo, missionLevel, showInactive, id)
 	else
 		tip:AddLine("|n" .. L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
 	end

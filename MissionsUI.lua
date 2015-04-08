@@ -236,6 +236,7 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 		local keep = false
 		if self.owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown() then
 			if self.owner:IsVisible() then
+				DropDownList1.isCounting = nil
 				keep = true
 			end
 		end
@@ -680,7 +681,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 	availUI:Hide()
 	local ctlContainer = CreateFrame("Frame", nil, availUI) do
 		ctlContainer:SetPoint("BOTTOMLEFT", 6, -5)
-		ctlContainer:SetSize(43, 43)
+		ctlContainer:SetSize(80, 43)
 		local t, is, ts = ctlContainer:CreateTexture(nil, "BACKGROUND"), 18, 1/16
 		t:SetAtlas("Garr_Mission_MaterialFrame")
 		t:SetTexCoord(0, ts, 0, 1)
@@ -698,7 +699,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		t:SetPoint("BOTTOMLEFT", ctlContainer, "BOTTOMRIGHT", -is, 0)
 	end
 	local sortIndicator = CreateFrame("Button", nil, ctlContainer) do
-		sortIndicator:SetPoint("LEFT", 12, 0)
+		sortIndicator:SetPoint("LEFT", 16, 0)
 		sortIndicator:SetSize(20, 20)
 		for i=1, 2 do
 			local t = sortIndicator:CreateTexture(nil, i == 1 and "BACKGROUND" or "HIGHLIGHT")
@@ -716,7 +717,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		end
 		
 		local function isChecked(self)
-			return sortIndicator.value == self.arg1
+			return T.config.availableMissionSort == self.arg1
 		end
 		local menu, sortOrders = {
 			{text=L"Mission order:", isTitle=true, notCheckable=true},
@@ -729,19 +730,45 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			{text=L"Mission expiration", checked=isChecked, func=MasterPlan.SetMissionOrder, arg1="expire"},
 		}, {}
 		for i=2,#menu do sortOrders[menu[i].arg1] = menu[i].text end
-		EV.RegisterEvent("MP_SETTINGS_CHANGED", function(_, s)
-			if s == nil or s == "availableMissionSort" then
-				local nv = MasterPlan:GetMissionOrder()
-				nv = sortOrders[nv] and nv or "threats"
-				sortIndicator.value = nv
-				availMissionsHandle:Refresh(true)
-			end
-		end)
 		
 		sortIndicator:SetScript("OnClick", function(self)
 			easyDrop:Toggle(self, menu, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
 		end)
 		sortIndicator:SetScript("OnEnter", function(self)
+			easyDrop:DelayOpenClick(self)
+		end)
+	end
+	local horizon = CreateFrame("Button", nil, ctlContainer) do
+		horizon:SetPoint("LEFT", sortIndicator, "RIGHT", 8, 0)
+		horizon:SetSize(20, 20)
+		for i=1, 2 do
+			local t = horizon:CreateTexture(nil, i == 1 and "BACKGROUND" or "HIGHLIGHT")
+			t:SetTexture("Interface\\FriendsFrame\\StatusIcon-Away")
+			t:SetSize(16,16)
+			t:SetPoint("LEFT", 2, 0)
+			t:SetTexCoord(2/16, 14/16, 2/16, 14/16)
+			if i == 1 then
+				t:SetVertexColor(3/4, 3/4, 3/4)
+			end
+		end
+		
+		local function isChecked(self)
+			return T.config.timeHorizon == self.arg1
+		end
+		local menu = {
+			{text=L"Time Horizon", isTitle=true, notCheckable=true},
+			{text=SPELL_CAST_TIME_INSTANT, checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=0},
+			{text=INT_GENERAL_DURATION_HOURS:format(1), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=3600},
+			{text=INT_GENERAL_DURATION_HOURS:format(2), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=7200},
+			{text=INT_GENERAL_DURATION_HOURS:format(4), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=14400},
+			{text=INT_GENERAL_DURATION_HOURS:format(8), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=28800},
+			{text=INT_GENERAL_DURATION_HOURS:format(12), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=43200},
+			{text=INT_GENERAL_DURATION_HOURS:format(24), checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=86400},
+		}
+		horizon:SetScript("OnClick", function(self)
+			easyDrop:Toggle(self, menu, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
+		end)
+		horizon:SetScript("OnEnter", function(self)
 			easyDrop:DelayOpenClick(self)
 		end)
 	end
@@ -2213,7 +2240,7 @@ do -- availMissionsHandle
 			wipe(used)
 			return ret < 0 and -1 or 0
 		end
-		local fields = {threats=1, xp="equivXP", xptime="equivXPTime"}
+		local fields = {threats=1}
 		function GetAvailableMissions()
 			local order, missions, droppedMissionCost = T.config.availableMissionSort, G.GetAvailableMissions()
 			local field = fields[order] or 1
@@ -2226,6 +2253,7 @@ do -- availMissionsHandle
 			
 			local nf, nr = GetAvailableResources(droppedMissionCost)
 			local checkReq = (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire"
+			local horizon = T.config.timeHorizon
 			
 			for i=1, #missions do
 				local mi, g = missions[i]
@@ -2240,10 +2268,10 @@ do -- availMissionsHandle
 				elseif order == "level" then
 					mi.ord = 0
 				elseif order == "threats2" then
-					mi.ord = g and g[1] and g[1][1] == 100 and computeThreat(mi) or -1
-				elseif g and (field == "equivXPTime" or field == "equivXP") then
+					mi.ord = g and g[1] == 100 and computeThreat(mi) or -1
+				elseif g and (order == "xp" or order == "xptime") then
 					local xp = G.GetMissionGroupXP(g, mi) or 0
-					mi.ord = field == "equivXPTime" and xp/g[4] or xp
+					mi.ord = order == "xptime" and xp/max(g[4], horizon) or xp
 				else
 					mi.ord = g and g[field] or -math.huge
 				end
@@ -2281,6 +2309,11 @@ do -- availMissionsHandle
 			availMissionsHandle:Activate(reload)
 		end
 	end
+	EV.RegisterEvent("MP_SETTINGS_CHANGED", function(_, s)
+		if s == "availableMissionSort" or s == "timeHorizon" then
+			availMissionsHandle:Refresh(true)
+		end
+	end)
 end
 do -- interestMissionsHandle
 	local usefulTraits, mappedRewards = setmetatable({}, T.AlwaysTraits), {}
