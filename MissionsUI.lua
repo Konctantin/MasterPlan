@@ -105,7 +105,6 @@ local SetCompletionRewards do
 		t:SetText((GARRISON_MISSION_REPORT:gsub("\n", " ")))
 		t = lf:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
 		t:SetPoint("TOP", 0, -40)
-		t:SetText("30 Bear Cows Slain")
 		lf.numMissions = t
 		t = lf:CreateTexture(nil, "BORDER", nil, 1)
 		t:SetAtlas("Garr_InfoBox-CornerShadow", true)
@@ -126,10 +125,8 @@ local SetCompletionRewards do
 		t:SetSize(200, 24) t:SetText(L"Done") t:SetPoint("BOTTOM", 0, 18)
 		t:SetScript("OnClick", function()
 			lootFrame:Hide()
-			if T.UpdateMissionTabs then
-				GarrisonMissionList_UpdateMissions()
-				T.UpdateMissionTabs()
-			end
+			GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
+			GarrisonMissionList_UpdateMissions()
 			RefreshActiveMissionsView(true)
 		end)
 		lf.Dismiss = t
@@ -411,12 +408,16 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 		return rt
 	end
 	
-	local function completeStep(state, stack, rew, fol)
+	local function completeStep(state, stack, rew, fol, substate, mid)
 		if (state == "DONE" or state == "ABORT") and activeUI.completionState == "RUNNING" then
 			activeUI.completionState = state == "DONE" and "DONE" or nil
 			if next(rew) or next(fol) then
 				SetCompletionRewards(rew, fol, #stack)
 			end
+		end
+		if (substate == "FAIL" or substate == "COMPLETE") and mid then
+			PlaySound(substate == "FAIL" and "UI_Garrison_Mission_Complete_Encounter_Fail" or "UI_Garrison_Mission_Complete_Mission_Success")
+			activeMissionsHandle:SetAnimation(mid, substate)
 		end
 		RefreshActiveMissionsView()
 	end
@@ -424,12 +425,8 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 		wipe(completionMissions)
 		GetActiveMissions()
 		if #completionMissions > 0 then
-			local stack = {}
-			for i=1,#completionMissions do
-				stack[i] = completionMissions[i]
-			end
 			activeUI.completionState = "RUNNING"
-			G.CompleteMissions(stack, completeStep)
+			G.CompleteMissions(completionMissions, completeStep)
 			return true
 		end
 	end
@@ -512,6 +509,9 @@ local core = {} do
 			sc:SetSize(880, 551)
 			sf:SetScrollChild(sc)
 		end
+		sf:SetScript("OnShow", function()
+			int:Update(bar:GetValue())
+		end)
 	end
 	function int:Update(ofs)
 		if not self.props then return end
@@ -536,7 +536,7 @@ local core = {} do
 			if f then
 				securecall(self.props.Update, f, self.data[i])
 				f:SetParent(sc)
-				f:SetPoint("TOP", bar:IsShown() and -5 or 0, ofs - 5 - (i-1)*entryHeight)
+				f:SetPoint("TOP", -10, ofs - 2 - (i-1)*entryHeight)
 				f:Show()
 				self.view[i] = f
 			end
@@ -551,11 +551,10 @@ local core = {} do
 		int.data, int.props = data, propsHandle
 		local mv = max(0, 10+ propsHandle.entryHeight * #data - sf:GetHeight())
 		bar:SetMinMaxValues(0, mv)
-		bar:SetShown(mv > 0)
 		bar:GetScript("OnValueChanged")(bar, int.props ~= propsHandle and 0 or bar:GetValue(), false)
 	end
 	function core:Refresh(handle)
-		if int.props == handle then
+		if int.props == handle or handle == nil then
 			int:Update(bar:GetValue())
 		end
 	end
@@ -573,7 +572,7 @@ local core = {} do
 	end
 end
 do -- activeMissionsHandle
-	local data = {}
+	local data, anim = {}, {}
 	local CreateRewards do
 		local function Reward_OnEnter(self)
 			if self.itemID then
@@ -634,6 +633,12 @@ do -- activeMissionsHandle
 			t = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightOutline")
 			t:SetPoint("BOTTOMRIGHT", -1, 1)
 			r.quantity = t
+			t = r:CreateTexture(nil, "OVERLAY", nil, -1)
+			t:SetAllPoints()
+			t:SetTexture(1,1,1)
+			t:SetGradient("VERTICAL", 0.75, 0.75, 0.75, 0.5, 0.5, 0.5)
+			t:SetBlendMode("MOD")
+			r.veil = t
 			r:SetScript("OnEnter", Reward_OnEnter)
 			r:SetScript("OnLeave", Reward_OnLeave)
 			r:SetScript("OnHide", Reward_OnLeave)
@@ -684,6 +689,15 @@ do -- activeMissionsHandle
 		GarrisonFollowerTooltip:Hide()
 		self:GetParent():UnlockHighlight()
 	end
+	local function Follower_OnHide(self)
+		self.ring:Hide()
+		self.portrait:Hide()
+		Follower_OnLeave(self)
+	end
+	local function Follower_OnShow(self)
+		self.ring:Show()
+		self.portrait:Show()
+	end
 	local function ActiveMission_OnClick(self)
 		local mi = data[self]
 		if IsModifiedClick("CHATLINK") then
@@ -691,14 +705,37 @@ do -- activeMissionsHandle
 			if (missionLink) then
 				ChatEdit_InsertLink(missionLink)
 			end
-		elseif mi.readyTime and mi.readyTime < time() and not (mi.succeeded or mi.failed) then
+		elseif mi.readyTime and mi.readyTime < time() and not (mi.succeeded or mi.failed) and activeUI.completionState ~= "RUNNING" then
 			CompleteMission(mi)
 		end
+	end
+	local function ActiveMission_OnHide(self)
+		data[self] = nil
+	end
+	local function SetVeiled(self, veiled)
+		self.veil:SetShown(veiled)
+		local t = self.rewards
+		for i=1,#t do
+			t[i].veil:SetShown(veiled)
+		end
+	end
+	local function Banner_OnPlay(self)
+		local par = self:GetParent()
+		local fail = self == par.Fail
+		par.banner:SetVertexColor(fail and 1 or 0.2, fail and 0.2 or 1, 0.2)
+		par.banner:Show()
+	end
+	local function Banner_OnStop(self)
+		local par = self:GetParent()
+		par.banner:Hide()
 	end
 	local function CreateActiveMission()
 		local b = CreateFrame("Button")
 		b:SetSize(832, 44)
-		local t = b:CreateTexture(nil, "BACKGROUND")
+		b:SetScript("OnClick", ActiveMission_OnClick)
+		b:SetScript("OnHide", ActiveMission_OnHide)
+		
+		local t = b:CreateTexture(nil, "BACKGROUND", nil, -1)
 		t:SetAtlas("GarrMission_MissionParchment", true)
 		t:SetPoint("TOPLEFT", 3, 0) t:SetPoint("BOTTOMRIGHT", -3, 0)
 		t:SetVertTile(true) t:SetHorizTile(true)
@@ -729,6 +766,12 @@ do -- activeMissionsHandle
 		t:SetPoint("BOTTOMLEFT", 0, 1)
 		t:SetWidth(86)
 		t:SetVertexColor(0,0,0,0.4)
+		t = b:CreateTexture(nil, "OVERLAY", nil, -1)
+		t:SetAllPoints()
+		t:SetTexture(1,1,1)
+		t:SetGradient("VERTICAL", 0.8, 0.8, 0.8, 0.6, 0.6, 0.6)
+		t:SetBlendMode("MOD")
+		b.veil = t
 		t = b:CreateTexture(nil, "BORDER")
 		t:SetAtlas("_GarrMission_TopBorder", true)
 		t:SetPoint("TOPLEFT", 20, 4)
@@ -781,20 +824,16 @@ do -- activeMissionsHandle
 		t:SetTexCoord(1,0, 1,0)
 		t = b:CreateTexture(nil, "HIGHLIGHT", nil, 1)
 		t:SetAtlas("GarrMission_ListGlow-Highlight")
-		t:SetPoint("TOPLEFT")
-		t:SetPoint("TOPRIGHT")
+		t:SetGradient("VERTICAL", 0.5, 0.5, 0.5, 1,1,1)
+		t:SetPoint("TOPLEFT") t:SetPoint("TOPRIGHT")
 		t:SetHeight(30)
 		t = b:CreateTexture(nil, "ARTWORK")
-		t:SetSize(30, 28) t:SetPoint("LEFT", 52, 0)
+		t:SetSize(28, 28) t:SetPoint("LEFT", 54, 0)
 		b.mtype = t
 		t = b:CreateFontString(nil, "ARTWORK", "Game30Font")
-		t:SetPoint("CENTER", b, "LEFT", 32, 4)
+		t:SetPoint("CENTER", b, "LEFT", 31, 0)
 		t:SetTextColor(0.84, 0.72, 0.57)
 		b.level = t
-		t = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-		t:SetPoint("TOP", b, "LEFT", 32, -6)
-		t:SetTextColor(0.84, 0.78, 0.72)
-		b.chance = t
 		t = b:CreateFontString(nil, "ARTWORK", "QuestFont_Super_Huge")
 		t:SetPoint("LEFT", 92, 0)
 		t:SetTextColor(1,1,1)
@@ -802,29 +841,62 @@ do -- activeMissionsHandle
 		t:SetShadowOffset(1,-1)
 		b.title = t
 		t = b:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-		t:SetPoint("RIGHT", -110, 0)
+		t:SetPoint("RIGHT", -160, 0)
 		t:SetTextColor(0.84, 0.72, 0.57)
 		b.status = t
+		t = b:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+		t:SetPoint("CENTER", b, "RIGHT", -120, 0)
+		t:SetTextColor(0.84, 0.72, 0.57)
+		b.chance = t
+		t = b:CreateTexture(nil, "ARTWORK", nil, 2)
+		t:SetAtlas("GarrMission_RareOverlay", true)
+		t:SetPoint("BOTTOMLEFT", -5, -4)
+		b.rare = t
+		t = b:CreateTexture(nil, "OVERLAY")
+		t:SetAtlas("GarrMission_LevelUpBanner")
+		t:SetPoint("CENTER", 0, -1) t:SetSize(832*1.3, 44*2.75)
+		t:SetBlendMode("ADD")
+		t:SetAlpha(0)
+		b.banner = t
+		for i=1, 2 do
+			local g = b:CreateAnimationGroup()
+			g:SetToFinalAlpha(true)
+			g:SetScript("OnPlay", Banner_OnPlay)
+			g:SetScript("OnStop", Banner_OnStop)
+			t = g:CreateAnimation("Alpha")
+			t:SetFromAlpha(0) t:SetToAlpha(1) t:SetDuration(0.2)
+			t:SetChildKey("banner")
+			t = g:CreateAnimation("Scale")
+			t:SetChildKey("banner")
+			t:SetFromScale(0.3, 1) t:SetToScale(1, 1)
+			t:SetDuration(0.4)
+			t = g:CreateAnimation("Alpha")
+			t:SetStartDelay(0.4)
+			t:SetFromAlpha(1) t:SetToAlpha(0) t:SetDuration(0.5)
+			t:SetChildKey("banner")
+			b[i == 1 and "Fail" or "Success"] = g
+		end
+		
 		b.rewards, b.followers = CreateRewards(b), {}
-		b.rewards[1]:SetPoint("RIGHT", -16, 1)
+		b.rewards[1]:SetPoint("RIGHT", -14, 1)
 		for i=1,3 do
 			local x = CreateFrame("Frame", nil, b, nil, i)
-			x:SetSize(32, 32)	x:SetPoint("RIGHT", -265-36*i, 1)
-			local v = x:CreateTexture(nil, "ARTWORK", nil, 1)
-			v:SetPoint("TOPLEFT", 3, -3) v:SetPoint("BOTTOMRIGHT", -3, 3)
+			x:SetSize(32, 32)	x:SetPoint("RIGHT", -265-34*i, 1)
+			local v = b:CreateTexture(nil, "ARTWORK", nil, 3)
+			v:SetPoint("TOPLEFT", x, "TOPLEFT", 3, -3) v:SetPoint("BOTTOMRIGHT", x, "BOTTOMRIGHT", -3, 3)
 			b.followers[i], x.portrait = x, v
-			v = x:CreateTexture(nil, "ARTWORK", nil, 2)
-			v:SetAllPoints()
+			v = b:CreateTexture(nil, "ARTWORK", nil, 4)
+			v:SetAllPoints(x)
 			v:SetAtlas("Garr_FollowerPortrait_Ring", true)
-			v = x:CreateTexture(nil, "HIGHLIGHT")
+			x.ring, v = v, x:CreateTexture(nil, "HIGHLIGHT")
 			v:SetPoint("TOPLEFT", -2, 2) v:SetPoint("BOTTOMRIGHT", 1, -1)
 			v:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 			v:SetBlendMode("ADD")
 			x:SetScript("OnEnter", Follower_OnEnter)
 			x:SetScript("OnLeave", Follower_OnLeave)
-			x:SetScript("OnHide", Follower_OnLeave)
+			x:SetScript("OnHide", Follower_OnHide)
+			x:SetScript("OnShow", Follower_OnShow)
 		end
-		b:SetScript("OnClick", ActiveMission_OnClick)
 	
 		return b
 	end
@@ -835,24 +907,45 @@ do -- activeMissionsHandle
 		end
 	end
 	local function setData(self, d)
+		local isSame = data[self] == d
 		data[self] = d
-		self.level:SetText((d.isRare and "|cff0090ff" or "") .. (d.iLevel > 0 and d.iLevel or d.level))
+		self.level:SetText((d.iLevel > 0 and d.iLevel or d.level))
+		self.rare:SetShown(d.isRare or false)
+		self.mtype:SetAtlas(d.typeAtlas)
 		self.title:SetText(d.name)
-		local tl = d.timeLeftSeconds or G.GetSecondsFromTimeString(d.timeLeft)
+		local tl, col, state = d.timeLeftSeconds or G.GetSecondsFromTimeString(d.timeLeft), ""
 		self:SetScript("OnUpdate", tl > 0 and tl < 60 and TimerUpdate or nil)
 		if tl > 0 then
-			self.status:SetText(d.timeLeft)
+			state = d.timeLeft
+		elseif d.failed then
+			col, state = "|cffff2020", L"Failed"
+		elseif d.succeeded or d.state >= 0 then
+			col, state = "|cff20ff20", L"Success"
 		else
-			local state = NORMAL_FONT_COLOR_CODE ..  L"Ready"
-			if d.failed then
-				state = "|cffff2020" .. L"Failed"
-			elseif d.succeeded or d.state >= 0 then
-				state = "|cff20ff20" .. L"Success"
-			end
-			self.status:SetText(state)
+			col, state = "|cffffea10", L"Ready"
 		end
+		self.status:SetText(col .. state)
 		self.chance:SetText(d.successChance and (d.successChance .. "%") or "")
+		
+		local sanim = anim[d.missionID]
+		if sanim or (not isSame and (self.Fail:IsPlaying() or self.Success:IsPlaying())) then
+			self.Fail:Stop()
+			self.Success:Stop()
+			if sanim then
+				self[sanim == "COMPLETE" and "Success" or "Fail"]:Play()
+			end
+		end
+		
 		local nr, nf, r = 1, 1
+		if type(d.followers) == "table" then
+			local fi, w
+			for i=1,#d.followers do
+				fi, w, nf = C_Garrison.GetFollowerInfo(d.followers[i]), self.followers[nf], nf + 1
+				w.followerID = fi.followerID
+				w.portrait:SetToFileData(fi.portraitIconID)
+				w:Show()
+			end
+		end
 		if type(d.rewards) == "table" then
 			for k,v in pairs(d.rewards) do
 				local icon, quant = v.icon, v.quantity ~= 1 and v.quantity
@@ -880,24 +973,25 @@ do -- activeMissionsHandle
 				r:Show()
 			end
 		end
-		self.mtype:SetAtlas(d.typeAtlas)
-		if type(d.followers) == "table" then
-			local fi, w
-			for i=1,#d.followers do
-				fi, w, nf = C_Garrison.GetFollowerInfo(d.followers[i]), self.followers[nf], nf + 1
-				w.followerID = fi.followerID
-				w.portrait:SetToFileData(fi.portraitIconID)
-				w:Show()
-			end
-		end
+
 		for i=nr, #self.rewards do
 			self.rewards[i]:Hide()
 		end
 		for i=nf, #self.followers do
 			self.followers[i]:Hide()
 		end
+		SetVeiled(self, tl > 0)
 	end
 	activeMissionsHandle = core:CreateHandle(CreateActiveMission, setData, 48)
+	local function wipeAnimations()
+		wipe(anim)
+	end
+	function activeMissionsHandle:SetAnimation(mid, state)
+		if not next(anim) then
+			C_Timer.After(0, wipeAnimations)
+		end
+		anim[mid] = state
+	end
 end
 function RefreshActiveMissionsView(force)
 	if core:IsShown() and (force or core:IsOwned(activeMissionsHandle)) then
@@ -935,11 +1029,16 @@ EV.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
 		core:Refresh(activeMissionsHandle)
 	end
 end)
+hooksecurefunc("GarrisonMissionFrame_HideCompleteMissions", function(onClose)
+	if not onClose then
+		RefreshActiveMissionsView(true)
+	end
+end)
 
 function GarrisonMissionFrame_CheckCompleteMissions(onShow)
 	if not GarrisonMissionFrame.MissionComplete:IsShown() then
 		GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
-		if #GarrisonMissionFrame.MissionComplete.completeMissions > 0 and T.UpdateMissionTabs then
+		if #GarrisonMissionFrame.MissionComplete.completeMissions > 0 then
 			T.UpdateMissionTabs()
 		end
 	end

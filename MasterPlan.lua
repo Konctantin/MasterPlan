@@ -2,7 +2,7 @@ local api, bgapi, addonName, T = {}, {}, ...
 if T.Mark ~= 16 then
 	local m = "You must restart World of Warcraft after installing this update."
 	if type(T.L) == "table" and type(T.L[m]) == "string" then m = T.L[m] end
-	return print("|cffff2020[Master Plan]: " .. m)
+	return print("|cffffffff[Master Plan]: |cffff8000" .. m)
 end
 
 local defaults = {

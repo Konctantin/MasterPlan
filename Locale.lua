@@ -3,6 +3,7 @@ local L, _, T = GetLocale(), ...
 -- See http://wow.curseforge.com/addons/master-plan/localization/
 T.L =
 L == "deDE" and {
+	["*"] = "*",
 	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "Aktive Missionen (%d)",
 	["Additional mission loot may be delivered via mail."] = "Zusätzliche Missionsbeute kann per Post zugestellt werden.",
@@ -22,8 +23,8 @@ L == "deDE" and {
 	["Follower XP"] = "Anhänger EP",
 	["Garrison resources"] = "Garnisonsressourcen",
 	["Group %d"] = "Gruppe %d",
-	Idle = "untätig", -- Needs review
-	["Idle (max-level)"] = "untätig (Höchststufe)", -- Needs review
+	Idle = "untätig",
+	["Idle (max-level)"] = "untätig (Höchststufe)",
 	Ignore = "Ignorieren",
 	Ignored = "Ignoriert",
 	["In Tentative Party"] = "In vorläufiger Gruppe",
@@ -49,6 +50,8 @@ L == "deDE" and {
 	["You must restart World of Warcraft after installing this update."] = "Du musst World of Warcraft neustarten nachdem du dieses Update installiert hast.",
 } or
 L == "esES" and {
+	["*"] = "*", -- Needs review
+	["%.2gk"] = "%.2gk", -- Needs review
 	["Active Missions (%d)"] = "Misiones activas (%d)",
 	["Additional mission loot may be delivered via mail."] = "Botín adicional de misiones podría ser enviado vía correo.",
 	["Available Missions (%d)"] = "Misiones disponibles (%d)",
@@ -67,6 +70,8 @@ L == "esES" and {
 	["Follower XP"] = "Experiencia de Seguidor",
 	["Garrison resources"] = "Recursos de Ciudadela",
 	["Group %d"] = "Grupo %d",
+	Idle = "Ociosos", -- Needs review
+	["Idle (max-level)"] = "Ociosos (nivel-max)", -- Needs review
 	Ignore = "Ignorar",
 	Ignored = "Ignorado",
 	["In Tentative Party"] = "En Grupo Tentativo",
@@ -89,6 +94,7 @@ L == "esES" and {
 	["You have no followers to counter this mechanic."] = "No tienes ningún seguidor que contrarreste esta mecánica.",
 	["You have no followers with this trait."] = "No tienes ningún seguidor con este rasgo.",
 	["You have no free bag slots."] = "No tienes espacio en las mochilas.",
+	["You must restart World of Warcraft after installing this update."] = "Debes reiniciar el juego después de instalar esta actualizción.", -- Needs review
 } or
 L == "esMX" and {
 	["Active Missions (%d)"] = "Misiones activas (%d)",
@@ -133,6 +139,7 @@ L == "esMX" and {
 	["You have no free bag slots."] = "No tienes espacio en las mochilas.",
 } or
 L == "frFR" and {
+	["*"] = "*", -- Needs review
 	["%.2gk"] = "%.2g k", -- Needs review
 	["Active Missions (%d)"] = "Missions en cours (%d)",
 	["Additional mission loot may be delivered via mail."] = "Le butin supplémentaire de mission sera renvoyé par courrier.",
@@ -152,6 +159,8 @@ L == "frFR" and {
 	["Follower XP"] = "EXP du sujet",
 	["Garrison resources"] = "ressources de fief",
 	["Group %d"] = "Groupe %d",
+	Idle = "inactif(s)",
+	["Idle (max-level)"] = "inactif(s) (niv maxi)",
 	Ignore = "Ignorer",
 	Ignored = "Ignoré",
 	["In Tentative Party"] = "En équipe provisoire",
@@ -174,8 +183,10 @@ L == "frFR" and {
 	["You have no followers to counter this mechanic."] = "Vous n'avez aucun sujet pour contrer cette menace.",
 	["You have no followers with this trait."] = "Vous n'avez aucun sujet avec ce profil.",
 	["You have no free bag slots."] = "Vous n'avez plus de place dans vos sacs.",
+	["You must restart World of Warcraft after installing this update."] = "Vous devez redémarrer World of Warcraft après avoir installé cette mise à jour.",
 } or
 L == "itIT" and {
+	["*"] = "*",
 	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "Missioni Attive (%d)",
 	["Additional mission loot may be delivered via mail."] = "Ulteriori ricompense potrebbero essere inviate via posta.",
@@ -309,7 +320,8 @@ L == "ptBR" and {
 	["You have no free bag slots."] = "Você não tem espaço livre nas bolsas.",
 } or
 L == "ruRU" and {
-	["%.2gk"] = "%.2gk", -- Needs review
+	["*"] = "*",
+	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "Активные задания (%d)",
 	["Additional mission loot may be delivered via mail."] = "Дополнительная добыча с задания может быть доставлена по почте.",
 	["Available Missions (%d)"] = "Доступные задания (%d)",
@@ -328,6 +340,8 @@ L == "ruRU" and {
 	["Follower XP"] = "XP соратника",
 	["Garrison resources"] = "Ресурсы гарнизона",
 	["Group %d"] = "Группа %d",
+	Idle = "Незанятый",
+	["Idle (max-level)"] = "Незанятый (макс. ур.)",
 	Ignore = "Игнорировать",
 	Ignored = "Игнорируется",
 	["In Tentative Party"] = "В предварительной группе",
@@ -350,8 +364,11 @@ L == "ruRU" and {
 	["You have no followers to counter this mechanic."] = "У вас нет соратников, чтобы  противостоять данной способности.",
 	["You have no followers with this trait."] = "У вас нет соратников с данной особенностью.",
 	["You have no free bag slots."] = "У вас нет места в сумках.",
+	["You must restart World of Warcraft after installing this update."] = "Вы должны перезапустить World of Warcraft после установки этого обновления.",
 } or
 L == "zhCN" and {
+	["*"] = "*",
+	["%.2gk"] = "%.2gk",
 	["Active Missions (%d)"] = "已激活任务(%d)",
 	["Additional mission loot may be delivered via mail."] = "任务奖励将以邮件形式发送。",
 	["Available Missions (%d)"] = "可用任务(%d)",
@@ -370,6 +387,8 @@ L == "zhCN" and {
 	["Follower XP"] = "追随者经验",
 	["Garrison resources"] = "要塞资源",
 	["Group %d"] = "组合 %d",
+	Idle = "空闲",
+	["Idle (max-level)"] = "空闲（满级）",
 	Ignore = "忽略",
 	Ignored = "已忽略",
 	["In Tentative Party"] = "在预设队伍中",
@@ -392,8 +411,10 @@ L == "zhCN" and {
 	["You have no followers to counter this mechanic."] = "你没有追随者反制这种威胁。",
 	["You have no followers with this trait."] = "你没有追随者有这个特长。",
 	["You have no free bag slots."] = "你没有多余的背包空间。",
+	["You must restart World of Warcraft after installing this update."] = "安装更新之后必须重启魔兽世界。",
 } or
 L == "zhTW" and {
+	["*"] = "*",
 	["%.2gk"] = "%.2gk", -- Needs review
 	["Active Missions (%d)"] = "正在進行(%s)",
 	["Additional mission loot may be delivered via mail."] = "額外的任務獎勵可能會透過郵件寄送",
@@ -413,11 +434,13 @@ L == "zhTW" and {
 	["Follower XP"] = "追隨者經驗",
 	["Garrison resources"] = "要塞資源",
 	["Group %d"] = "隊伍 %d",
+	Idle = "閒置",
+	["Idle (max-level)"] = "閒置(最高等級)",
 	Ignore = "忽略",
 	Ignored = "已忽略",
 	["In Tentative Party"] = "在暫定隊伍中",
 	["Mission duration"] = "任務持續時間",
-	["Mission expiration"] = "任務期限", -- Needs review
+	["Mission expiration"] = "任務期限",
 	["Mission level"] = "任務等級",
 	["Mission order:"] = "任務排序:",
 	["Mitigated threats"] = "平息威脅",
@@ -435,6 +458,6 @@ L == "zhTW" and {
 	["You have no followers to counter this mechanic."] = "你沒有追隨者可反制此威脅",
 	["You have no followers with this trait."] = "你沒有追隨者具備此特長",
 	["You have no free bag slots."] = "你的背包沒有足夠的空間",
-	["You must restart World of Warcraft after installing this update."] = "安裝此更新後，你必須重新開啟遊戲", -- Needs review
+	["You must restart World of Warcraft after installing this update."] = "安裝此更新後，你必須重新開啟遊戲",
 } or
 {}

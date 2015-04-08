@@ -112,7 +112,7 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 			self[i].followerID = f
 		end
 		if changed and GarrisonMissionFrame:IsVisible() and GarrisonMissionFrame.selectedTab == 1 then
-			GarrisonMissionList_UpdateMissions()
+			GarrisonMissionList_Update()
 		end
 	end
 	function roamingParty:Clear()
@@ -130,7 +130,7 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 			end
 			PlaySound(follower and "UI_Garrison_CommandTable_AssignFollower" or "UI_Garrison_CommandTable_UnassignFollower")
 			roamingParty[slot].followerID = follower
-			GarrisonMissionList_UpdateMissions()
+			GarrisonMissionList_Update()
 		end
 	end
 	local function cmp(a,b)
@@ -536,11 +536,28 @@ local GarrisonFollower_OnDoubleClick do
 			local fi = self.info
 			if fi and fi.followerID and mi and mi.missionID and fi.status == nil then
 				local f = GarrisonMissionFrame.MissionTab.MissionPage.Followers
-				for i=1, #f do
+				for i=1, mi.numFollowers do
 					if not f[i].info then
 						GarrisonMissionPage_SetFollower(f[i], fi)
 						GarrisonFollowerButton_Collapse(self)
-						break
+						return
+					end
+				end
+				if mi.numFollowers == 1 then
+					GarrisonMissionPage_SetFollower(f[1], fi)
+				else
+					local f1, f2, f3 = f[1].info, f[2].info, f[3].info
+					f1, f2, f3 = f1 and f1.followerID, f2 and f2.followerID, f3 and f3.followerID
+					local g = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, G.GetMissionDefaultGroupRank(mi), 1, f1, f2, f3, fi.followerID)
+					if g and g[1] then
+						local p1, p2, p3 = g[1][5], g[1][6], g[1][7]
+						for i=1,mi.numFollowers do
+							if p1 ~= f1 and p2 ~= f1 and p3 ~= f1 then
+								GarrisonMissionPage_SetFollower(f[i], fi)
+								break
+							end
+							f1, f2 = f2, f3
+						end
 					end
 				end
 			elseif fi and fi.status == GARRISON_FOLLOWER_IN_PARTY then

@@ -374,7 +374,7 @@ do -- CompleteMissions/AbortCompleteMissions
 				else
 					mi.failed, curState, curIndex = cc and true or nil, "NEXT", curIndex + 1
 				end
-				securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
+				securecall(curCallback, "STEP", curStack, curRewards, curFollowers, ok and "COMPLETE" or "FAIL", mi.missionID)
 				if ok then
 					delayIndex, delayMID = curIndex, mi.missionID
 					delayRoll(0.2)
@@ -402,7 +402,7 @@ do -- CompleteMissions/AbortCompleteMissions
 						end
 					end
 				end
-				securecall(curCallback, "STEP", curStack, curRewards, curFollowers)
+				securecall(curCallback, "STEP", curStack, curRewards, curFollowers, "LOOT", mi.missionID)
 			end
 		end
 	end
@@ -514,7 +514,6 @@ do -- GetMissionSeen
 			C_Timer.After(1, ObserveMissions)
 			isPendingObserve = true
 		end
-		
 	end)
 end
 
@@ -682,20 +681,21 @@ function api.GetFilteredMissionGroups(minfo, filter, cmp, limit)
 	end
 	return best
 end
-do -- GetBackfillMissionGroups(minfo, filter, cmp, f1, f2, f3)
-	local filter, f1, f2, f3
+do -- GetBackfillMissionGroups(minfo, filter, cmp, f1, f2, f3, f4)
+	local filter, f1, f2, f3, f4
 	local function backfillFilter(res, finfo, minfo)
 		if filter(res, finfo, minfo) then
 			local g1, g2, g3 = res[5], res[6], res[7]
-			local nm = (f1 and (f1 == g1 or f1 == g2 or f1 == g3) and 1 or 0) +
-			           (f2 and (f2 == g1 or f2 == g2 or f2 == g3) and 1 or 0) +
-						  (f3 and (f3 == g1 or f3 == g2 or f3 == g3) and 1 or 0)
-			local ns = (f1 and 1 or 0) + (f2 and 1 or 0) + (f3 and 1 or 0)
-			return nm == ns
+			local nm = f4 and (f4 == g1 or f4 == g2 or f4 == g3) and 1 or 0
+			if f4 and nm == 0 then return end
+			nm = nm + (f1 and (f1 == g1 or f1 == g2 or f1 == g3) and 1 or 0)
+			        + (f2 and (f2 == g1 or f2 == g2 or f2 == g3) and 1 or 0)
+			        + (f3 and (f3 == g1 or f3 == g2 or f3 == g3) and 1 or 0)
+			return nm == ((f1 and 1 or 0) + (f2 and 1 or 0) + (f3 and 1 or 0))
 		end
 	end
-	function api.GetBackfillMissionGroups(mi, afilter, cmp, limit, af1, af2, af3)
-		filter, f1, f2, f3 = afilter, af1, af2, af3
+	function api.GetBackfillMissionGroups(mi, afilter, cmp, limit, af1, af2, af3, af4)
+		filter, f1, f2, f3, f4 = afilter, af1, af2, af3, af4
 		return api.GetFilteredMissionGroups(mi, (af1 or af2 or af3) and backfillFilter or afilter, cmp, limit)
 	end
 end
@@ -851,7 +851,12 @@ api.GroupRank, api.GroupFilter = {}, {} do
 	local function xp(a, b, finfo, minfo)
 		local ac, bc = computeEquivXP(a, finfo, minfo), computeEquivXP(b, finfo, minfo)
 		if ac == bc then
-			ac, bc = ac / a[4], bc / b[4]
+			local ad, bd = computeEarliestDeparture(a, finfo, minfo), computeEarliestDeparture(a, finfo, minfo)
+			if ad ~= bd then
+				return ad < bd
+			elseif a[4] ~= b[4] then
+				ac, bc = ac / a[4], bc / b[4]
+			end
 		end
 		if ac == bc then
 			return success(a,b, finfo, minfo)
@@ -919,8 +924,8 @@ end
 
 do -- GetUpgradeItems(ilevel, isArmor)
 	local upgrades = {
-		WEAPON={114128, 655, 114129, 655, 114131, 655, 114616, 615, 114081, 630, 114622, 645},
-		ARMOR={114745, 655, 114808, 655, 114822, 655, 114807, 615, 114806, 630, 114746, 645}
+		WEAPON={114128, 655, 114129, 652, 114131, 649, 114616, 615, 114081, 630, 114622, 645},
+		ARMOR={114745, 655, 114808, 652, 114822, 649, 114807, 615, 114806, 630, 114746, 645}
 	}
 	local function walk(ilvl, t, pos)
 		for i=pos,#t,2 do
@@ -949,7 +954,7 @@ function api.ExtendFollowerTooltipMissionRewardXP(mi, fi)
 			for k,v in pairs(mi.rewards) do
 				if v.followerXP then bonus = bonus + v.followerXP end
 			end
-			local base, bonus = api.GetFollowerXPGain(fi, api.GetFMLevel(mi), extraXP + base, bonus)
+			local base, bonus = api.GetFollowerXPGain(fi, api.GetFMLevel(mi), extraXP + base, bonus * bmul)
 			
 			local toLevel, wmul = fi.levelXP - fi.xp, tip.XPBarBackground:GetWidth()/fi.levelXP
 			tip.XPRewardBase:SetWidth(math.max(0.01, math.min(toLevel, base)*wmul))
