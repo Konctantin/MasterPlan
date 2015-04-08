@@ -24,12 +24,12 @@ local CreateMechanicButton do
 			GameTooltip:AddLine(ico .. C_Garrison.GetFollowerAbilityName(self.id))
 			GameTooltip:AddLine(C_Garrison.GetFollowerAbilityDescription(self.id), 1,1,1, 1)
 			if ci and #ci > 0 then
-				GameTooltip:AddLine("|n" .. NORMAL_FONT_COLOR_CODE .. L"Followers with this trait:", 1,1,1)
+				GameTooltip:AddLine("|n" .. L"Followers with this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
 				for i=1,#ci do
 					GameTooltip:AddLine(G.GetFollowerLevelDescription(ci[i], nil, fi[ci[i]]), 1,1,1)
 				end
 			else
-				GameTooltip:AddLine(L"You have no followers with this trait.", 1,0.50,0, 1)
+				GameTooltip:AddLine("|n" .. L"You have no followers with this trait.", 1,0.50,0, 1)
 			end
 		elseif self.isTraitGroup then
 			floatingMechanics:SetOwner(self, ci, fi)
@@ -182,4 +182,159 @@ GarrisonLandingPage.FollowerTab:HookScript("OnShow", function(self)
 	mechanicsFrame:SetPoint("LEFT", GarrisonLandingPage.HeaderBar, "LEFT", 200, 0)
 	mechanicsFrame:Show()
 	syncTotals()
+end)
+
+
+local UpgradesFrame = CreateFrame("FRAME")
+UpgradesFrame:SetSize(237, 42)
+UpgradesFrame:SetBackdrop({edgeFile="Interface/Tooltips/UI-Tooltip-Border", bgFile="Interface/DialogFrame/UI-DialogBox-Background-Dark", tile=true, edgeSize=16, tileSize=16, insets={left=4,right=4,bottom=4,top=4}})
+UpgradesFrame:SetBackdropBorderColor(0.15, 1, 0.25)
+UpgradesFrame:Hide()
+UpgradesFrame:SetScript("OnHide", function(self)
+	self:Hide()
+	if self.owner and not self.owner:IsMouseOver() and self.owner.UpgradeIcon then
+		self.owner.UpgradeIcon:SetAlpha(0.6)
+	end
+	self.owner = nil
+end)
+UpgradesFrame:SetScript("OnUpdate", function(self, elapsed)
+	local isOver = self.owner:IsMouseOver(4,-4,-4,4) or self:IsMouseOver(4,-4,-4,4)
+	if isOver then
+		self.elapsed = 0
+	else
+		self.elapsed = self.elapsed + elapsed
+		if self.elapsed > 0.5 then
+			self:Hide()
+		end
+	end
+end)
+T.Evie.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+	UpgradesFrame:Hide()
+	UpgradesFrame:SetParent(nil)
+	UpgradesFrame:ClearAllPoints()
+end)
+T.Evie.RegisterEvent("BAG_UPDATE_DELAYED", function()
+	if UpgradesFrame:IsShown() then
+		UpgradesFrame:Update()
+	end
+end)
+
+local function UpgradeItem_SetItem(self, id)
+	self.itemID = id
+	local itemName, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(id);
+	if itemName then
+		self.Icon:SetTexture(itemTexture)
+		self.Name:SetText(itemName)
+		self.Name:SetTextColor(GetItemQualityColor(itemQuality))
+		self.ItemLevel:SetFormattedText("")
+	end
+	self:SetAttribute("macrotext", "/use item:" .. id)
+	self:Show()
+end
+local function UpgradeItem_OnClick(self)
+	C_Garrison.CastSpellOnFollower(GarrisonMissionFrame.FollowerTab.followerID)
+end
+local function UpgradeItem_OnEvent(self)
+	if self:IsShown() and self.itemID then
+		UpgradeItem_SetItem(self, self.itemID)
+	end
+end
+local function CreateFollowerItemHighlight(b)
+	local t1, t2, t3, t4 = b:CreateTexture(nil, "HIGHLIGHT"), b:CreateTexture(nil, "HIGHLIGHT"), b:CreateTexture(nil, "HIGHLIGHT"), b:CreateTexture(nil, "HIGHLIGHT")
+	t1:SetTexture("Interface\\Buttons\\UI-SilverButtonLG-Left-Hi")
+	t1:SetSize(32, 63)
+	t1:SetPoint("TOPLEFT", 43, 2)
+	t3:SetTexture("Interface\\Buttons\\UI-SilverButtonLG-Right-Hi")
+	t3:SetSize(32, 63)
+	t3:SetPoint("TOPRIGHT", 1, 2)
+	t2:SetTexture("Interface\\Buttons\\UI-SilverButtonLG-Mid-Hi")
+	t2:SetHeight(63)
+	t2:SetPoint("LEFT", t1, "RIGHT")
+	t2:SetPoint("RIGHT", t3, "LEFT")
+	t4:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+	t4:SetBlendMode("ADD")
+	t4:SetAllPoints(b.Icon)
+	return {t1, t2, t3, t4}
+end
+local function UpgradeItem_OnEnter(self)
+	GameTooltip:SetOwner(self, "ANCHOR_NONE")
+	GameTooltip:SetPoint("BOTTOMLEFT", self, "BOTTOMRIGHT", 0, -32)
+	GameTooltip:SetItemByID(self.itemID)
+	GameTooltip:Show()
+end
+local upgradeItems = setmetatable({}, {__index=function(self, i)
+	local b = CreateFrame("Button", nil, UpgradesFrame, "GarrisonFollowerItemButtonTemplate,SecureActionButtonTemplate")
+	b:SetAttribute("type", "macro")
+	b:SetPoint("BOTTOM", i > 1 and self[i-1] or UpgradesFrame, i > 1 and "TOP" or "BOTTOM", 0, i > 1 and 4 or 6)
+	b:SetScript("OnEnter", UpgradeItem_OnEnter)
+	b:SetScript("OnLeave", GameTooltip_Hide)
+	b:HookScript("OnClick", UpgradeItem_OnClick)
+	b:SetScript("OnEvent", UpgradeItem_OnEvent)
+	CreateFollowerItemHighlight(b)
+	b.Name:SetFontObject(GameFontNormal)
+	b.Name:SetHeight(0)
+	self[i] = b
+	return b
+end})
+function UpgradesFrame:Update()
+	local up = {G.GetUpgradeItems(self.itemLevel, self.isWeapon)}
+	if #up == 0 then return self:Hide() end
+	self:SetHeight(4+48*#up)
+	for i=1,#up do
+		UpgradeItem_SetItem(upgradeItems[i], up[i])
+	end
+	for i=#up+1,#upgradeItems do
+		upgradeItems[i]:Hide()
+	end
+end
+function UpgradesFrame:DisplayFor(owner, itemLevel, isWeapon)
+	self:SetParent(owner)
+	self.owner, self.itemLevel, self.isWeapon = owner, itemLevel, isWeapon
+	self:SetPoint("BOTTOM", owner, "TOP")
+	self:Show()
+	UpgradesFrame:Update()
+end
+
+
+local function FollowerItem_OnClick(self, button)
+	if InCombatLockdown() then return end
+	if UpgradesFrame:IsShown() and UpgradesFrame.owner == self then
+		UpgradesFrame:Hide()
+	else
+		UpgradesFrame:DisplayFor(self, self.itemLevel, self:GetParent().ItemWeapon == self)
+	end
+end
+local function FollowerItem_OnEnter(self)
+	if self.UpgradeIcon:IsShown() then
+		self.UpgradeIcon:SetAlpha(1)
+		GameTooltip:AddLine(L"Click to view upgrade options")
+		GameTooltip:Show()
+	end
+end
+local function FollowerItem_OnLeave(self)
+	if not UpgradesFrame:IsShown() or UpgradesFrame.owner ~= self then
+		self.UpgradeIcon:SetAlpha(0.6)
+	end
+end
+hooksecurefunc("GarrisonFollowerPage_SetItem", function(self, itemID, iLevel)
+	if not self.UpgradeIcon then
+		local ico = self:CreateTexture(nil, "ARTWORK")
+		ico:SetSize(28, 28)
+		ico:SetTexture("Interface\\LevelUp\\LevelUpTex")
+		ico:SetTexCoord(unpack(SUBICON_TEXCOOR_ARROW))
+		ico:SetPoint("RIGHT", -3, 0)
+		ico:SetAlpha(0.6)
+		self.UpgradeIcon = ico
+		self:SetScript("OnMouseUp", FollowerItem_OnClick)
+		self:HookScript("OnEnter", FollowerItem_OnEnter)
+		self:HookScript("OnLeave", FollowerItem_OnLeave)
+		self:SetScript("OnHide", FollowerItem_OnLeave)
+		self.HighlightBorder = CreateFollowerItemHighlight(self)
+	end
+	local isWeapon = self:GetParent().ItemWeapon == self
+	local hasUpgrade = G.GetUpgradeItems(iLevel, isWeapon) ~= nil
+	self.UpgradeIcon:SetShown(hasUpgrade)
+	for i=1,#self.HighlightBorder do
+		self.HighlightBorder[i]:SetShown(hasUpgrade)
+	end
 end)

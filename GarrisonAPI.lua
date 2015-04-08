@@ -3,6 +3,7 @@ local EV, L = T.Evie, T.L
 
 local f, data, mechanics = CreateFrame("Frame"), {}, {}
 f:SetScript("OnUpdate", function() wipe(data) f:Hide() end)
+hooksecurefunc(C_Garrison, "StartMission", function() wipe(data) end)
 
 local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INACTIVE]=1}
 
@@ -357,11 +358,16 @@ do -- GetMissionSeen
 	end)
 end
 
-
-do -- PrepareAllMissionGroups/GetMissionGroups
+do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 	local msf, msi, msd, mmi = {}, {}, {}
 	local suppressFollowerEvents, releaseFollowerEvents do
-		local level, frames, followers, failsafe = 0
+		local level, frames, followers = 0
+		local function failsafe()
+			if level > 0 then
+				level = 1
+				releaseFollowerEvents()
+			end
+		end
 		function suppressFollowerEvents()
 			if level == 0 then
 				frames, followers = {GetFramesRegisteredForEvent("GARRISON_FOLLOWER_LIST_UPDATE")}, {}
@@ -380,9 +386,15 @@ do -- PrepareAllMissionGroups/GetMissionGroups
 			level = level + 1
 		end
 		function releaseFollowerEvents()
-			assert(level > 0, "CR underflow")
+			assert(level > 0, "release not matched to suppress")
 			level = level - 1
 			if level == 0 then
+				local mmi = C_Garrison.GetAvailableMissions()
+				for i=1,#mmi do
+					for k,v in pairs(mmi[i].followers) do
+						C_Garrison.RemoveFollowerFromMission(mmi[i].missionID, v)
+					end
+				end
 				for f, m in pairs(followers) do
 					C_Garrison.AddFollowerToMission(m, f)
 				end
@@ -392,19 +404,15 @@ do -- PrepareAllMissionGroups/GetMissionGroups
 				frames, followers = nil, nil
 			end
 		end
-		function failsafe()
-			if level > 0 then
-				level = 1
-				releaseFollowerEvents()
-			end
-		end
 	end
 	function api.PrepareAllMissionGroups()
 		mmi = C_Garrison.GetAvailableMissions(mmi)
 		suppressFollowerEvents()
-		for i=1,#mmi do
-			api.GetMissionGroups(mmi[i].missionID, i > 1)
-		end
+		securecall(function()
+			for i=1,#mmi do
+				api.GetMissionGroups(mmi[i].missionID, i > 1)
+			end
+		end)
 		releaseFollowerEvents()
 		mmi = nil
 	end
@@ -420,10 +428,15 @@ do -- PrepareAllMissionGroups/GetMissionGroups
 					msi[fn], fn, msf[k], valid = k, fn+1, key, valid and msf[k] == key
 				end
 			end
-			for k,v in pairs(msf) do
-				valid = valid and finfo[k] and finfo[k].isCollected and finfo[k].status ~= GARRISON_FOLLOWER_INACTIVE
+			for i=fn,#msi do
+				valid, msi[i] = false
 			end
-			if not valid and msd then wipe(msd) end
+			for k,v in pairs(msf) do
+				if not (finfo[k] and finfo[k].isCollected and finfo[k].status ~= GARRISON_FOLLOWER_INACTIVE) then
+					valid, msf[k] = false
+				end
+			end
+			if not valid then wipe(msd) end
 		end
 		if not msd[mid] then
 			local mmi, mi = mmi or C_Garrison.GetAvailableMissions()
@@ -460,10 +473,10 @@ do -- PrepareAllMissionGroups/GetMissionGroups
 					rf(mid, msi[t[i]])
 					t[i] = t[i] % fm[i] + 1
 					if t[i] > 1 or i == 1 then
-						if not af(mid, msi[t[i]]) then error("Failed to add follower") end
+						if not af(mid, msi[t[i]]) then error("Failed to add follower " .. i .. ":" .. tostring(t[i]) .. ":" .. tostring(msi[t[i]])) end
 						for j=i+1, nf do
 							t[j]=t[j-1]+1
-							if not af(mid, msi[t[j]]) then error("Failed to add follower") end
+							if not af(mid, msi[t[j]]) then error("Failed to add follower " .. j .. ":" .. tostring(t[j]) .. ":" .. tostring(msi[t[j]])) end
 						end
 						break
 					end
@@ -484,26 +497,28 @@ do -- PrepareAllMissionGroups/GetMissionGroups
 end
 function api.GetFilteredMissionGroups(minfo, filter, cmp, limit)
 	local mg = api.GetMissionGroups(minfo.missionID)
-	local best, finfo = {}, api.GetFollowerInfo()
+	local best, finfo, sorted = {}, api.GetFollowerInfo(), false
 	for i=1,#mg do
 		if filter == nil or filter(mg[i], finfo, minfo) then
 			local this = mg[i]
-			if not limit then
+			if not limit or best[limit] == nil then
 				best[#best+1] = this
-			else
-				for i=1,limit do
-					if best[i] == nil or cmp(this, best[i], finfo, minfo) then
-						for j=i+1, limit do
-							best[j] = best[j-1]
-						end
-						best[i] = this
+				if limit and best[limit] then
+					table.sort(best, function(a,b) return cmp(a, b, finfo, minfo) end)
+					sorted = true
+				end
+			elseif cmp(this, best[limit], finfo, minfo) then
+				best[limit] = this
+				for i=limit-1, 1, -1 do
+					if cmp(best[i], best[i+1], finfo, minfo) then
 						break
 					end
+					best[i+1], best[i] = best[i], best[i+1]
 				end
 			end
 		end
 	end
-	if not limit then
+	if not sorted then
 		table.sort(best, function(a,b) return cmp(a, b, finfo, minfo) end)
 	end
 	return best
@@ -558,7 +573,16 @@ end
 function api.GroupFilter.IDLE(res, finfo, minfo)
 	for i=5,4+minfo.numFollowers do
 		local fi = finfo[res[i]]
-		if not (fi and fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY) then
+		if not (fi and (fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY)) then
+			return false
+		end
+	end
+	return true
+end
+function api.GroupFilter.COMBAT(res, finfo, minfo)
+	for i=5,4+minfo.numFollowers do
+		local fi = finfo[res[i]]
+		if not (fi and (fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY or fi.status == GARRISON_FOLLOWER_ON_MISSION)) then
 			return false
 		end
 	end
@@ -575,6 +599,23 @@ function api.GroupFilter.ACTIVE(res, finfo, minfo)
 end
 function api.AnnotateMissionParty(party, finfo, minfo)
 	computeTotalXP(party, finfo or api.GetFollowerInfo(), minfo)
+end
+
+do -- GetUpgradeItems(ilevel, isArmor)
+	local upgrades = {
+		WEAPON={114128, 650, 114129, 650, 114131, 650, 114616, 615, 114081, 630, 114622, 645},
+		ARMOR={114745, 650, 114808, 650, 114822, 650, 114807, 615, 114806, 630, 114746, 645}
+	}
+	local function walk(ilvl, t, pos)
+		for i=pos,#t,2 do
+			if t[i+1] > ilvl and GetItemCount(t[i]) > 0 then
+				return t[i], walk(ilvl, t, i + 2)
+			end
+		end
+	end
+	function api.GetUpgradeItems(ilevel, isWeapon)
+		return walk(ilevel, isWeapon and upgrades.WEAPON or upgrades.ARMOR, 1)
+	end
 end
 
 T.Garrison = api
