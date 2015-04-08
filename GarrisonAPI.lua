@@ -233,7 +233,7 @@ function api.GetDoubleCounters(finfo)
 					local c1, c2 = cai(aai(fid, 1)), cai(aai(fid, 2))
 					local k = c1 <= c2 and (c1*100 + c2) or (c2*100 + c1)
 					local tk = rt[k] or {}
-					tk[#tk + 1], rt[k] = fi, tk
+					tk[#tk + 1], rt[k] = fi.followerID, tk
 				end
 				local sc = T.SpecCounters[fi.classSpec]
 				if sc then
@@ -246,7 +246,7 @@ function api.GetDoubleCounters(finfo)
 							local c2 = sc[j]
 							local k = c1 <= c2 and -(c1*100 + c2) or -(c2*100 + c1)
 							local tk = rt[k] or {}
-							tk[#tk + 1], rt[k] = fi, tk
+							tk[#tk + 1], rt[k] = fi.followerID, tk
 						end
 						s1 = s1 or (sc[i] == c1)
 						if i == 1 and s1 then break end
@@ -457,6 +457,22 @@ do -- CompleteMissions/AbortCompleteMissions
 			curState, curStack, curRewards, curFollowers, curIndex, curCallback, delayMID, delayIndex = nil
 		end
 	end
+	local function isWastingCurrency(mi)
+		if mi.rewards then
+			for k,v in pairs(mi.rewards) do
+				if v.currencyID and v.currencyID > 0 then
+					local rew = v.quantity * (v.currencyID == GARRISON_CURRENCY and select(8, C_Garrison.GetPartyMissionInfo(mi.missionID)) or mi.materialMultiplier or 1)
+					local _, cur, _, _, _, tmax = GetCurrencyInfo(v.currencyID)
+					if tmax > 0 and (cur+rew-tmax) > rew * T.config.currencyWasteThreshold then
+						curState, curIndex = "NEXT", curIndex + 1
+						completionStep("GARRISON_MISSION_NPC_OPENED", "IMMEDIATE")
+						return true
+					end
+				end
+			end
+		end
+	end
+
 	function completionStep(ev, ...)
 		if not curState then return end
 		local mi = curStack[curIndex]
@@ -470,6 +486,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			if mi.state == -1 then
 				curState, delayIndex, delayMID = "COMPLETE", curIndex, mi.missionID
 				delayOpen(... ~= "IMMEDIATE" and 0.2)
+			elseif isWastingCurrency(mi) then
 			else
 				mi.materialMultiplier = select(8, C_Garrison.GetPartyMissionInfo(mi.missionID))
 				curState, delayIndex, delayMID = "BONUS", curIndex, mi.missionID
@@ -491,6 +508,7 @@ do -- CompleteMissions/AbortCompleteMissions
 					securecall(curCallback, "STEP", curStack, curRewards, curFollowers, ok and "COMPLETE" or "FAIL", mi.missionID)
 				end
 				if ok then
+					if isWastingCurrency(mi) then return end
 					delayIndex, delayMID = curIndex, mi.missionID
 					delayRoll(0.2)
 				else
@@ -735,7 +753,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			t[1], t[2], t[3] = fm[1], fm[2], fm[3]
 
 			local i1, i2, i3 = 1, mi.numFollowers > 1 and 2 or -1, mi.numFollowers > 2 and 3 or -1
-			local af, rf, nf = C_Garrison.AddFollowerToMission, C_Garrison.RemoveFollowerFromMission, mi.numFollowers
+			local af, rf, nf, getXPMul = C_Garrison.AddFollowerToMission, C_Garrison.RemoveFollowerFromMission, mi.numFollowers, api.GetBuffsXPMultiplier
 			repeat
 				for i=nf,1,-1 do
 					rf(mid, msi[t[i]])
@@ -750,7 +768,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 					end
 				end
 				local _totalTimeString, totalTimeSeconds, _isMissionTimeImproved, successChance, partyBuffs, _isEnvMechanicCountered, xpBonus, materialMultiplier = C_Garrison.GetPartyMissionInfo(mid)
-				m[mn], mn = {successChance, baseXP+xpBonus, garrisonResources*materialMultiplier, totalTimeSeconds, msi[t[i1]], msi[t[i2]], msi[t[i3]], chestXP, next(partyBuffs) and partyBuffs}, mn + 1
+				m[mn], mn = {successChance, baseXP+xpBonus, garrisonResources*materialMultiplier, totalTimeSeconds, msi[t[i1]], msi[t[i2]], msi[t[i3]], chestXP * (partyBuffs and getXPMul(partyBuffs) or 1)}, mn + 1
 			until t[1] == fm[1] and t[2] == fm[2] and t[3] == fm[3]
 			
 			for i=1,nf do
@@ -868,7 +886,6 @@ local computeEquivXP, computeEarliestDeparture do
 	function computeEquivXP(g, finfo, minfo, force)
 		if not g.equivXP or force then
 			local mlvl, bonus, conf = api.GetFMLevel(minfo), g[8], T.config
-			bonus = bonus * (bonus > 0 and g[9] and api.GetBuffsXPMultiplier(g[9]) or 1)
 			
 			local risk, ecap, decay, perGold = risk[g[1]], (conf.xpCapGrace or 2000), conf.levelDecay, conf.xpPerGold or 0
 			local expected, balanced = 0, 0
@@ -908,7 +925,7 @@ local computeEquivXP, computeEarliestDeparture do
 				local f = finfo[g[i]]
 				local drop = dropFollowers[f.followerID]
 				if f.status == GARRISON_FOLLOWER_ON_MISSION or drop then
-					local t = f.missionTimeSeconds or (drop and missionDuration[drop]) or inf
+					local t = f.missionTimeSeconds or (drop and missionDuration[drop]) or 0
 					if not ret or t > ret then
 						ret = t
 					end
@@ -1031,7 +1048,7 @@ function api.AnnotateMissionParty(party, finfo, minfo, force)
 	computeEarliestDeparture(party, finfo, minfo, force)
 end
 function api.HasSignificantRewards(mi)
-	if mi.rewards then
+	if mi.rewards and not T.XPMissions[mi.missionID] then
 		local allGR, allXP = true, true
 		for _, r in pairs(mi.rewards) do
 			if not (r.followerXP or (r.currencyID == 0 and r.quantity < T.config.goldRewardThreshold)) then
@@ -1342,7 +1359,8 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					if nc >= cap then
 						nc = 100
 					else
-						nc = nc * 100 / cap
+						local ex = c and 6 or 4
+						nc = (nc + ex) * 100 / (cap + ex)
 						nc = nc - nc % 1
 					end
 					
@@ -1436,6 +1454,35 @@ function api.countFreeFollowers(f, finfo)
 	end
 	return ret
 end
+function api.CountUniqueRerolls(counters, thisFollowerID)
+	local finfo, c = api.GetFollowerInfo(), counters
+	local dc, novel, inact = api.GetDoubleCounters(finfo), 0, 0
+	
+	for i=1,#c do
+		for j=i+1, #c do
+			local ft, ac, ic = dc[c[i]*100 + c[j]], 0, 0
+			for i=1,ft and #ft or 0 do
+				if ft[i] == thisFollowerID then
+				elseif finfo[ft[i]].status ~= GARRISON_FOLLOWER_INACTIVE then
+					ac = ac + 1
+					break
+				else
+					ic = ic + 1
+				end
+			end
+			if ac == 0 and ic == 0 then
+				novel = novel + 1
+			elseif ac == 0 then
+				inact = inact + 1
+			end
+		end
+	end
+	
+	local total = (#c*(#c-1))
+	local desc = inact > 0 and "|cffa8a8a8" .. (novel > 0 and "+" or "") .. inact .. "|r" or ""
+	desc = (novel > 0 and "|cff20ff20" .. novel .. "|r" or "") .. desc .. "|cffffffff/" .. total
+	return novel, inact, total, desc
+end
 function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 	local fi
 	if type(specId) == "table" then
@@ -1458,36 +1505,35 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 			dropCounter = nil
 		else
 			local _, name, ico = api.GetMechanicInfo(c[i])
-			self:AddDoubleLine("|TInterface\\Buttons\\UI-Quickslot2:18:2:-1:0:64:64:31:32:31:32|t|T" .. ico .. ":16:16:0:0:64:64:5:59:5:59|t " .. name,  "(" .. api.countFreeFollowers(ci[c[i]], finfo) .. ")", 1,1,1, 1,1,1)
+			local counters = ci[c[i]]
+			local freeCount = api.countFreeFollowers(counters, finfo)
+			local counts = (freeCount > 0 and "|cff20ff20" .. freeCount or "0") .. "|r+|cffa8a8a8" .. (#counters - freeCount)
+			self:AddDoubleLine("|TInterface\\Buttons\\UI-Quickslot2:18:2:-1:0:64:64:31:32:31:32|t|T" .. ico .. ":16:16:0:0:64:64:5:59:5:59|t " .. name, counts, 1,1,1, 1,1,1)
 		end
 	end
 	self:SetBackdropColor(0,0,0)
 	
-	local dc, novel, inact, me = api.GetDoubleCounters(finfo), 0, 0, fi and fi.followerID
-	for i=1,#c do
-		for j=i+1, #c do
-			local ft, ac, ic = dc[c[i]*100 + c[j]], 0, 0
-			for i=1,ft and #ft or 0 do
-				if ft[i].followerID == me then
-				elseif ft[i].status ~= GARRISON_FOLLOWER_INACTIVE then
-					ac = ac + 1
-					break
-				else
-					ic = ic + 1
+	local novel, inact, _, rerollDesc = api.CountUniqueRerolls(c, fi and fi.followerID)
+	if novel > 0 or inact > 0 then
+		self:AddDoubleLine(L"Unique ability rerolls:", rerollDesc)
+	end
+	
+	if fi and fi.quality == 4 then
+		local a1, a2 = C_Garrison.GetFollowerAbilityAtIndex(fi.followerID, 1), C_Garrison.GetFollowerAbilityAtIndex(fi.followerID, 2)
+		a1, a2 = C_Garrison.GetFollowerAbilityCounterMechanicInfo(a1), C_Garrison.GetFollowerAbilityCounterMechanicInfo(a2)
+		local sd = api.GetDoubleCounters()[a1 < a2 and (a1 * 100 + a2) or (a2 * 100 + a1)]
+		if sd and #sd > 1 then
+			self:AddLine(" ")
+			self:AddLine(L"Duplicate counters" .. ":")
+			api.sortByFollowerLevels(sd, finfo)
+			for i=1,#sd do
+				if sd[i] ~= fi.followerID then
+					local dfi = finfo[sd[i]]
+					local rd = select(4, api.CountUniqueRerolls(T.SpecCounters[dfi.classSpec], dfi.followerID))
+					self:AddDoubleLine(api.GetFollowerLevelDescription(sd[i], nil, dfi), rd .. " " .. api.GetOtherCounterIcons(dfi))
 				end
 			end
-			if ac == 0 and ic == 0 then
-				novel = novel + 1
-			elseif ac == 0 then
-				inact = inact + 1
-			end
 		end
-	end
-	if novel > 0 or inact > 0 then
-		self:AddLine(" ")
-		inact = inact > 0 and "|cffa8a8a8" .. (novel > 0 and "+" or "") .. inact .. "|r" or ""
-		novel = novel > 0 and "|cff20ff20" .. novel .. "|r" or ""
-		self:AddDoubleLine(L"Unique ability rerolls:",  novel .. inact .. "|cffffffff/" .. (#c*(#c-1)))
 	end
 	
 	return true

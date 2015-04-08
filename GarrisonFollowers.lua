@@ -66,7 +66,7 @@ local CreateMechanicButton do
 		end
 	end
 	local function Mechanic_OnClick(self)
-		local nt = not self.isDouble and (self.name or (self.info and self.info.name))
+		local nt = self.name or (self.info and self.info.name)
 		local sb = GarrisonMissionFrameFollowers.SearchBox:IsVisible() and GarrisonMissionFrameFollowers.SearchBox or
 		           GarrisonLandingPage.FollowerList.SearchBox:IsVisible() and GarrisonLandingPage.FollowerList.SearchBox
 
@@ -194,12 +194,9 @@ local function syncTotals()
 	local di, doubles, t = G.GetDoubleCounters(finfo), {}, {}
 	for k,v in pairs(di) do
 		if k > 0 and #v > 1 then
+			G.sortByFollowerLevels(v, finfo)
 			for i=1,#v do
-				t[i] = v[i].followerID
-			end
-			G.sortByFollowerLevels(t, finfo)
-			for i=1,#t do
-				doubles[#doubles+1] = t[i]
+				doubles[#doubles+1] = v[i]
 			end
 			wipe(t)
 		end
@@ -525,8 +522,9 @@ end
 local GarrisonFollowerList_SortFollowers = GarrisonFollowerList_SortFollowers
 function _G.GarrisonFollowerList_SortFollowers(followerList)
 	local searchString = followerList.SearchBox and followerList.SearchBox:GetText() or ""
+	local dupQuery, lss = (L"Duplicate counters"):lower(), searchString:lower()
 	
-	if searchString:match("[;+]") and searchString:match("[^%s;+]") then
+	if (searchString:match("[;+]") and searchString:match("[^%s;+]")) or (lss == dupQuery or lss == "duplicate counters") then
 		local showUncollected, list, q, s = followerList.showUncollected, followerList.followersList, {}
 		
 		for qs in searchString:gmatch("[^;]+") do
@@ -542,17 +540,35 @@ function _G.GarrisonFollowerList_SortFollowers(followerList)
 		end
 		
 		wipe(list)
+		local dupSet
 		for i=1, #followerList.followers do
 			local fi = followerList.followers[i]
 			if showUncollected or fi.isCollected then
-				local matched, id, spec = true, fi.followerID, T.SpecCounters[fi.classSpec]
-				
+				local matched, id, spec, filterDup = true, fi.followerID, T.SpecCounters[fi.classSpec], false
 				for i=1,#q do
-					if not C_Garrison.SearchForFollower(id, q[i]) then
+					local q = q[i]
+					local ql = q:lower()
+					if ql == dupQuery or ql == "duplicate counters" then
+						filterDup = true
+					elseif not C_Garrison.SearchForFollower(id, q) then
 						matched = false
 						break
 					end
 				end
+				if matched and filterDup then
+					if not dupSet then
+						dupSet = {}
+						for k,v in pairs(G.GetDoubleCounters(G.GetFollowerInfo())) do
+							if k > 0 and #v > 1 then
+								for i=1,#v do
+									dupSet[v[i]] = 1
+								end
+							end
+						end
+					end
+					matched = not not dupSet[id]
+				end
+				
 				for i=1,s and matched and #s or 0 do
 					local ok, qm = false, s[i]
 					for j=1,#spec do
@@ -577,3 +593,4 @@ function _G.GarrisonFollowerList_SortFollowers(followerList)
 	
 	return GarrisonFollowerList_SortFollowers(followerList)
 end
+GarrisonMissionFrameFollowers.SearchBox:SetMaxLetters(0)
