@@ -488,22 +488,22 @@ function api.GetFilteredMissionGroups(minfo, filter, cmp, limit)
 	for i=1,#mg do
 		if filter == nil or filter(mg[i], finfo, minfo) then
 			local this = mg[i]
-			if not limit or best[limit] == nil then
+			if not limit then
 				best[#best+1] = this
 			else
-				best[limit+1] = this
-				for i=limit,1,-1 do
-					if not cmp(this, best[i], finfo, minfo) then
+				for i=1,limit do
+					if best[i] == nil or cmp(this, best[i], finfo, minfo) then
+						for j=i+1, limit do
+							best[j] = best[j-1]
+						end
+						best[i] = this
 						break
 					end
-					best[i], best[i+1] = best[i+1], best[i]
 				end
 			end
 		end
 	end
-	if limit then
-		best[limit + 1] = nil
-	else
+	if not limit then
 		table.sort(best, function(a,b) return cmp(a, b, finfo, minfo) end)
 	end
 	return best

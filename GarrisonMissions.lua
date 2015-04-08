@@ -469,7 +469,7 @@ hooksecurefunc("GarrisonMissionPage_ShowMission", function()
 	sb.clearText = nil
 	local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
 	local seen, expire = G.GetMissionSeen(mi and mi.missionID)
-	GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionSeen:SetFormattedText((L"Pending: %s |4hour:hours;"), HIGHLIGHT_FONT_COLOR_CODE .. floor(seen/3600+0.5) .. (expire > 0 and "/" .. expire))
+	GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionSeen:SetFormattedText((L"Pending: %s |4hour:hours;"), HIGHLIGHT_FONT_COLOR_CODE .. floor(seen/3600+0.5) .. (expire > 0 and "/" .. expire or ""))
 	local sg = G.GetFilteredMissionGroups(mi, G.GroupFilter.IDLE, G.GroupRank.threats, 3)
 	lfgButton.groups = sg
 	lfgButton:SetShown(sg[1] ~= nil)
@@ -533,7 +533,7 @@ do -- Minimize mission
 			end
 		end
 	end)
-	securecall(setfenv, GarrisonMissionPage_SetFollower, setmetatable({PlaySound = function(...) if not shortcut then _G.PlaySound(...) end end}, {__index=_G}))
+	pcall(setfenv, GarrisonMissionPage_SetFollower, setmetatable({PlaySound = function(...) if not shortcut then _G.PlaySound(...) end end}, {__index=_G}))
 	hooksecurefunc("GarrisonMissionPage_SetFollower", function(slot, info)
 		if info and info.followerID then
 			MasterPlan:DissolveMissionByFollower(info.followerID)
