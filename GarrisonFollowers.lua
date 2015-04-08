@@ -27,7 +27,7 @@ local CreateMechanicButton do
 					GameTooltip:AddLine(G.GetFollowerLevelDescription(ci[i], nil, fi[ci[i]]), 1,1,1)
 				end
 			else
-				GameTooltip:AddLine(L"You have no followers with this trait.", 1,0.50,0)
+				GameTooltip:AddLine(L"You have no followers with this trait.", 1,0.50,0, 1)
 			end
 		elseif self.isTraitGroup then
 			floatingMechanics:SetOwner(self, ci, fi)
@@ -41,7 +41,7 @@ local CreateMechanicButton do
 					GameTooltip:AddLine(G.GetFollowerLevelDescription(ci[i], nil, fi[ci[i]]), 1,1,1)
 				end
 			else
-				GameTooltip:AddLine(L"You have no followers to counter this mechanic.", 1,0.50,0)
+				GameTooltip:AddLine(L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
 			end
 		end
 		GameTooltip:Show()

@@ -26,7 +26,7 @@ local sortIndicator = CreateFrame("Button", nil, GarrisonMissionFrameMissions, n
 	local fs = sortIndicator:GetFontString()
 	fs:ClearAllPoints() fs:SetPoint("RIGHT", -15, 0)
 	sortIndicator:SetPoint("BOTTOMLEFT", GarrisonMissionFrameMissions, "TOPLEFT", 6, -1)
-	sortIndicator:SetSize(250, 43)
+	sortIndicator:SetSize(300, 43)
 	EV.RegisterEvent("MP_SETTINGS_CHANGED", function(ev, s)
 		if s == nil or s == "availableMissionSort" then
 			sortIndicator:SetText(MasterPlan:GetMissionOrder() == "threats" and L"Mitigated threats" or L"Mission level")
@@ -351,11 +351,11 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
 	for i=1, #buttons do
 		local f, fi = buttons[i], fl[buttons[i].id]
-		local tmid = MasterPlan:GetFollowerTentativeMission(fi.followerID)
-		local status = fi.status or tmid and tmid ~= (mi and mi.missionID) and L"In Tentative Party" or tmid and mi and tmid == mi.missionID and GARRISON_FOLLOWER_IN_PARTY or ""
+		local tmid = fi and MasterPlan:GetFollowerTentativeMission(fi.followerID)
+		local status = fi and fi.status or tmid and tmid ~= (mi and mi.missionID) and L"In Tentative Party" or tmid and mi and tmid == mi.missionID and GARRISON_FOLLOWER_IN_PARTY or ""
 		if f:IsShown() and fi and fi.missionTimeLeft then
 			f.Status:SetFormattedText("%s (%s)", status, fi.missionTimeLeft)
-		elseif f:IsShown() then
+		elseif f:IsShown() and fi then
 			f.Status:SetText(status)
 		end
 	end
