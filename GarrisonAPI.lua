@@ -196,7 +196,7 @@ function api.GetFollowerIdentity()
 		end
 	end
 	table.sort(f, followerIDcmp)
-	local s1, s2 = "", ""
+	local ignore, tentativeState, s1, s2 = T.config.ignore, T.tentativeState, "", ""
 	for i=1,#f do
 		local v = f[i]
 		if v.status ~= GARRISON_FOLLOWER_INACTIVE then
@@ -205,7 +205,7 @@ function api.GetFollowerIdentity()
 			for j=1,4 do
 				q = q .. "#" .. (C_Garrison.GetFollowerAbilityAtIndex(k, i) or 0) .. "#" .. (C_Garrison.GetFollowerTraitAtIndex(k, i) or 0)
 			end
-			s1, s2 = s1 .. q, s2 .. "#" .. (dropFollowers[k] and GARRISON_FOLLOWER_ON_MISSION or v.status ~= GARRISON_FOLLOWER_IN_PARTY and v.status or ".") .. "#" .. (T.tentativeState[v.followerID] or "-")
+			s1, s2 = s1 .. q, s2 .. "#" .. (dropFollowers[k] and GARRISON_FOLLOWER_ON_MISSION or v.status ~= GARRISON_FOLLOWER_IN_PARTY and v.status or ".") .. "#" .. (tentativeState[k] or "-") .. (ignore[k] and "i" or "-")
 		end
 	end
 	SetFollowerInfo(f)

@@ -26,12 +26,8 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 	if not mi then
 		return
 	end
-	PlaySound("UI_Garrison_CommandTable_SelectMission")
-	GarrisonMissionFrame.MissionTab.MissionList:Hide()
-	GarrisonMissionFrame.MissionTab.MissionPage:Show()
-	GarrisonMissionPage_ShowMission(mi)
-	GarrisonMissionFrame.followerCounters = C_Garrison.GetBuffedFollowersForMission(mi.missionID)
-	GarrisonMissionFrame.followerTraits = C_Garrison.GetFollowersTraitsForMission(mi.missionID)
+	
+	local mp, _, s1, s2, s3, s4, s5, s6 = GarrisonMissionFrame.MissionTab.MissionPage
 	if not (f1 or f2 or f3) then
 		f1, f2, f3 = MasterPlan:GetMissionParty(mi.missionID)
 		if not (f1 or f2 or f3) then
@@ -47,40 +43,50 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 		if not f1 then
 			f1, f2, f3 = f2, f3
 		end
-		local mp, _, s1, s2, s3, s4 = GarrisonMissionFrame.MissionTab.MissionPage
-		if isResume then
-			_, s1 = PlaySound("UI_Garrison_CommandTable_IncreaseSuccess")
-			_, s2 = PlaySound("UI_Garrison_CommandTable_100Success")
-			_, s3 = PlaySound("UI_Garrison_Mission_Threat_Countered")
-			_, s4 = PlaySound("UI_Garrison_CommandTable_AssignFollower")
+	else
+		isResume = true
+	end
+	if isResume then
+		_, s1 = PlaySound("UI_Garrison_CommandTable_IncreaseSuccess")
+		_, s2 = PlaySound("UI_Garrison_CommandTable_100Success")
+		_, s3 = PlaySound("UI_Garrison_Mission_Threat_Countered")
+		_, s4 = PlaySound("UI_Garrison_CommandTable_AssignFollower")
+		_, s5 = PlaySound("UI_Garrison_CommandTable_UnassignFollower")
+		_, s6 = PlaySound("UI_Garrison_CommandTable_ReducedSuccessChance")
+	end
+	
+	PlaySound("UI_Garrison_CommandTable_SelectMission")
+	GarrisonMissionFrame.MissionTab.MissionList:Hide()
+	GarrisonMissionFrame.MissionTab.MissionPage:Show()
+	GarrisonMissionPage_ShowMission(mi)
+	GarrisonMissionFrame.followerCounters = C_Garrison.GetBuffedFollowersForMission(mi.missionID)
+	GarrisonMissionFrame.followerTraits = C_Garrison.GetFollowersTraitsForMission(mi.missionID)
+	
+	GarrisonMissionPage_ClearParty()
+	for i=1, mi.numFollowers do
+		if f1 then
+			GarrisonMissionPage_SetFollower(mp.Followers[i], C_Garrison.GetFollowerInfo(f1))
 		end
-		for i=1, mi.numFollowers do
-			if f1 then
-				GarrisonMissionPage_SetFollower(mp.Followers[i], C_Garrison.GetFollowerInfo(f1))
+		f1, f2, f3 = f2, f3, f1
+	end
+	if isResume then
+		for i = 1, #mp.Enemies do
+			local enemyFrame = mp.Enemies[i]
+			for mechanicIndex = 1, #enemyFrame.Mechanics do
+				local mech = enemyFrame.Mechanics[mechanicIndex]
+				mech.Check:SetAlpha(mech.hasCounter and 1 or 0)
+				mech.Check:SetShown(mech.hasCounter)
+				mech.Anim:Stop()
 			end
-			f1, f2, f3 = f2, f3, f1
 		end
-		for i=1,4 do
-			s1, s2, s3, s4 = s2, s3, s4, s1 and StopSound(s1)
-		end
-		if isResume then
-			for i = 1, #mp.Enemies do
-				local enemyFrame = mp.Enemies[i]
-				for mechanicIndex = 1, #enemyFrame.Mechanics do
-					local mech = enemyFrame.Mechanics[mechanicIndex]
-					if mech.hasCounter then
-						mech.Check:SetAlpha(1)
-						mech.Check:Show()
-						mech.Anim:Stop()
-					end
-				end
-			end
-			GarrisonMissionFrame.MissionTab.MissionPage.RewardsFrame.ChanceGlowAnim:Stop()
-			MISSION_PAGE_FRAME.Stage.MissionEnvIcon.Anim:Stop()
-		end
+		GarrisonMissionFrame.MissionTab.MissionPage.RewardsFrame.ChanceGlowAnim:Stop()
+		MISSION_PAGE_FRAME.Stage.MissionEnvIcon.Anim:Stop()
 	end
 	GarrisonMissionPage_UpdateMissionForParty()
 	GarrisonFollowerList_UpdateFollowers(GarrisonMissionFrame.FollowerList)
+	for i=1,6 do
+		s1, s2, s3, s4, s5, s6 = s2, s3, s4, s5, s6, s1 and StopSound(s1)
+	end
 end
 GarrisonMissionFrame.MissionTab.MissionPage.StartMissionButton:SetScript("OnClick", function(self)
 	if (not MISSION_PAGE_FRAME.missionInfo.missionID) then
@@ -1469,11 +1475,11 @@ do -- availMissionsHandle
 				return unpack(threatColors[quality])
 			end
 		end
-		local function OnLeave(self)
+		local function Threat_OnLeave(self)
 			GarrisonMissionMechanicTooltip:Hide()
 			self:GetParent():UnlockHighlight()
 		end
-		local function OnEnter(self)
+		local function Threat_OnEnter(self)
 			self:GetParent():LockHighlight()
 			GarrisonMissionMechanicTooltip.missionLevel = self.missionLevel
 			GarrisonMissionMechanic_OnEnter(self)
@@ -1481,8 +1487,8 @@ do -- availMissionsHandle
 		end
 		function CreateThreat(parent)
 			local b = CreateFrame("Button", nil, parent, "GarrisonAbilityCounterTemplate")
-			b:SetScript("OnEnter", OnEnter)
-			b:SetScript("OnLeave", OnLeave)
+			b:SetScript("OnEnter", Threat_OnEnter)
+			b:SetScript("OnLeave", Threat_OnLeave)
 			return b
 		end
 		function SetThreat(self, info, level, counters, followers, threatID, used)
@@ -1668,6 +1674,15 @@ do -- availMissionsHandle
 			return numFollowers, garrResources - (dropCost or 0)
 		end
 	end
+	local function FormatCountdown(sec)
+		if sec >= 3660 then
+			return L("%dh %dm"):format(sec / 3600, sec / 60 % 60)
+		elseif sec >= 3600 then
+			return HOUR_ONELETTER_ABBR:format(sec / 3600)
+		else
+			return format(SecondsToTimeAbbrev(sec))
+		end
+	end
 	local function setData(self, d)
 		data[self] = d
 		self.level:SetText((d.isRare and "|cff4DB5FF" or "") .. (d.iLevel > 600 and d.iLevel or d.level))
@@ -1763,7 +1778,7 @@ do -- availMissionsHandle
 				text = (L"%s XP"):format(BreakUpLargeNumbers(floor(g.expectedXP)))
 			end
 			if g.earliestDeparture then
-				text = "|cffc0c0c0" .. format(SecondsToTimeAbbrev(math.max(0,g.earliestDeparture-time()))) .. ": " .. (text or (g[1] .. "%"))
+				text = "|cffc0c0c0" .. FormatCountdown(math.max(0,g.earliestDeparture-time())) .. ": " .. (text or (g[1] .. "%"))
 				b:Disable()
 			else
 				text = (text and text .. ", " or "") .. g[1] .. "%"
@@ -1827,9 +1842,9 @@ do -- availMissionsHandle
 		local fields = {threats=1, xp="equivXP", xptime="equivXPTime"}
 		function GetAvailableMissions()
 			local order, missions, droppedMissionCost = T.config.availableMissionSort, G.GetAvailableMissions()
-			local field, finfo, f1, f2, f3 = fields[order] or 1, G.GetFollowerInfo(), roamingParty:GetFollowers()
+			local field, f1, f2, f3 = fields[order] or 1, roamingParty:GetFollowers()
 			local _, fid = G.GetFollowerIdentity()
-			fid = fid .. "#-ROAM-#" .. (f1 or "!") .. "-" .. (f2 or "!") .. "-" .. (f3 or "!")
+			finfo, fid = G.GetFollowerInfo(), fid .. "#-ROAM-#" .. (f1 or "!") .. "-" .. (f2 or "!") .. "-" .. (f3 or "!")
 			if groupCache._identity ~= fid then
 				wipe(groupCache)
 				groupCache._identity = fid
@@ -1883,7 +1898,7 @@ do -- availMissionsHandle
 					missions[i].ord = 0
 				end
 			elseif order == "threats2" then
-				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
+				cinfo = G.GetCounterInfo()
 				for i=1, #missions do
 					local mi = missions[i]
 					local g = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, G.GroupRank.threats, 1, roamingParty:GetFollowers())
@@ -1903,8 +1918,17 @@ do -- availMissionsHandle
 			return missions
 		end
 	end
+	local timeToNextRefresh = 0
+	availUI:SetScript("OnUpdate", function(self, elapsed)
+		if timeToNextRefresh < elapsed then
+			availMissionsHandle:Refresh(false)
+		else
+			timeToNextRefresh = timeToNextRefresh - elapsed
+		end
+	end)
 	availMissionsHandle = core:CreateHandle(CreateAvailMission, setData, 67)
 	function availMissionsHandle:Activate(full)
+		timeToNextRefresh = 60
 		if full then
 			core:SetData(GetAvailableMissions(), availMissionsHandle)
 		else
