@@ -15,6 +15,18 @@ local Hide do
 end
 Hide(GarrisonMissionFrameMissionsTab1, GarrisonMissionFrameMissionsTab2)
 
+local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenuTemplate") do
+	function easyDrop:IsOpen(owner)
+		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
+	end
+	function easyDrop:Open(owner, menu, ...)
+		self.owner = owner
+		EasyMenu(menu, self, "cursor", 0, 0, "MENU", 4)
+		DropDownList1:ClearAllPoints()
+		DropDownList1:SetPoint(...)
+	end
+end
+
 local sortIndicator = CreateFrame("Button", nil, GarrisonMissionFrameMissions) do
 	local bg = sortIndicator:CreateTexture(nil, "BACKGROUND")
 	bg:SetAtlas("Garr_Mission_MaterialFrame", true)
@@ -35,6 +47,7 @@ local sortIndicator = CreateFrame("Button", nil, GarrisonMissionFrameMissions) d
 	local menu, sortOrders = {
 		{text=L"Chance of success", checked=test, func=MasterPlan.SetMissionOrder, arg1="threats"},
 		{text=L"Follower experience", checked=test, func=MasterPlan.SetMissionOrder, arg1="xp"},
+		{text=L"Mitigated threats", checked=test, func=MasterPlan.SetMissionOrder, arg1="threats2"},
 		{text=L"Mission level", checked=test, func=MasterPlan.SetMissionOrder, arg1="level"},
 		{text=L"Mission duration", checked=test, func=MasterPlan.SetMissionOrder, arg1="duration"},
 	}, {}
@@ -48,18 +61,15 @@ local sortIndicator = CreateFrame("Button", nil, GarrisonMissionFrameMissions) d
 		end
 	end)
 
-	local drop = CreateFrame("Frame", "MasterPlanSortDropDown", nil, "UIDropDownMenuTemplate")
 	sortIndicator:SetScript("OnClick", function(self)
-		if UIDROPDOWNMENU_OPEN_MENU == drop and DropDownList1:IsShown() then
+		if easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 			return
 		end
-		EasyMenu(menu, drop, "cursor", 0, 0, "MENU", 4)
-		DropDownList1:ClearAllPoints()
-		DropDownList1:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", -6, 12)
+		easyDrop:Open(self, menu, "TOPRIGHT", self, "BOTTOMRIGHT", -6, 12)
 	end)
-	sortIndicator:SetScript("OnHide", function()
-		if UIDROPDOWNMENU_OPEN_MENU == drop and DropDownList1:IsShown() then
+	sortIndicator:SetScript("OnHide", function(self)
+		if easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 		end
 	end)
@@ -67,7 +77,6 @@ end
 local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 	roamingParty:SetPoint("BOTTOM", GarrisonMissionFrameMissions, "TOP", 0, 2)
 	roamingParty:SetSize(120, 36)
-	local drop = CreateFrame("Frame", "MasterPlanRoamDropDown", nil, "UIDropDownMenuTemplate")
 	function roamingParty:GetFollowers()
 		return self[1].followerID, self[2].followerID, self[3].followerID
 	end
@@ -124,7 +133,12 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 		end
 	end
 	local function Roamer_OnEnter(self)
-		if self.followerID and not (UIDROPDOWNMENU_OPEN_MENU == drop and drop.owner == self and DropDownList1:IsShown()) then
+		if self.followerID and not easyDrop:IsOpen(self) then
+			for i=1,#roamingParty do
+				if easyDrop:IsOpen(roamingParty[i]) then
+					return
+				end
+			end
 			local info, id = C_Garrison.GetFollowerInfo(self.followerID), self.followerID
 			GarrisonFollowerTooltip:ClearAllPoints()
 			GarrisonFollowerTooltip:SetPoint("TOP", self, "BOTTOM", 0, -2)
@@ -153,7 +167,7 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 	local function Roamer_OnClick(self, button)
 		if button == "RightButton" then
 			Roamer_SetFollower(nil, self:GetID(), nil)
-		elseif UIDROPDOWNMENU_OPEN_MENU == drop and DropDownList1:IsShown() and drop.owner == self then
+		elseif easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 			PlaySound("UChatScrollButton")
 		else
@@ -163,7 +177,7 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 			table.sort(f2, cmp)
 			for i=1,#f2 do
 				local fi, fid = f2[i], f2[i].followerID
-				if fi.isCollected and (fi.status or "") == "" and (fid == cur or (fid ~= a1 and fid ~= a2 and fid ~= a3)) and not T.config.ignore[fid] then
+				if fi.isCollected and (fi.status or "") == "" and (fid == cur or (fid ~= a1 and fid ~= a2 and fid ~= a3)) and not T.config.ignore[fid] and not MasterPlan:GetFollowerTentativeMission(fid) then
 					local tt = ""
 					for i=1,4 do
 						local id = C_Garrison.GetFollowerTraitAtIndex(fid, i)
@@ -177,15 +191,12 @@ local roamingParty = CreateFrame("Frame", nil, GarrisonMissionFrameMissions) do
 			if cur then
 				mn[#mn+1] = {text=REMOVE, func=Roamer_SetFollower, arg1=slot, justifyH="CENTER", notCheckable=true}
 			end
-			EasyMenu(mn, drop, "cursor", 0, 0, "MENU", 15)
-			DropDownList1:ClearAllPoints()
-			DropDownList1:SetPoint("TOP", self, "BOTTOM", 0, -2)
+			easyDrop:Open(self, mn, "TOP", self, "BOTTOM", 0, -2)
 			GarrisonFollowerTooltip:Hide()
-			drop.owner = self
 		end
 	end
 	local function Roamer_OnHide(self)
-		if UIDROPDOWNMENU_OPEN_MENU == drop and DropDownList1:IsShown() and drop.owner == self then
+		if easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 		end
 	end
@@ -279,7 +290,7 @@ end
 hooksecurefunc(C_Garrison, "GetInProgressMissions", function(t) if t then landingSort(t) end end)
 local significantRewardsRank = {[false]="xp", [true]="threats", resource="resources"}
 do -- Garrison_SortMissions
-	local origSort = Garrison_SortMissions
+	local origSort, used, cinfo, finfo = Garrison_SortMissions, {}
 	local function cmp(a,b)
 		local ac, bc = a.ord, b.ord
 		if ac == bc then
@@ -292,6 +303,27 @@ do -- Garrison_SortMissions
 			ac, bc = 0, strcmputf8i(a.name, b.name)
 		end
 		return ac > bc
+	end
+	local function computeThreat(a)
+		local ret, threats, lvl = 0, T.Garrison.GetMissionThreats(a.missionID), G.GetFMLevel(a)
+		for i=1,#threats do
+			local c, quality, bk = cinfo[threats[i]], 0
+			for j=1,c and #c or 0 do
+				local fi = finfo[c[j]]
+				local ld, mt = G.GetLevelEfficiency(G.GetFMLevel(fi), lvl), fi.missionTimeLeft and 0 or 2
+				local uk = fi.isCombat and (threats[i] .. "#" .. fi.followerID)
+				if not fi.isCombat or used[uk] then
+				elseif ld == 1 and quality < (2+mt) then
+					quality, bk = 2+mt, uk
+					if mt == 2 then break end
+				elseif ld > 0 and quality < (1+mt) then
+					quality, bk = 1+mt, uk
+				end
+			end
+			ret, used[bk or 1] = ret + (quality-4)*100, 1
+		end
+		wipe(used)
+		return ret < 0 and -1 or 0
 	end
 	local fields = {threats=1, resources=3, xp="totalXP"}
 	function Garrison_SortMissions(missions, ...)
@@ -323,6 +355,14 @@ do -- Garrison_SortMissions
 				table.sort(missions, cmp)
 			elseif order == "level" then
 				origSort(missions, ...)
+			elseif order == "threats2" then
+				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
+				for i=1, #missions do
+					local mi = missions[i]
+					local g = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, G.GroupRank.threats, 1, roamingParty:GetFollowers())
+					mi.ord = g and g[1] and g[1][1] == 100 and computeThreat(mi) or -1
+				end
+				table.sort(missions, cmp)
 			else
 				table.sort(missions, cmp)
 			end
@@ -508,7 +548,7 @@ local GetThreatColor do
 			local fi = finfo[counters[i]]
 			local ld, mt = G.GetLevelEfficiency(G.GetFMLevel(fi), missionLevel), fi.missionTimeLeft and 0 or 2
 			local uk = fi.isCombat and (threatID .. "#" .. fi.followerID)
-			if not fi.isCombat or (used and used[uk]) then
+			if not fi.isCombat or (used and used[uk]) or T.config.ignore[fi.followerID] then
 			elseif ld == 1 and quality < (2+mt) then
 				quality, bk = 2+mt, uk
 				if mt == 2 then break end
@@ -582,7 +622,7 @@ hooksecurefunc("GarrisonMissionPage_SetEnemies", function(enemies)
 	end
 end)
 
-local lfgButton do
+local lfgButton, GetSuggestedGroups do
 	local seen = GarrisonMissionFrame.MissionTab.MissionPage.Stage:CreateFontString(nil, "OVERLAY", "GameFontNormalMed2")
 	seen:SetPoint("TOPLEFT", GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionEnv, "BOTTOMLEFT", 0, -3)
 	seen:SetJustifyH("LEFT")
@@ -602,10 +642,9 @@ local lfgButton do
 	ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking28")
 	ico:SetAllPoints()
 	lfgButton:SetPoint("TOPRIGHT", GarrisonMissionFrame.MissionTab.MissionPage.Stage, "TOPRIGHT", -6, -25)
-	local drop = CreateFrame("Frame", "MasterPlanLFGDropDown", lfgButton, "UIDropDownMenuTemplate")
 	local curIco, nextSwap, overTime = 28, 0.08, 0
 	lfgButton:SetScript("OnUpdate", function(self, elapsed)
-		local goal, over = UIDROPDOWNMENU_OPEN_MENU == drop and DropDownList1:IsShown() and 17 or 28, self:IsMouseOver()
+		local goal, over = easyDrop:IsOpen(self) and 17 or 28, self:IsMouseOver()
 		if curIco ~= goal or (goal ~= 17 and over) then
 			nextSwap = nextSwap - elapsed
 		end
@@ -619,15 +658,15 @@ local lfgButton do
 			local curIco = curIco > 4 and curIco < 9 and (8-curIco) or (curIco == 16 and 15) or curIco
 			ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking" .. curIco)
 		end
-		if overTime > 1 and curIco == 16 and (UIDROPDOWNMENU_OPEN_MENU ~= drop or not DropDownList1:IsShown()) then
+		if overTime > 1 and curIco == 16 and not easyDrop:IsOpen(self) then
 			self:Click()
 			overTime = 0
 		end
 	end)
-	lfgButton:SetScript("OnHide", function()
+	lfgButton:SetScript("OnHide", function(self)
 		curIco, nextSwap = 28, 0.08
 		ico:SetTexture("Interface\\LFGFrame\\BattlenetWorking28")
-		if UIDROPDOWNMENU_OPEN_MENU == drop then
+		if easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 		end
 	end)
@@ -638,7 +677,7 @@ local lfgButton do
 			GarrisonMissionPage_AddFollower(group[4+i])
 		end
 	end
-	local function addToMenu(mm, groups, mi, finfo)
+	local function addToMenu(mm, groups, mi, finfo, base)
 		local ml = G.GetFMLevel(mi)
 		for i=1,#groups do
 			local gi, tg = groups[i]
@@ -649,39 +688,58 @@ local lfgButton do
 			if gi.totalXP and gi.totalXP > 0 then
 				tg = tg .. "|n" .. (L"+%s experience expected"):format(BreakUpLargeNumbers(floor(gi.totalXP)))
 			end
-			mm[#mm+1] = { text = gi[1] .. "%; " .. SecondsToTime(gi[4]), notCheckable=true, tooltipText=tg, tooltipTitle=NORMAL_FONT_COLOR_CODE .. (L"Group %d"):format(i), tooltipOnButton=true, func=SetGroup, arg1=gi}
+			mm[#mm+1] = { text = gi[1] .. "%; " .. SecondsToTime(gi[4]), notCheckable=true, tooltipText=tg, tooltipTitle=NORMAL_FONT_COLOR_CODE .. (L"Group %d"):format((base or 0) + i), tooltipOnButton=true, func=SetGroup, arg1=gi, arg2=mi}
 		end
 	end
+	local function extend(g, mi, f1, f2, f3)
+		local best = 0
+		if type(g) ~= "table" then g = {} end
+		for i=1,g and #g or 0 do
+			if g[i][1] and g[i][1] > best then
+				best = g[i][1]
+			end
+		end
+		if best < 100 then
+			local bg = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, G.GroupRank.threats, 1, f1, f2, f3)
+			if bg and bg[1] and bg[1][1] > best then
+				g[#g + 1] = bg[1]
+			end
+		end
+		return g
+	end
+	function GetSuggestedGroups(mi, rank, onlyBackfill, f1, f2, f3)
+		local mm, finfo = {}, G.GetFollowerInfo()
+		local sg = not onlyBackfill and G.GetFilteredMissionGroups(mi, G.GroupFilter.IDLE, rank, 3)
+		sg = extend(sg, mi)
+		if sg and #sg > 0 then
+			mm[1] = {text=L"Suggested groups", isTitle=true, notCheckable=true}
+			addToMenu(mm, sg, mi, finfo)
+		end
+		local fc = (f1 and 1 or 0) + (f2 and 1 or 0) + (f3 and 1 or 0)
+		if fc < mi.numFollowers and fc > 0 then
+			local g3 = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, rank, 3, f1, f2, f3)
+			g3 = extend(g3, mi, f1, f2, f3)
+			if #g3 > 0 then
+				mm[#mm+1] = {text = L"Complete party", isTitle=true, notCheckable=true}
+				addToMenu(mm, g3, mi, finfo, sg and #sg or 0)
+			end
+		end
+		return mm
+	end
 	lfgButton:SetScript("OnClick", function(self)
-		if UIDROPDOWNMENU_OPEN_MENU == drop and DropDownList1:IsShown() then
+		if easyDrop:IsOpen(self) then
 			CloseDropDownMenus()
 			return
 		end
 
 		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
-		local mm, finfo = {}, G.GetFollowerInfo()
-		local sg = G.GetFilteredMissionGroups(mi, G.GroupFilter.IDLE, self.rank, 3)
-		if sg and #sg > 0 then
-			mm[1] = {text=L"Suggested groups", isTitle=true, notCheckable=true}
-			addToMenu(mm, sg, mi, finfo)
-		end
-		
 		local ff = GarrisonMissionFrame.MissionTab.MissionPage.Followers
 		local f1, f2, f3 = ff[1].info, ff[2].info, ff[3].info
 		f1, f2, f3 = f1 and f1.followerID, mi.numFollowers > 1 and f2 and f2.followerID, mi.numFollowers > 1 and f3 and f3.followerID
-		local fc = (f1 and 1 or 0) + (f2 and 1 or 0) + (f3 and 1 or 0)
-		if fc < mi.numFollowers and fc > 0 then
-			local g3 = G.GetBackfillMissionGroups(mi, G.GroupFilter.IDLE, lfgButton.rank, 3, f1, f2, f3)
-			if #g3 > 0 then
-				mm[#mm+1] = {text = L"Complete party", isTitle=true, notCheckable=true}
-				addToMenu(mm, g3, mi, finfo)
-			end
-		end
-		
+
+		local mm = GetSuggestedGroups(mi, self.rank, false, f1, f2, f3)
 		if #mm > 1 then
-			EasyMenu(mm, drop, "cursor", 0, 0, "MENU", 15)
-			DropDownList1:ClearAllPoints()
-			DropDownList1:SetPoint("TOPRIGHT", self, "TOPLEFT", -2, 12)
+			easyDrop:Open(self, mm, "TOPRIGHT", self, "TOPLEFT", -2, 12)
 		end
 	end)
 end
@@ -701,7 +759,7 @@ hooksecurefunc("GarrisonMissionPage_ShowMission", function()
 		text = text .. "/" .. expire
 	end
 	GarrisonMissionFrame.MissionTab.MissionPage.Stage.MissionSeen:SetFormattedText((L"Pending: %s |4hour:hours;"), HIGHLIGHT_FONT_COLOR_CODE .. text)
-	lfgButton.rank = G.GroupRank[significantRewardsRank[G.HasSignificantRewards(mi)]] or G.GroupRank.threats
+	lfgButton.rank = G.GetMissionDefaultGroupRank(mi)
 	lfgButton:SetShown(true)
 end)
 
@@ -787,6 +845,7 @@ do -- Minimize mission
 end
 
 local threatListMT = {} do
+	local openFollowers
 	local function HideTip(self)
 		GarrisonMissionMechanicTooltip:Hide()
 		if GameTooltip:IsOwned(self) then
@@ -794,11 +853,50 @@ local threatListMT = {} do
 		end
 		self:GetParent():UnlockHighlight()
 	end
+	local function OnUpdate(self, elapsed)
+		if not easyDrop:IsOpen(self) then
+			self.expire = nil
+			self:SetScript("OnUpdate", nil)
+		elseif self:IsMouseOver(2,-2,-2,4) or DropDownList1:IsMouseOver(4,-4,-4,4) then
+			self.expire = 0
+		else
+			self.expire = (self.expire or 0) + elapsed
+			if self.expire > 0.25 then
+				CloseDropDownMenus()
+			end
+		end
+	end
+	local function OpenMission(_, group, mission)
+		MasterPlan:SaveMissionParty(mission.missionID, group[5], group[6], group[7])
+		PlaySound("UI_Garrison_CommandTable_SelectMission")
+		GarrisonMissionFrame.MissionTab.MissionList:Hide()
+		GarrisonMissionFrame.MissionTab.MissionPage:Show()
+		GarrisonMissionPage_ShowMission(mission)
+		GarrisonMissionFrame.followerCounters = C_Garrison.GetBuffedFollowersForMission(mission.missionID)
+		GarrisonMissionFrame.followerTraits = C_Garrison.GetFollowersTraitsForMission(mission.missionID)
+		GarrisonFollowerList_UpdateFollowers(GarrisonMissionFrame.FollowerList)
+	end
 	local function OnEnter(self)
+		if openFollowers and easyDrop:IsOpen(openFollowers) then
+			CloseDropDownMenus()
+		end
 		if self.info and self.info.isFollowers then
-			GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-			GameTooltip:AddLine(self.info.name)
-			GameTooltip:Show()
+			local mi = self.info.info
+			local rank = G.GetMissionDefaultGroupRank(mi)
+			local f1, f2, f3 = roamingParty:GetFollowers()
+			local menu = GetSuggestedGroups(mi, rank, (f1 or f2 or f3) ~= nil, f1, f2, f3)
+			if #menu < 1 then
+				GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+				GameTooltip:AddLine(self.info.name)
+				GameTooltip:Show()
+			else
+				for i=1,#menu do
+					menu[i].func = menu[i].func and OpenMission
+				end
+				openFollowers, menu[1].text = self, self.info.name
+				easyDrop:Open(self, menu, "TOP", self, "BOTTOM", 0, -2)
+				self:SetScript("OnUpdate", OnUpdate)
+			end
 		else
 			GarrisonMissionMechanicTooltip.missionLevel = self.missionLevel
 			GarrisonMissionMechanic_OnEnter(self)
@@ -887,7 +985,7 @@ hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRe
 	if not mi.inProgress then
 		self.Title:SetPoint("LEFT", 165, 15)
 		local _, _xp, ename, edesc, etex, _, _, enemies = C_Garrison.GetMissionInfo(mi.missionID)
-		nt = nt + 1, tt[nt]:SetThreat({name=GARRISON_MISSION_TOOLTIP_NUM_REQUIRED_FOLLOWERS:format(mi.numFollowers), count="|cffffcc33".. mi.numFollowers, icon="Interface/Icons/INV_MISC_GroupLooking", isFollowers=true})
+		nt = nt + 1, tt[nt]:SetThreat({name=GARRISON_MISSION_TOOLTIP_NUM_REQUIRED_FOLLOWERS:format(mi.numFollowers), count="|cffffcc33".. mi.numFollowers, icon="Interface/Icons/INV_MISC_GroupLooking", info=mi, isFollowers=true})
 		nt = nt + 1, tt[nt]:SetThreat({name=ename, icon=etex, description=edesc, isEnvironment=true})
 	
 		local used = {}

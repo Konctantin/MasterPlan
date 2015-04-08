@@ -40,6 +40,14 @@ end)
 setmetatable(api, {__index=bgapi})
 bgapi.GarrisonAPI, T.config = T.Garrison, conf
 
+do -- Localizer stub
+	local LL, L = type(T.L) == "table" and T.L or {}, newproxy(true)
+	getmetatable(L).__call = function(self, k)
+		return LL[k] or k
+	end
+	T.L = L
+end
+
 function api:GetSortFollowers()
 	return conf.sortFollowers
 end

@@ -1,6 +1,6 @@
 local L, _, T = GetLocale(), ...
 
-L =
+T.L =
 L == "ptBR" and {
 	["Active Missions (%d)"] = "Missões Ativas (%d)",
 	["Additional mission loot may be delivered via mail."] = "Saque adicional de missões poderá ser entregue por correio.",
@@ -20,6 +20,8 @@ L == "ptBR" and {
 	["Follower XP"] = "Seguidor XP", -- Needs review
 	["Garrison resources"] = "Recursos para guarnição", -- Needs review
 	["Group %d"] = "Grupo %d", -- Needs review
+	Ignore = "Ignorar", -- Needs review
+	Ignored = "Ignorado", -- Needs review
 	["In Tentative Party"] = "Em Grupo Provisório",
 	["Mission duration"] = "Duração da missão", -- Needs review
 	["Mission level"] = "Nível da Missão",
@@ -30,8 +32,10 @@ L == "ptBR" and {
 	["+%s experience expected"] = "+%s experiência esperada", -- Needs review
 	Success = "Sucesso",
 	["Success chance"] = "Change de sucesso", -- Needs review
+	["Suggested groups"] = "Grupos Sugeridos", -- Needs review
 	["%s XP"] = "%s XP",
 	["%s XP gained"] = "XP obtido", -- Needs review
+	Unignore = "Designorar", -- Needs review
 	["View Rewards"] = "Ver Recompensas",
 	["You have no followers to counter this mechanic."] = "Você não tem seguidores para conter esta ameaça.",
 	["You have no followers with this trait."] = "Não tem seguidores com esta especialização.",
@@ -62,6 +66,7 @@ L == "deDE" and {
 	["Mission duration"] = "Missionsdauer",
 	["Mission level"] = "Missionslevel",
 	["Mission order:"] = "Missionssortierung:",
+	["Mitigated threats"] = "Entschärfte Bedrohungen",
 	["Pending: %s |4hour:hours;"] = "Ausstehend: %s |4Stunde:Stunden;",
 	Ready = "Bereit",
 	["Reward: %s XP"] = "Belohnung: %s EP",
@@ -102,6 +107,7 @@ L == "esMX" and {
 	["Mission duration"] = "Duración de la misión",
 	["Mission level"] = "Nivel de misión",
 	["Mission order:"] = "Orden de misión:",
+	["Mitigated threats"] = "Amenazas mitigadas",
 	["Pending: %s |4hour:hours;"] = "Pendiente: %s |4hour:hours;",
 	Ready = "Listo",
 	["Reward: %s XP"] = "Recompenza: %s XP",
@@ -142,6 +148,7 @@ L == "esES" and {
 	["Mission duration"] = "Duración de la misión",
 	["Mission level"] = "Nivel de misión",
 	["Mission order:"] = "Orden de misión:",
+	["Mitigated threats"] = "Amenazas mitigadas",
 	["Pending: %s |4hour:hours;"] = "Pendiente: %s |4hour:hours;",
 	Ready = "Listo",
 	["Reward: %s XP"] = "Recompenza: %s XP",
@@ -182,6 +189,7 @@ L == "itIT" and {
 	["Mission duration"] = "Durata missione",
 	["Mission level"] = "Livello missione",
 	["Mission order:"] = "Ordina missioni per:",
+	["Mitigated threats"] = "Minacce mitigate",
 	["Pending: %s |4hour:hours;"] = "Disponibilità: %s |4ora:ore;",
 	Ready = "Pronta",
 	["Reward: %s XP"] = "Ricompensa: %s XP",
@@ -222,6 +230,7 @@ L == "ruRU" and {
 	["Mission duration"] = "Длительность задания",
 	["Mission level"] = "Уровень миссии",
 	["Mission order:"] = "Сортировка миссий:",
+	["Mitigated threats"] = "Смягчить угрозу", -- Needs review
 	["Pending: %s |4hour:hours;"] = "Ожидание: %s |4час:часа:часов;",
 	Ready = "Готово",
 	["Reward: %s XP"] = "Награда: %s XP",
@@ -262,8 +271,9 @@ L == "zhTW" and {
 	["Mission duration"] = "任務持續時間",
 	["Mission level"] = "任務等級",
 	["Mission order:"] = "任務排序:",
+	["Mitigated threats"] = "平息威脅",
 	["Pending: %s |4hour:hours;"] = "擱置：%s|4hour:小時;",
-	Ready = "準備就緒",
+	Ready = "完成",
 	["Reward: %s XP"] = "獎勵: %s經驗",
 	["+%s experience expected"] = "經驗期望值: %s ",
 	Success = "成功",
@@ -298,11 +308,12 @@ L == "frFR" and {
 	["Group %d"] = "Groupe %d",
 	Ignore = "Ignorer",
 	Ignored = "Ignoré",
-	["In Tentative Party"] = "En tentative de groupe",
+	["In Tentative Party"] = "En équipe provisoire",
 	["Mission duration"] = "durée de mission",
 	["Mission level"] = "niveau de mission",
 	["Mission order:"] = "Missions triées par :",
-	["Pending: %s |4hour:hours;"] = "Délai : %s |4hour:h restantes;",
+	["Mitigated threats"] = "Menaces atténuées",
+	["Pending: %s |4hour:hours;"] = "Délai : %s |4h restante:h restantes;",
 	Ready = "Prêt",
 	["Reward: %s XP"] = "Récompense : %s d'EXP",
 	["+%s experience expected"] = "Expérience attendue : +%s",
@@ -336,18 +347,23 @@ L == "koKR" and {
 	["Follower XP"] = "추종자 경험치", -- Needs review
 	["Garrison resources"] = "주둔지 자원", -- Needs review
 	["Group %d"] = "그룹 %d", -- Needs review
+	Ignore = "무시", -- Needs review
+	Ignored = "무시됨", -- Needs review
 	["In Tentative Party"] = "파티 내", -- Needs review
 	["Mission duration"] = "임무 지속시간", -- Needs review
 	["Mission level"] = "임무 레벨", -- Needs review
 	["Mission order:"] = "임무 정렬:", -- Needs review
+	["Mitigated threats"] = "제거된 위협요소", -- Needs review
 	["Pending: %s |4hour:hours;"] = "남은시간: %s |4시간:시간;", -- Needs review
 	Ready = "완료", -- Needs review
 	["Reward: %s XP"] = "보상: 경험치 %s", -- Needs review
 	["+%s experience expected"] = "+%s 예상 경험치", -- Needs review
 	Success = "성공", -- Needs review
 	["Success chance"] = "성공 가능성", -- Needs review
+	["Suggested groups"] = "추천 그룹", -- Needs review
 	["%s XP"] = "경험치 %s",
 	["%s XP gained"] = "경험치 %s 획득", -- Needs review
+	Unignore = "무시취소", -- Needs review
 	["View Rewards"] = "보상 보기", -- Needs review
 	["You have no followers to counter this mechanic."] = "이 위협 요소를 제거할 추종자가 없습니다.", -- Needs review
 	["You have no followers with this trait."] = "이 특성을 가진 추종자가 없습니다.", -- Needs review
@@ -392,10 +408,4 @@ L == "zhCN" and {
 	["You have no followers to counter this mechanic."] = "你没有追随者应对这种威胁。", -- Needs review
 	["You have no followers with this trait."] = "你没有追随者有这个特长。",
 	["You have no free bag slots."] = "你没有多余的背包空间。",
-} or
-{}
-
-T.L = newproxy(true)
-getmetatable(T.L).__call = function(self, k)
-	return L[k] or k
-end
+}
