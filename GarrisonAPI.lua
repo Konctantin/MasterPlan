@@ -493,18 +493,7 @@ do -- GetMissionSeen
 			return _G.time(t)
 		end
 	end
-	local expire = {} do
-		for n, r in ("000210611621id2e56516c16o17i0:0ga6b:0o2103rz4rz5r86136716e26q37ji9549eja23ai1al3aqg:102zd3h86vm82mak0ap0:1y9a39y3:20050100190:9b8pfb7a"):gmatch("(%w%w)(%w+)") do
-			local n = tonumber(n, 36)
-			for s, l in r:gmatch("(%w%w)(%w)") do
-				local s = tonumber(s, 36)
-				for i=s, s+tonumber(l, 36) do
-					expire[i] = n
-				end
-			end
-		end
-	end
-	local isPendingObserve
+	local expire, isPendingObserve = T.MissionExpire
 	local function ObserveMissions()
 		isPendingObserve = nil
 		if not dt then return end
@@ -1140,7 +1129,7 @@ function api.ExtendFollowerTooltipMissionRewardXP(mi, fi)
 	end
 end
 
-function api.UpdateGroupEstimates(missions, useInactive)
+function api.UpdateGroupEstimates(missions, useInactive, yield)
 	local ft, nf, f = {}, 0, C_Garrison.GetFollowers()
 	for i=1,#f do
 		local fi = f[i]
@@ -1184,7 +1173,7 @@ function api.UpdateGroupEstimates(missions, useInactive)
 				t[v] = (t[v] or 0) + 1
 			end
 		end
-		local na, nw = fa.active, fa.working
+		local na, nw, nf2 = fa.active, fa.working, nf^2
 					
 		for b=a+1,nf do
 			local fb = f[b]
@@ -1193,7 +1182,6 @@ function api.UpdateGroupEstimates(missions, useInactive)
 			local mi, mic, c = m2, n2
 			repeat
 				local fc = f[c or b]
-				local ns, na, nw = traits[79], na + (c and fc.active or 0), nw + (c and fc.working or 0)
 				for i=1,2 do
 					local s, t = fc[i == 1 and "counters" or "traits"], i == 1 and counters or traits
 					for i=1,#s do
@@ -1201,6 +1189,7 @@ function api.UpdateGroupEstimates(missions, useInactive)
 						t[v] = (t[v] or 0) + 1
 					end
 				end
+				local ns, na, nw, cid = traits[79], na + (c and fc.active or 0), 3 - nw - (c and fc.working or 0), (a - 1) + (b - 1)*nf + (c and (c-1)*nf2 or 0)
 				
 				for i=1, mic do
 					local mi, l, lc = mi[i]
@@ -1236,9 +1225,10 @@ function api.UpdateGroupEstimates(missions, useInactive)
 						local mlvl, la, lb, lc = mi[2], fa.iLevel + fb.level*3, fb.iLevel + fb.level*3, fc.iLevel + fc.level*3
 						mlvl = mlvl > 100 and (mlvl + 300) or (600 + mlvl * 3)
 						local gap = (mlvl > la and (mlvl - la) or 0) + (mlvl > lb and (mlvl - lb) or 0) + (c and mlvl > lc and (mlvl - lc) or 0)
-						sc = sc + s2 * ((mi[5] > 0 and ns * 16 or 0) + na) + (32768-gap)*16 + traits[221]*4 + (3-nw)
-						if best[1] < sc then
-							best[1], best[2], best[3], best[4] = sc, a, b, c
+						local hi, lo = sc + s2 * ((mi[5] > 0 and ns * 16 or 0) + na * 4 + nw), (32767-gap)*16 + traits[221]
+						local d = (best[1] - hi - lo)
+						if d < 0 then
+							best[1], best[2], best[3], best[4] = hi + lo, a, b, c
 						end
 					end
 				end
@@ -1270,13 +1260,14 @@ function api.UpdateGroupEstimates(missions, useInactive)
 				t[v] = t[v] - 1
 			end
 		end
+		if yield and yield(1, a, nf) then return end
 	end
 	
 	for i=1,#missions do
 		local best = best[missions[i][1]]
 		if best and best[1] > 0 then
 			wipe(counters) wipe(traits)
-			local bt, mi, l = {}, missions[i]
+			local bt, mi, l, lc = {}, missions[i]
 			for i=1, mi[3] do
 				local fi = f[best[1+i]]
 				bt[i] = fi.followerID
@@ -1288,11 +1279,12 @@ function api.UpdateGroupEstimates(missions, useInactive)
 					end
 				end
 			end
-			bt[4], bt[5] = traits[79] or 0, (floor(best[1]/s1) + mi[3]*2)/((#mi-6)*6 + mi[3]*2)
+			bt[4], bt[5], traits[232] = traits[79] or 0, (floor(best[1]/s1) + mi[3]*2)/((#mi-6)*6 + mi[3]*2), traits[232] or 0
 			for i=7,#mi do
 				local c = mi[i]
-				local v, d = counters[c] or 0, l == c and 2 or 1
-				bt[i], l = v > d and 2 or v == d, c
+				local need = (l == c and 1 or 0)
+				local cs = (counters[c] or 0) > need and 6 or 0
+				bt[i], l, lc = (cs == 6) or (c == 6 and cs == 0 and traits[232] > (need - (need == 1 and lc > 0 and 1 or 0)) and 0.5) or false, c, cs
 			end
 			missions[i].best = bt
 		else

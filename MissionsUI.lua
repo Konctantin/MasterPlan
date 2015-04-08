@@ -2050,9 +2050,39 @@ do -- interestMissionsHandle
 	end
 	local function Follower_OnClick(self)
 		if self.followerID then
-			GarrisonMissionFrame.selectedFollower = self.followerID
-			GarrisonFollowerPage_ShowFollower(GarrisonMissionFrame.FollowerTab, self.followerID)
+			local fid = self.followerID
+			GarrisonMissionFrame.selectedFollower = fid
+			GarrisonFollowerPage_ShowFollower(GarrisonMissionFrame.FollowerTab, fid)
 			GarrisonMissionFrameTab2:Click()
+			local fl, idx, btn = GarrisonMissionFrameFollowers.followers do
+				for i=1,#fl do
+					if fl[i].followerID == fid then
+						idx = i
+						break
+					end
+				end
+				if idx then
+					local fl = GarrisonMissionFrameFollowers.followersList
+					for j=1,2 do
+						for i=1,#fl do
+							if fl[i] == idx then
+								btn = i
+								break
+							end
+						end
+						if btn then
+							break
+						else
+							GarrisonMissionFrameFollowers.SearchBox:SetText("")
+						end
+					end
+				end
+			end
+			if btn then
+				local v = 62*btn - 62
+				GarrisonMissionFrameFollowersListScrollFrameScrollBar:SetValue(v)
+				HybridScrollFrame_SetOffset(GarrisonMissionFrameFollowersListScrollFrame, v)
+			end
 		end
 	end
 	local function Follower_OnEnter(self, info)
@@ -2228,7 +2258,10 @@ do -- interestMissionsHandle
 			tb:SetShown(tid)
 			if tid then
 				SetThreat(tb, d[2], G.GetMechanicInfo(tid))
-				if best and best[6+i] then
+				local countered = best and best[6+i]
+				if countered == 0.5 then
+					tb.Border:SetVertexColor(1, 0.65, 0.1)
+				elseif countered then
 					tb.Border:SetVertexColor(0.2, 1, 0.2)
 				else
 					tb.Border:SetVertexColor(1, 0.2, 0.2)
@@ -2297,6 +2330,7 @@ do -- interestMissionsHandle
 		{413, 100, 3, 86000, -3, 27, 1, 2, 4, 6, 7, 8}, -- Pumping Iron
 		{411, 100, 3, 86000, -3, 29, 2, 3, 3, 6, 8, 9}, -- Rocks Fall. Everyone Dies.
 		{409, 100, 3, 86000, -3, 22, 1, 2, 3, 6, 9, 9}, -- The Great Train Robbery
+		{408, 100, 3, 86000, -3, 11, 1, 2, 3, 6, 7, 10}, -- The Pits
 		{446, 660, 3, 28800, -4, 18, 1, 3, 6, 7, 9, 10}, -- Slagworks
 		{447, 660, 3, 28800, -4, 21, 1, 2, 3, 3, 6, 10}, -- Black Forge
 		{448, 660, 3, 28800, -4, 24, 4, 4, 6, 7, 7, 8}, -- Iron Assembly
