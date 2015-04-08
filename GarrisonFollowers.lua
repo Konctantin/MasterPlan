@@ -29,7 +29,7 @@ local CreateMechanicButton do
 				GameTooltip:AddLine("|n" .. L"Followers with this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
 				G.sortByFollowerLevels(ci, finfo)
 				for i=1,#ci do
-					GameTooltip:AddLine(G.GetFollowerLevelDescription(ci[i], nil, finfo[ci[i]]), 1,1,1)
+					GameTooltip:AddDoubleLine(G.GetFollowerLevelDescription(ci[i], nil, finfo[ci[i]]), G.GetOtherCounterIcons(finfo[ci[i]]), 1,1,1)
 				end
 			else
 				GameTooltip:AddLine("|n" .. L"You have no followers with this trait.", 1,0.50,0, 1)
@@ -54,7 +54,7 @@ local CreateMechanicButton do
 				GameTooltip:AddLine(L"Can be countered by:", 1,1,1)
 				G.sortByFollowerLevels(ci, finfo)
 				for i=1,#ci do
-					GameTooltip:AddLine(G.GetFollowerLevelDescription(ci[i], nil, finfo[ci[i]]), 1,1,1)
+					GameTooltip:AddDoubleLine(G.GetFollowerLevelDescription(ci[i], nil, finfo[ci[i]]), G.GetOtherCounterIcons(finfo[ci[i]], self.id), 1,1,1)
 				end
 			else
 				GameTooltip:AddLine(L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
@@ -71,6 +71,25 @@ local CreateMechanicButton do
 			GameTooltip:Hide()
 		end
 	end
+	local function Mechanic_OnClick(self)
+		local nt = self.name or (self.info and self.info.name)
+		local sb = GarrisonMissionFrameFollowers.SearchBox:IsVisible() and GarrisonMissionFrameFollowers.SearchBox or
+		           GarrisonLandingPage.FollowerList.SearchBox:IsVisible() and GarrisonLandingPage.FollowerList.SearchBox
+
+		if sb and nt then
+			if IsAltKeyDown() then
+				nt = "+" .. nt
+			end
+			if IsShiftKeyDown() then
+				local ot = (sb:GetText() or ""):match("[^;]*$")
+				if ot and ot ~= "" then
+					nt = ot .. ";" .. nt
+				end
+			end
+			sb:SetText(nt)
+			sb.clearText = self.name
+		end
+	end
 	function CreateMechanicButton(parent)
 		local f = CreateFrame("Button", nil, parent, "GarrisonAbilityCounterTemplate")
 		f:SetNormalFontObject(GameFontHighlightOutline) f:SetText("0")
@@ -80,19 +99,12 @@ local CreateMechanicButton do
 		f:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
 
 		f.Border:Hide()
-		f:SetScript("OnClick", function(self)
-			if self.name then
-				local sb = GarrisonMissionFrameFollowers.SearchBox:IsVisible() and GarrisonMissionFrameFollowers.SearchBox or GarrisonLandingPage.FollowerList.SearchBox:IsVisible() and GarrisonLandingPage.FollowerList.SearchBox
-				if sb then
-					sb:SetText(self.name)
-					sb.clearText = self.name
-				end
-			end
-		end)
+		f:SetScript("OnClick", Mechanic_OnClick)
 		f:SetScript("OnEnter", Mechanic_OnEnter)
 		f:SetScript("OnLeave", Mechanic_OnLeave)
 		return f
 	end
+	T.Mechanic_OnClick = Mechanic_OnClick
 end
 
 floatingMechanics:SetFrameStrata("DIALOG")
@@ -149,7 +161,7 @@ local icons = setmetatable({}, {__index=function(self, k)
 end})
 local traits, traitGroups = {221, 76, 77, 79}, {
 	{80, 236, 29, icon="Interface\\Icons\\XPBonus_Icon"},
-	{63,64,65,66,67,68,69,70,71,72,73,74,75,78, icon="Interface\\Icons\\PetBattle_Health", affinities=true},
+	{63,64,65,66,67,68,69,70,71,72,73,74,75, icon="Interface\\Icons\\PetBattle_Health", affinities=true},
 	{4,36,37,38,39,40,41,42,43, icon="Interface\\Icons\\Ability_Hunter_MarkedForDeath"},
 	{7,8,9,44,45,46,48,49, icon="Interface\\Icons\\Achievement_Zone_Stonetalon_01"},
 	{52,53,54,55,56,57,58,59,60,61,62,227,231, icon="Interface\\Icons\\Trade_Engineering"},
@@ -467,8 +479,8 @@ hooksecurefunc("GarrisonMissionFrame_SetFollowerPortrait", function(port, fi)
 					oi, na = oi or i, na + 1
 				end
 			end
-			
-			local other = C_Garrison.GetFollowerAbilityCounterMechanicInfo(fi.abilities[oi].id)
+
+			local other = oi and C_Garrison.GetFollowerAbilityCounterMechanicInfo(fi.abilities[oi].id)
 			if p then
 				p.classSpec, p.otherCounter = fi.classSpec, other
 			end
@@ -510,3 +522,64 @@ hooksecurefunc("GarrisonFollowerPage_ShowFollower", function(self, fid)
 		af[i].IconButton:SetScript("OnLeave", RecruitAbility_OnLeave)
 	end
 end)
+
+if GarrisonThreatCountersFrame then
+	GarrisonThreatCountersFrame:SetScript("OnShow", GarrisonThreatCountersFrame.Hide)
+end
+
+
+local GarrisonFollowerList_SortFollowers = GarrisonFollowerList_SortFollowers
+function _G.GarrisonFollowerList_SortFollowers(followerList)
+	local searchString = followerList.SearchBox and followerList.SearchBox:GetText() or ""
+	
+	if searchString:match("[;+]") and searchString:match("[^%s;+]") then
+		local showUncollected, list, q, s = followerList.showUncollected, followerList.followersList, {}
+		
+		for qs in searchString:gmatch("[^;]+") do
+			local pl, qs = qs:match("^%s*(%+?)%s*(.-)%s*$")
+			if (qs or "") == "" then
+			elseif pl == "+" then
+				s = s or {}
+				s[#s+1] = qs:lower():gsub("[-%%%[%]().+*?]", "%%%0")
+				s[-#s] = qs
+			else
+				q[#q+1] = qs
+			end
+		end
+		
+		wipe(list)
+		for i=1, #followerList.followers do
+			local fi = followerList.followers[i]
+			if showUncollected or fi.isCollected then
+				local matched, id, spec = true, fi.followerID, T.SpecCounters[fi.classSpec]
+				
+				for i=1,#q do
+					if not C_Garrison.SearchForFollower(id, q[i]) then
+						matched = false
+						break
+					end
+				end
+				for i=1,s and matched and #s or 0 do
+					local ok, qm = false, s[i]
+					for j=1,#spec do
+						local d, _, n = G.GetMechanicDescription(spec[j] or 10), G.GetMechanicInfo(spec[j] or 10)
+						if n:lower():match(qm) or d:lower():match(qm) then
+							ok = true
+							break
+						end
+					end
+					if not (ok or C_Garrison.SearchForFollower(id, s[-i])) then
+						matched = false
+						break
+					end
+				end
+				
+				if matched then
+					list[#list+1] = i
+				end
+			end
+		end
+	end
+	
+	return GarrisonFollowerList_SortFollowers(followerList)
+end

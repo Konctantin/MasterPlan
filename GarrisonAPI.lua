@@ -339,6 +339,21 @@ function api.GetFollowerLevelDescription(fid, mlvl, fi)
 	end
 	return ("%s[%d]|r %s%s|r%s"):format(lc, fi.level < 100 and fi.level or fi.iLevel, HIGHLIGHT_FONT_COLOR_CODE, fi.name, away)
 end
+function api.GetOtherCounterIcons(fi, mechanic)
+	local fid, ret = fi.followerID
+	for i=1,4 do
+		local aid = C_Garrison.GetFollowerAbilityAtIndex(fid, i)
+		if aid ~= 0 then
+			local mid, _, ico = C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+			if mid and mid == mechanic then
+				ret, mechanic = (ret and ret .. " " or "") .. "|T" .. ico .. ":0:0:0:0:64:64:6:58:6:58|t"
+			elseif mid then
+				ret = "|T" .. ico .. ":0:0:0:0:64:64:6:58:6:58|t" .. (ret and " " .. ret or "")
+			end
+		end
+	end
+	return ret or ""
+end
 function api.GetNumIdleCombatFollowers(followers)
 	local ret = 0
 	for k,v in pairs(followers or api.GetFollowerInfo()) do
@@ -516,7 +531,7 @@ do -- GetMissionSeen
 		end
 	end
 	function api.GetMissionSeen(mid)
-		local now, ex, lastComplete = time(), expire[mid], ct and ct[mid]
+		local now, ex, lastComplete = time(), expire[mid] or 0, ct and ct[mid]
 		local early, late = dt and dt[-mid] or now, dt and dt[mid] or now
 		if early == 0 then early = min(late, now - ex * 3600) end
 		return difftime(now, early), difftime(now, late), expire[mid], lastComplete and difftime(now, lastComplete)
@@ -1120,7 +1135,15 @@ function api.ExtendFollowerTooltipMissionRewardXP(mi, fi)
 			if base > 0 then
 				local xpt = "|cff99ff00" .. BreakUpLargeNumbers(floor(base)) .. "|r"
 				if bonus > 0 then xpt = xpt .. "+|cff00bfff" .. BreakUpLargeNumbers(floor(bonus)) .. "|r" end
-				tip.XP:SetText(tip.XP:GetText() .. "|n" .. (L"Reward: %s XP"):format(xpt))
+				local toDing = fi.levelXP - fi.xp
+				local baseText = BreakUpLargeNumbers(toDing)
+				if toDing <= floor(base) then
+					baseText = "|cff99ff00" .. baseText .. "|r"
+				elseif toDing <= floor(base + bonus) then
+					baseText = "|cff00bfff" .. baseText .. "|r"
+				end
+				baseText = (fi.level == 100 and GARRISON_FOLLOWER_TOOLTIP_UPGRADE_XP or GARRISON_FOLLOWER_TOOLTIP_XP):gsub("%%[%d$]*d", "%%s"):format(baseText)
+				tip.XP:SetText(baseText .. "|n" .. (L"Reward: %s XP"):format(xpt))
 			end
 		else
 			tip.XPRewardBonus:Hide()
@@ -1189,7 +1212,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 						t[v] = (t[v] or 0) + 1
 					end
 				end
-				local ns, na, nw, cid = traits[79], na + (c and fc.active or 0), 3 - nw - (c and fc.working or 0), (a - 1) + (b - 1)*nf + (c and (c-1)*nf2 or 0)
+				local ns, na, nw = traits[79], na + (c and fc.active or 0), 3 - nw - (c and fc.working or 0)
 				
 				for i=1, mic do
 					local mi, l, lc = mi[i]
@@ -1217,6 +1240,20 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 							end
 							ra, rb, sa, sb, rc = rb, rc, sb, sc
 						until nc >= cap or not ra
+					end
+					if nc < cap then
+						local mlvl, fa, fb, fc = mi[2], fa, fb, fc
+						for i=1,c and 3 or 2 do
+							if mlvl > 100 and fa.iLevel > mlvl then
+								local dl = fa.iLevel - mlvl
+								nc = nc + (dl < 15 and dl/15 or 1)
+							elseif mlvl < 100 and fa.level > mlvl then
+								local dl = fa.iLevel - mlvl
+								nc = nc + (dl < 3 and dl/3 or 1)
+							end
+							fa, fb = fb, fc
+						end
+						nc = nc - nc % 1
 					end
 					nc = nc > cap and cap or nc
 					
