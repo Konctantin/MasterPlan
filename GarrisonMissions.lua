@@ -224,6 +224,28 @@ do -- GarrisonFollowerList_SortFollowers
 		return oldSortFollowers(self)
 	end
 end
+hooksecurefunc("GarrisonFollowerList_Update", function(self)
+	local buttons = self.FollowerList.listScroll.buttons
+	for i=1, #buttons do
+		local btn = buttons[i]
+		if btn:IsShown() then
+			local follower, st = btn.info, btn.XPBar.statusText
+			if not st then
+				st = btn:CreateFontString(nil, "ARTWORK", "TextStatusBarText")
+				st:SetTextColor(0.7, 0.6, 0.85)
+				st:SetPoint("TOPRIGHT", -4, -44)
+				btn.UpArrow:ClearAllPoints() btn.UpArrow:SetPoint("TOP", 16, -38)
+				btn.DownArrow:ClearAllPoints() btn.DownArrow:SetPoint("TOP", 16, -38)
+				btn.XPBar.statusText = st
+			end
+			if not follower.isCollected or follower.status == GARRISON_FOLLOWER_INACTIVE or follower.levelXP == 0 then
+				st:SetText("")
+			else
+				st:SetFormattedText("%s XP", BreakUpLargeNumbers(follower.levelXP - follower.xp))
+			end
+		end
+	end
+end)
 
 local GetThreatColor do
 	local threatColors={[0]={1,0,0}, {0.15, 0.45, 1}, {0.20, 0.45, 1}, {1, 0.55, 0}, {0,1,0}}
@@ -273,6 +295,23 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 			f.Status:SetFormattedText("%s (%s)", f.Status:GetText(), fi.missionTimeLeft)
 		end
 	end
+end)
+local function Mechanic_OnClick(self)
+	if self:IsMouseOver() then
+		GarrisonMissionFrameFollowers.SearchBox:SetText(self.info.name)
+	end
+end
+hooksecurefunc("GarrisonMissionPage_SetEnemies", function(enemies)
+	local f = GarrisonMissionFrame.MissionTab.MissionPage
+	for i=1, #enemies do
+		local m = f.Enemies[i] and f.Enemies[i].Mechanics
+		for i=1,m and #m or 0 do
+			m[i]:SetScript("OnMouseUp", Mechanic_OnClick)
+		end
+	end
+end)
+hooksecurefunc("GarrisonMissionPage_ShowMission", function()
+	GarrisonMissionFrameFollowers.SearchBox:SetText("")
 end)
 
 GarrisonMissionMechanicTooltip:HookScript("OnShow", function(self)
@@ -396,9 +435,10 @@ hooksecurefunc("GarrisonMissionButton_SetRewards", function(self, rewards, numRe
 	end
 end)
 
+
 local UpdateCompletedMissionList do -- Rearranged completion dialog
 	local bf = GarrisonMissionFrameMissions.CompleteDialog.BorderFrame
-	local bm = bf.Model
+	local bm, ownCompleteMissions = bf.Model
 	bm:SetWidth(300)
 	bm:SetPoint("BOTTOMLEFT", -80, 0)
 	bm.Title:ClearAllPoints()
@@ -409,13 +449,41 @@ local UpdateCompletedMissionList do -- Rearranged completion dialog
 	bf.CompleteAll:SetWidth(200)
 	bf.CompleteAll:SetText("Complete All")
 	bf.CompleteAll:SetPoint("BOTTOM", 80, 20)
-	bf.MissionList = bf:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	bf.MissionList:SetPoint("TOPLEFT", 240, -75)
-	bf.MissionList:SetJustifyH("LEFT")
-	bf.MissionListState = bf:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	bf.MissionListState:SetPoint("TOPLEFT", bf.MissionList, "TOPRIGHT", 10, 0)
-	bf.MissionListState:SetPoint("TOPRIGHT", -60, -75)
-	bf.MissionListState:SetJustifyH("RIGHT")
+	local function Misson_OnClick(self)
+		local mi = ownCompleteMissions[self:GetID()]
+		if bf.CompleteAll:IsShown() and not (mi.succeeded or mi.failed) then
+			GarrisonMissionFrame.MissionTab.MissionList.CompleteDialog:Hide();
+			GarrisonMissionFrame.MissionComplete:Show();
+			GarrisonMissionFrame.MissionCompleteBackground:Show();
+			GarrisonMissionFrame.MissionComplete.currentIndex = 1
+			GarrisonMissionComplete_Initialize({mi}, 1)
+			GarrisonMissionFrame.MissionComplete.NextMissionButton.returnToOverview = false
+			for i=1,#ownCompleteMissions do
+				local v = ownCompleteMissions[i]
+				if v ~= mi and not (v.succeeded or v.failed) then
+					GarrisonMissionFrame.MissionComplete.NextMissionButton.returnToOverview = self:GetID()
+					break
+				end
+			end
+		end
+	end
+	bf.missions = setmetatable({}, {__index=function(self, k)
+		local b = CreateFrame("Button", nil, bf, nil, k)
+		b:SetSize(420, 14) b:SetNormalFontObject(GameFontHighlight) b:SetText("!")
+		b:SetHighlightTexture("?") b:GetHighlightTexture():SetTexture(1,1,1) b:GetHighlightTexture():SetAlpha(0.15)
+		if k > 1 then b:SetPoint("TOP", self[k-1], "BOTTOM") end
+		local l, n, s, r = b:CreateFontString(nil, "ARTWORK", "GameFontGreen"), b:GetFontString(), b:CreateFontString(nil, "ARTWORK", "GameFontNormal"), b:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+		l:SetPoint("RIGHT", n, "LEFT", -2, 0)
+		n:ClearAllPoints() n:SetPoint("LEFT", 36, 0)
+		s:SetPoint("LEFT", 260, 0)
+		r:SetPoint("RIGHT", -2, 0)
+		b:SetScript("OnClick", Misson_OnClick)
+		self[k], b.level, b.status, b.rewards = b, l, s, r
+		return b
+	end})
+	bf.missions[1]:SetPoint("TOPLEFT", 230, -70)
+	bf.missions[1]:Hide()
+	
 	bf.ViewButton:Hide()
 	local close = CreateFrame("Button", nil, bf, "UIPanelCloseButton")
 	close:SetSize(24,24) close:SetPoint("TOPRIGHT")
@@ -426,35 +494,84 @@ local UpdateCompletedMissionList do -- Rearranged completion dialog
 	local lootContainer = CreateFrame("Frame", nil, GarrisonMissionFrameMissions.CompleteDialog.BorderFrame)
 	lootContainer:SetSize(490, 205)
 	lootContainer:SetPoint("TOPRIGHT", -40, -70)
+	lootContainer.noBagSlots = lootContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	lootContainer.noBagSlots:SetPoint("BOTTOM")
+	lootContainer.noBagSlots:SetText("|cffff2020You have no free bag slots.|r|nAdditional mission loot may be delivered via mail.")
 	lootContainer:Hide()
-	local function SetFollower(btn, info, award)
-		GarrisonMissionFrame_SetFollowerPortrait(btn, info, false)
-		if info.levelXP > info.xp then
-			btn.xpProgressTex:SetWidth(46*info.xp/info.levelXP)
-			btn.xpProgressTex2:SetWidth(46*math.min(info.xp, award)/info.levelXP)
-			btn.xpProgressTex2:Show()
-			btn.xpProgressTex:Show()
-		else
-			btn.xpProgressTex:Hide()
-			btn.xpProgressTex2:Hide()
+	lootContainer:SetScript("OnShow", function(self)
+		local totalFree = 0
+		for i = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+			local freeSlots, bagFamily = GetContainerNumFreeSlots(i)
+			if bagFamily == 0 then
+				totalFree = totalFree + freeSlots
+			end
 		end
-		btn.info = info
-		local ding = award and award > (info.xp or 0)
-		btn.Level:SetFontObject(ding and GameFontGreenSmall or GameFontHighlightSmall)
-		btn:Show()
+		lootContainer.noBagSlots:SetShown(totalFree == 0)
+		if self.onShowSound then
+			PlaySound(self.onShowSound)
+			self.onShowSound = nil
+		end
+	end)
+	local SetFollower do
+		local function AnimateXP(self, elapsed)
+			if self.levelUp:IsShown() then return end
+			local elapsed = self.xpGainElapsed + elapsed
+			local prog = elapsed > 0.75 and 1 or (elapsed/0.75)
+			self.xpProgressTex2:SetWidth(math.max(0.01, sin(90*prog) * self.xpGainWidth))
+			if prog == 1 then
+				self.xpGainWidth, self.xpGainElapsed = nil
+				self:SetScript("OnUpdate", nil)
+			else
+				self.xpGainElapsed = elapsed
+			end
+		end
+		function SetFollower(btn, info, award, oldQuality)
+			GarrisonMissionFrame_SetFollowerPortrait(btn, info, false)
+			if info.levelXP > info.xp and award > 0 then
+				local baseXP = info.xp - math.min(info.xp, award)
+				btn.xpProgressTex:SetWidth(math.max(0.01,46*baseXP/info.levelXP))
+				btn.xpProgressTex2:SetWidth(0.01)
+				btn.xpGainWidth, btn.xpGainElapsed = 46*math.min(info.xp - baseXP, award)/info.levelXP, 0
+				btn.xpProgressTex2:Show()
+				btn:SetScript("OnUpdate", AnimateXP)
+				btn.xpProgressTex:SetShown(baseXP > 0)
+				btn.xpProgressTex2:Show()
+			else
+				btn:SetScript("OnUpdate", nil)
+				btn.xpProgressTex:Hide()
+				btn.xpProgressTex2:Hide()
+			end
+			btn.info = info
+			if award and award > (info.xp or 0) or (oldQuality and oldQuality ~= info.quality) then
+				lootContainer.onShowSound = "UI_Garrison_CommandTable_Follower_LevelUp"
+				btn.levelUp:Show()
+				btn.levelUp:SetAlpha(1)
+				btn.levelUp.Anim:Play()
+				btn.Level:SetFontObject(GameFontNormalSmall)
+			else
+				btn.levelUp:SetAlpha(0)
+				btn.levelUp:Hide()
+				btn.Level:SetFontObject(GameFontHighlightSmall)
+			end
+			btn:Show()
+		end
 	end
 	lootContainer.followers = {} do
 		local function createFollowerButton()
 			local b = CreateFrame("Button", nil, lootContainer, "GarrisonFollowerPortraitTemplate")
+			b.levelUp = CreateFrame("Frame", nil, b, "GarrisonFollowerLevelUpTemplate")
+			b.levelUp:SetScale(0.5)
+			b.levelUp:SetPoint("BOTTOM", 0, -47)
 			b.xpProgressTex = b:CreateTexture(nil, "ARTWORK", nil, 2)
 			b.xpProgressTex:SetPoint("TOPLEFT", b.LevelBorder, "TOPLEFT", 6, -6)
 			b.xpProgressTex:SetTexture("Interface\\Buttons\\GradBlue")
-			b.xpProgressTex:SetAlpha(0.5)
+			b.xpProgressTex:SetAlpha(0.4)
 			b.xpProgressTex:SetSize(30, 12)
 			b.xpProgressTex2 = b:CreateTexture(nil, "ARTWORK", nil, 2)
-			b.xpProgressTex2:SetPoint("RIGHT", b.xpProgressTex)
 			b.xpProgressTex2:SetTexture("Interface\\Buttons\\GradBlue")
+			b.xpProgressTex2:SetAlpha(0.6)
 			b.xpProgressTex2:SetSize(30, 12)
+			b.xpProgressTex2:SetPoint("LEFT", b.xpProgressTex, "RIGHT")
 			b:SetScript("OnEnter", GarrisonMissionPageFollowerFrame_OnEnter)
 			b:SetScript("OnLeave", GarrisonMissionPageFollowerFrame_OnLeave)
 			b:Hide()
@@ -509,50 +626,71 @@ local UpdateCompletedMissionList do -- Rearranged completion dialog
 			i.Border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 			i.Border:SetTexCoord(12/64,52/64,12/64,52/64)
 			i.Quantity = i:CreateFontString(nil, "OVERLAY", "GameFontHighlightOutline")
-			i.Quantity:SetPoint("BOTTOMRIGHT", -4, 4)
+			i.Quantity:SetPoint("BOTTOMRIGHT", -3, 4)
 			i:SetScript("OnEnter", OnEnter)
 			i:SetScript("OnLeave", OnLeave)
 			self[k], i.SetIcon = i, SetIcon
 			return i
 		end})
-		local _ = lootContainer.items[1]
 	end
 	
-	local ownCompleteMissions
-	local function UpdateCompleteButton(isBusy, isFinished)
+	local function UpdateCompleteButton(isBusy, isFinished, hasLoot)
 		bf.CompleteAll:SetShown(not isBusy)
-		bf.CompleteAll:SetText(isFinished and (lootContainer:IsShown() and "Done" or "View Rewards") or "Complete Missions")
+		bf.CompleteAll:SetText(isFinished and ((lootContainer:IsShown() or not hasLoot) and "Done" or "View Rewards") or "Complete Missions")
 		bf.CompleteAll.isFinished = isFinished
 	end
 	local function updateMissionStatusList(completeMissions)
-		local mlist, mstat = "", ""
 		for i=1,#completeMissions do
-			local mi = completeMissions[i]
-			mlist = mlist .. ("%s%s[%d]|r %s"):format(i > 1 and "\n" or "", "", mi.level, mi.name)
-			mstat = mstat .. (i > 1 and "\n" or "") .. (mi.failed and "|cffff2020Failure|r" or mi.state >= 0 and "|cff20ff20Success|r" or (NORMAL_FONT_COLOR_CODE .. "Ready|r"))
+			local mi, mb = completeMissions[i], bf.missions[i]
+			local _, _, _, sc, _, _, _, mm = C_Garrison.GetPartyMissionInfo(mi.missionID)
+			mb:SetText(mi.name)
+			mb.level:SetFormattedText("%s[%d]", mi.isRare and ITEM_QUALITY_COLORS[3].hex or "", mi.level)
+			mb.status:SetText(mi.failed and "|cffff2020Failed|r" or (mi.state >= 0 or mi.succeeded) and "|cff20ff20Success|r" or (NORMAL_FONT_COLOR_CODE .. "Ready" .. (sc and " (" .. floor(sc)  .. "%)" or "")))
+			if sc and mm then
+				local rew, tail = "", ":0:0:0:0:64:64:4:60:4:60|t"
+				for k,v in pairs(mi.rewards) do
+					if v.followerXP then
+						rew = rew .. " " .. BreakUpLargeNumbers(v.followerXP) .. " |T" .. v.icon .. tail
+					elseif v.currencyID == GARRISON_CURRENCY then
+						rew = rew .. " " .. BreakUpLargeNumbers(floor(v.quantity * mm)) .. " |T" .. v.icon .. tail
+					elseif v.currencyID == 0 then
+						rew = rew .. " " .. GOLD_AMOUNT_TEXTURE:format(v.quantity/10000, 0, 0)
+					elseif v.itemID then
+						rew = rew .. " " .. (v.quantity > 1 and v.quantity .. " |T" or "|T") .. (select(10, GetItemInfo(v.itemID)) or "Interface\\Icons\\Temp") .. tail
+					elseif v.icon then
+						rew = rew .. " " .. (v.quantity > 1 and v.quantity .. " |T" or "|T") .. v.icon .. tail
+					end
+				end
+				mb.rewards:SetText(rew)
+			elseif mb.mid ~= mi.missionID then
+				mb.rewards:SetText("")
+			end
+			mb.mid, mb.info = mi.missionID, mi
+			mb:SetEnabled(not (mi.succeeded or mi.failed))
+			mb:Show()
 		end
-		GarrisonMissionFrameMissions.CompleteDialog.BorderFrame.MissionList:SetText(mlist)
-		GarrisonMissionFrameMissions.CompleteDialog.BorderFrame.MissionListState:SetText(mstat)
-		return mlist, mstat
+		for i=#completeMissions+1,#bf.missions do
+			bf.missions[i]:Hide()
+		end
 	end
 	function UpdateCompletedMissionList(reset)
-		local self, mlist, mstat = GarrisonMissionFrame, "", ""
+		local self = GarrisonMissionFrame
 		self.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
 		if reset then
 			ownCompleteMissions = self.MissionComplete.completeMissions
 			lootContainer:Hide()
-			UpdateCompleteButton(false, false)
+			UpdateCompleteButton(false, false, false)
 		end
 		updateMissionStatusList(ownCompleteMissions)
 	end
 	local function completionCallback(state, stack, rewards, followers)
 		updateMissionStatusList(stack)
-		UpdateCompleteButton(state == "STEP", state == "DONE")
+		UpdateCompleteButton(state == "STEP", state == "DONE", rewards and next(rewards) or followers and next(followers))
 		if state == "DONE" then
-			MasterPlanArchive = {lastComplete={stack, rewards, followers}}
+			lootContainer.onShowSound = rewards and next(rewards) and "UI_Garrison_CommandTable_ChestUnlock_Gold_Success" or "UI_Garrison_CommandTable_ChestUnlock"
 			local fi, fn = G.GetFollowerInfo(), 1
 			for k,v in pairs(followers) do
-				SetFollower(lootContainer.followers[fn], fi[k], v.xpAward)
+				SetFollower(lootContainer.followers[fn], fi[k], v.xpAward, v.oqual)
 				fn = fn + 1
 			end
 			for i=fn, #lootContainer.followers do
@@ -582,22 +720,43 @@ local UpdateCompletedMissionList do -- Rearranged completion dialog
 			for i=ni,#lootContainer.items do
 				lootContainer.items[i]:Hide()
 			end
+			lootContainer.count = fn - 1
 		end
 	end
 	bf.CompleteAll:SetScript("OnClick", function(self)
-		if #ownCompleteMissions == 0 or lootContainer:IsShown() then
+		if #ownCompleteMissions == 0 or lootContainer:IsShown() or (self.isFinished and lootContainer.count == 0) then
+			PlaySound("UI_Garrison_CommandTable_ViewMissionReport")
 			GarrisonMissionFrameMissions.CompleteDialog:Hide()
 			GarrisonMissionList_UpdateMissions()
 		elseif self.isFinished then
-			bf.MissionListState:SetText("")
-			bf.MissionList:SetText("")
+			for i=1,#bf.missions do
+				bf.missions[i]:Hide()
+			end
 			lootContainer:Show()
 			self:SetText("Done")
 		elseif IsAltKeyDown() then
 			bf.ViewButton:Click()
 		else
+			PlaySound("UI_Garrison_CommandTable_ViewMissionReport")
 			G.CompleteMissions(ownCompleteMissions, completionCallback)
 		end
+	end)
+	GarrisonMissionFrame.MissionComplete.NextMissionButton:SetScript("OnClick", function(self, ...)
+		local mi, cmi = ownCompleteMissions and ownCompleteMissions[self.returnToOverview], GarrisonMissionFrame.MissionComplete.currentMission
+		if self.returnToOverview == false then
+			GarrisonMissionComplete_Initialize()
+		elseif not (mi and cmi and mi.missionID == cmi.missionID) then
+			GarrisonMissionCompleteNextButton_OnClick(self, ...)
+		else
+			mi.failed, mi.succeeded = not cmi.succeeded or nil, cmi.succeeded or nil
+			GarrisonMissionComplete_Initialize()
+			GarrisonMissionFrameMissions.CompleteDialog:Show()
+			updateMissionStatusList(ownCompleteMissions)
+		end
+		self.returnToOverview = nil
+	end)
+	GarrisonMissionFrame.MissionComplete.NextMissionButton:SetScript("OnHide", function(self)
+		self.returnToOverview = nil
 	end)
 end
 

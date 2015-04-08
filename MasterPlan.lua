@@ -1,11 +1,10 @@
-local api, addonName, T = {}, ...
+local api, bgapi, addonName, T = {}, {}, ...
 
 local defaults = {
 	availableMissionSort="threats",
 	version="0.4"
 }
 local conf = setmetatable({}, {__index=defaults})
-
 T.Evie.RegisterEvent("ADDON_LOADED", function(ev, addon)
 	if addon == addonName then
 		if type(MasterPlanConfig) == "table" then
@@ -23,6 +22,9 @@ end)
 T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
 	MasterPlanConfig = conf
 end)
+
+setmetatable(api, {__index=bgapi})
+bgapi.GarrisonAPI = T.Garrison
 
 function api:SetMissionOrder(order)
 	assert(type(order) == "string", 'Syntax: MasterPlan:SetMissionOrder("order")')
