@@ -261,9 +261,10 @@ function api.GetDoubleCounters(finfo)
 end
 function api.GetFollowerTraits()
 	if not data.traits then
-		local ci = {}
+		local ci, et = {}, T.EquivTrait
 		for fid, info in pairs(api.GetFollowerInfo()) do
 			for k in pairs(info.traits) do
+				local k = et[k] or k
 				local t = ci[k] or {}
 				ci[k], t[#t+1] = t, fid
 			end
@@ -375,11 +376,18 @@ function api.GetFollowerLevelDescription(fid, mlvl, fi)
 	return ("%s[%d]|r %s%s|r%s"):format(lc, fi.level < 100 and fi.level or fi.iLevel, HIGHLIGHT_FONT_COLOR_CODE, fi.name, away)
 end
 function api.GetOtherCounterIcons(fi, mechanic)
-	local fid, ret = fi.followerID
+	local fid, reorder, firstID, ret = fi.followerID, mechanic == nil
 	for i=1,4 do
 		local aid = C_Garrison.GetFollowerAbilityAtIndex(fid, i)
 		if aid ~= 0 then
 			local mid, _, ico = C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+			if reorder then
+				if i == 1 then
+					firstID = mid
+				elseif i == 2 and mid and mid < firstID then
+					mechanic = mid
+				end
+			end
 			if mid and mid == mechanic then
 				ret, mechanic = (ret and ret .. " " or "") .. "|T" .. ico .. ":0:0:0:0:64:64:6:58:6:58|t"
 			elseif mid then
@@ -479,7 +487,9 @@ do -- CompleteMissions/AbortCompleteMissions
 				else
 					mi.failed, curState, curIndex = cc and true or nil, "NEXT", curIndex + 1
 				end
-				securecall(curCallback, "STEP", curStack, curRewards, curFollowers, ok and "COMPLETE" or "FAIL", mi.missionID)
+				if cc then
+					securecall(curCallback, "STEP", curStack, curRewards, curFollowers, ok and "COMPLETE" or "FAIL", mi.missionID)
+				end
 				if ok then
 					delayIndex, delayMID = curIndex, mi.missionID
 					delayRoll(0.2)
@@ -1192,7 +1202,7 @@ function api.ExtendFollowerTooltipMissionRewardXP(mi, fi)
 end
 
 function api.UpdateGroupEstimates(missions, useInactive, yield)
-	local ft, nf, f = {}, 0, C_Garrison.GetFollowers()
+	local ft, nf, f, et = {}, 0, C_Garrison.GetFollowers(), T.EquivTrait
 	for i=1,#f do
 		local fi = f[i]
 		if fi.isCollected and (useInactive or fi.status ~= GARRISON_FOLLOWER_INACTIVE) and not T.config.ignore[fi.followerID] then
@@ -1208,6 +1218,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					fi.counters[cn], cn = a, cn + 1
 				end
 				a = C_Garrison.GetFollowerTraitAtIndex(fid, i)
+				a = et[a] or a
 				if a and a > 0 then
 					fi.traits[tn], tn, fi.saffinity = a, tn + 1, a == af or fi.saffinity or nil
 				end
@@ -1224,7 +1235,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 		t[#t+1], ms[sz], best[missions[i][1]] = missions[i], t, {-1}
 	end
 
-	local counters, traits, m2, m3 = {[6]=0}, {[221]=0, [79]=0, [77]=0, [76]=0, [244]=0, [201]=0, [202]=0, [232]=0}, ms[2], ms[3]
+	local counters, traits, m2, m3 = {[6]=0}, {[221]=0, [79]=0, [77]=0, [76]=0, [201]=0, [202]=0, [232]=0}, ms[2], ms[3]
 	local n2, n3, s1, s2, ec = #m2, #m3, 17592186044416, 68719476736, T.EnvironmentCounters
 	local totalGroups, consideredGroups, nf2 = nf*(nf-1)*(nf+1)/6, 0, nf^2
 	if yield and yield(0, 0, 0) then return end
@@ -1262,9 +1273,8 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					local mi = mi[i]
 					local nc, cap, mlvl = traits[201]*2 + traits[202]*4, (#mi-6)*6, mi[2] do
 						local time, env = mi[4]*2^-traits[221], mi[6]
-						nc = nc + (env == 13 and 1 or 2) * ((traits[ec[env]] or 0) + (env == 11 and traits[244] or 0))
-						        + traits[(time >= 25200) and 76 or 77]*2
-
+						nc = nc + (env == 13 and 1 or 2) * (traits[ec[env]] or 0) + traits[(time >= 25200) and 76 or 77]*2
+						
 						local lc, cn = mi[7], 1
 						for i=8, #mi+1 do
 							local c = mi[i]
@@ -1427,6 +1437,11 @@ function api.countFreeFollowers(f, finfo)
 	return ret
 end
 function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
+	local fi
+	if type(specId) == "table" then
+		fi, specId, specName = specId, specId.classSpec, specId.className
+	end
+	
 	local c = T.SpecCounters[specId]
 	if not c then return end
 	
@@ -1445,6 +1460,34 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 			local _, name, ico = api.GetMechanicInfo(c[i])
 			self:AddDoubleLine("|TInterface\\Buttons\\UI-Quickslot2:18:2:-1:0:64:64:31:32:31:32|t|T" .. ico .. ":16:16:0:0:64:64:5:59:5:59|t " .. name,  "(" .. api.countFreeFollowers(ci[c[i]], finfo) .. ")", 1,1,1, 1,1,1)
 		end
+	end
+	self:SetBackdropColor(0,0,0)
+	
+	local dc, novel, inact, me = api.GetDoubleCounters(finfo), 0, 0, fi and fi.followerID
+	for i=1,#c do
+		for j=i+1, #c do
+			local ft, ac, ic = dc[c[i]*100 + c[j]], 0, 0
+			for i=1,ft and #ft or 0 do
+				if ft[i].followerID == me then
+				elseif ft[i].status ~= GARRISON_FOLLOWER_INACTIVE then
+					ac = ac + 1
+					break
+				else
+					ic = ic + 1
+				end
+			end
+			if ac == 0 and ic == 0 then
+				novel = novel + 1
+			elseif ac == 0 then
+				inact = inact + 1
+			end
+		end
+	end
+	if novel > 0 or inact > 0 then
+		self:AddLine(" ")
+		inact = inact > 0 and "|cffa8a8a8" .. (novel > 0 and "+" or "") .. inact .. "|r" or ""
+		novel = novel > 0 and "|cff20ff20" .. novel .. "|r" or ""
+		self:AddDoubleLine(L"Unique ability rerolls:",  novel .. inact .. "|cffffffff/" .. (#c*(#c-1)))
 	end
 	
 	return true

@@ -774,7 +774,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 					if pg ~= self.pg then
 						for i=math.max(1, self.pg or 1), pg do
 							local si = self[i]
-							si:SetTexture(si.r or d, si.g or d, si.b or d)
+							si:SetTexture(si.r or 0, si.g or 0, si.b or 0)
 						end
 						for i=pg+1, self.pg or 9 do
 							self[i]:SetTexture(0,0,0, 0.25)
@@ -789,7 +789,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 		end)
 		loader:SetScript("OnHide", function(self)
 			if self.job then
-				if self.nf > 2 then
+				if (self.nf or 0) > 2 then
 					missionList.FadeIn:Play()
 				end
 				self.job = nil
