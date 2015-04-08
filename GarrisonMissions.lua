@@ -252,6 +252,13 @@ hooksecurefunc("GarrisonMissionPage_SetEnemies", function(enemies)
 		end
 	end
 end)
+hooksecurefunc("GarrisonMissionPage_SetFollower", function(frame, info)
+	local f = frame:IsMouseOver() and frame:IsShown() and frame:GetScript("OnEnter")
+	if f then
+		f(frame)
+	end
+end)
+
 
 local lfgButton do
 	local seen = GarrisonMissionFrame.MissionTab.MissionPage.Stage:CreateFontString(nil, "OVERLAY", "GameFontNormalMed2")
@@ -364,10 +371,13 @@ do -- Minimize mission
 	min:SetHitRectInsets(0,8,0,0)
 	min:SetScript("OnClick", function(self)
 		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
-		local f1, f2, f3
+		local mid, f1, f2, f3 = mi.missionID
 		for i=1, mi.numFollowers do
 			local fi = GarrisonMissionFrame.MissionTab.MissionPage.Followers[mi.numFollowers+1-i].info
 			f1, f2, f3 = fi and fi.followerID, f1, f2
+			if mid and f1 then
+				C_Garrison.RemoveFollowerFromMission(mid, f1)
+			end
 		end
 		MasterPlan:SaveMissionParty(mi.missionID, f1, f2, f3)
 		roamingParty:DropFollowers(f1, f2, f3)
@@ -552,7 +562,7 @@ do -- suppress completion toast while missions UI is visible
 		end
 	end)
 end
-do -- Rewards
+do -- Mission page rewards
 	local function Reward_OnClick(self)
 		if IsModifiedClick("CHATLINK") then
 			local q, text = self.quantity and self.quantity > 1 and self.quantity .. " " or ""

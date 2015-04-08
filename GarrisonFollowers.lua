@@ -1,17 +1,7 @@
 local _, T = ...
 if T.Mark ~= 23 then return end
 local G, L = T.Garrison, T.L
-
-local function countFreeFollowers(f, finfo)
-	local ret = 0
-	for i=1,f and #f or 0 do
-		local st = finfo[f[i]].status
-		if not (st == GARRISON_FOLLOWER_INACTIVE or st == GARRISON_FOLLOWER_WORKING or T.config.ignore[f[i]]) then
-			ret = ret + 1
-		end
-	end
-	return ret
-end
+local countFreeFollowers = G.countFreeFollowers
 
 local mechanicsFrame = CreateFrame("Frame")
 mechanicsFrame:SetSize(1,1) mechanicsFrame:Hide()
@@ -396,23 +386,8 @@ GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnLeave",
 end)
 
 local function ShowPotentialAbilityTooltip(owner, classSpec, dropCounter, altTitle)
-	local c = T.SpecCounters[classSpec]
-	if c then
-		GameTooltip:SetOwner(owner, "ANCHOR_NONE")
-		GameTooltip:AddLine(altTitle or (ITEM_QUALITY_COLORS[4].hex .. L"Epic Ability"), 1,1,1)
-		if not altTitle then
-			GameTooltip:AddLine(L"An additional random ability is unlocked when this follower reaches epic quality.", 1,1,1, 1)
-		end
-		GameTooltip:AddLine((altTitle and "" or "|n") .. L"Potential counters:")
-		local ci, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
-		for i=1,#c do
-			if c[i] == dropCounter then
-				dropCounter = nil
-			else
-				local _, name, ico = G.GetMechanicInfo(c[i])
-				GameTooltip:AddDoubleLine("|TInterface\\Buttons\\UI-Quickslot2:18:2:-1:0:64:64:31:32:31:32|t|T" .. ico .. ":16:16:0:0:64:64:5:59:5:59|t " .. name,  "(" .. countFreeFollowers(ci[c[i]], finfo) .. ")", 1,1,1, 1,1,1)
-			end
-		end
+	GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+	if G.SetClassSpecTooltip(GameTooltip, classSpec, altTitle, dropCounter) then
 		GameTooltip:SetBackdropColor(0,0,0)
 		GameTooltip:Show()
 	end

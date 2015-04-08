@@ -1,7 +1,7 @@
 local api, _, T = {}, ...
 if T.Mark ~= 23 then return end
-local EV, L = T.Evie, {}
-setmetatable(L, {__call=function(self,k) if T.L then L = T.L return L(k) end return k end})
+local EV, L = T.Evie, newproxy(true)
+getmetatable(L).__call = function(self,k) if T.L then L = T.L return L(k) end return k end
 
 local f, data = CreateFrame("Frame"), {}
 f:SetScript("OnUpdate", function(self) wipe(data) self:Hide() end)
@@ -224,6 +224,41 @@ function api.GetCounterInfo()
 	end
 	return data.counters
 end
+function api.GetDoubleCounters(finfo)
+	if not data.counters2 then
+		local rt, aai, cai = {}, C_Garrison.GetFollowerAbilityAtIndex, C_Garrison.GetFollowerAbilityCounterMechanicInfo
+		for fid, fi in pairs(finfo) do
+			if not T.config.ignore[fid] then
+				if fi.quality == 4 then
+					local c1, c2 = cai(aai(fid, 1)), cai(aai(fid, 2))
+					local k = c1 <= c2 and (c1*100 + c2) or (c2*100 + c1)
+					local tk = rt[k] or {}
+					tk[#tk + 1], rt[k] = fi, tk
+				end
+				local sc = T.SpecCounters[fi.classSpec]
+				if sc then
+					local c1, s1 = aai(fid, 1) or 0, false
+					c1 = c1 > 0 and cai(c1) or false
+					-- actually, this is wrong. we only need c1 logic for current ability + one of spec's abilities for quality < 4. but then, we also get a difference between "Gain naturally" and "if rerolled."
+					for i=#sc-1,0,-1 do
+						local c1 = sc[i] or c1
+						for j=i+1,#sc do
+							local c2 = sc[j]
+							local k = c1 <= c2 and -(c1*100 + c2) or -(c2*100 + c1)
+							local tk = rt[k] or {}
+							tk[#tk + 1], rt[k] = fi, tk
+						end
+						s1 = s1 or (sc[i] == c1)
+						if i == 1 and s1 then break end
+					end
+				end
+			end
+		end
+		data.counters2 = rt
+		f:Show()
+	end
+	return data.counters2
+end
 function api.GetFollowerTraits()
 	if not data.traits then
 		local ci = {}
@@ -334,7 +369,7 @@ function api.GetFollowerLevelDescription(fid, mlvl, fi)
 	else
 		away = ""
 	end
-	if fi.level == 100 and fi.quality == 4 and tooLow then
+	if fi.level == 100 and fi.quality >= 4 and tooLow then
 		away = ITEM_QUALITY_COLORS[4].hex .. L"*" .. (away ~= "" and "|r " .. away or "|r")
 	end
 	return ("%s[%d]|r %s%s|r%s"):format(lc, fi.level < 100 and fi.level or fi.iLevel, HIGHLIGHT_FONT_COLOR_CODE, fi.name, away)
@@ -785,12 +820,12 @@ function api.GetFollowerXPGain(fi, mlvl, base, bonus)
 		base, bonus = 0, 0
 	elseif base > 0 or bonus > 0 then
 		fi = fi.traits and fi or api.GetFollowerInfo()[fi.followerID] or fi
-		local tmul = fi.traits and fi.traits[29] and 1.50 or 1
-		local emul = api.GetLevelEfficiency(fi.iLevel > 600 and fi.iLevel or fi.level, mlvl)
+		local tmul, ld = fi.traits and fi.traits[29] and 1.50 or 1, (mlvl > 100 and 100 or mlvl) - fi.level
+		local emul = ld < 1 and 1 or (ld > 2 and 0.1 or 0.5)
 		if base > 0 then
 			base = base * tmul * emul
 			if fi.xp + base > fi.levelXP and fi.level < 100 then
-				emul = api.GetLevelEfficiency(fi.level + 1, mlvl)
+				emul = ld < 2 and 1 or (ld > 3 and 0.1 or 0.5)
 			end
 		end
 		bonus = bonus * tmul * emul
@@ -822,31 +857,35 @@ local computeEquivXP, computeEarliestDeparture do
 	local max, min, inf = math.max, math.min, math.huge
 	function computeEquivXP(g, finfo, minfo, force)
 		if not g.equivXP or force then
-			local mlvl, bonus = api.GetFMLevel(minfo), g[8]
+			local mlvl, bonus, conf = api.GetFMLevel(minfo), g[8], T.config
 			bonus = bonus * (bonus > 0 and g[9] and api.GetBuffsXPMultiplier(g[9]) or 1)
 			
-			local expected, balanced, risk, ecap = 0, 0, risk[g[1]], (T.config.xpCapGrace or 2000)
-			
+			local risk, ecap, decay, perGold = risk[g[1]], (conf.xpCapGrace or 2000), conf.levelDecay, conf.xpPerGold or 0
+			local expected, balanced = 0, 0
 			for i=1, minfo.numFollowers do
 				local fi = finfo[g[4+i]]
-				local base, bonus = api.GetFollowerXPGain(fi, mlvl, g[2], bonus)
+				local flvl, base, bonus = fi.level, api.GetFollowerXPGain(fi, mlvl, g[2], bonus)
 				if base > 0 or bonus > 0 then
-					if (fi.level == 99 and fi.quality == 4) or (fi.level == 100 and fi.quality == 3) then
+					local ld = flvl - minfo.level - (flvl < 94 and 1 or 0) - (flvl < 98 and 1 or 0)
+					ld = decay^(ld < 0 and 0 or ld > 3 and 3 or ld)
+					if (flvl == 99 and fi.quality == 4) or (flvl == 100 and fi.quality == 3) then
 						local cap = fi.levelXP - fi.xp
-						balanced = balanced + base + risk*max(0, min(bonus, cap + ecap - base))
+						balanced = balanced + (base + risk*max(0, min(bonus, cap + ecap - base))) * ld
 						expected = expected + max(0, min(base, cap)) + g[1]/100 * max(0, min(bonus, cap - base))
 					else
-						balanced, expected = balanced + base + risk * bonus, expected + base + g[1]/100 * bonus
+						balanced, expected = balanced + (base + risk * bonus) * ld, expected + base + g[1]/100 * bonus
 					end
 				end
 			end
-			if type(minfo.rewards) == "table" then
+			
+			if perGold > 0 and type(minfo.rewards) == "table" then
 				for k,v in pairs(minfo.rewards) do
 					if v.currencyID == 0 then
-						balanced = balanced + g[1]/100 * v.quantity/10000 * (T.config.xpPerGold or 0)
+						balanced = balanced + g[1]/100 * v.quantity/10000 * perGold
 					end
 				end
 			end
+			
 			g.equivXP, g.expectedXP = floor(balanced), floor(expected)
 		end
 		return g.equivXP
@@ -1185,9 +1224,12 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 		t[#t+1], ms[sz], best[missions[i][1]] = missions[i], t, {-1}
 	end
 
-	local counters, traits, m2, m3 = {}, {[221]=0, [79]=0, [77]=0, [76]=0, [244]=0, [201]=0, [202]=0, [232]=0}, ms[2], ms[3]
+	local counters, traits, m2, m3 = {[6]=0}, {[221]=0, [79]=0, [77]=0, [76]=0, [244]=0, [201]=0, [202]=0, [232]=0}, ms[2], ms[3]
 	local n2, n3, s1, s2, ec = #m2, #m3, 17592186044416, 68719476736, T.EnvironmentCounters
-	for a=1,nf do
+	local totalGroups, consideredGroups, nf2 = nf*(nf-1)*(nf+1)/6, 0, nf^2
+	if yield and yield(0, 0, 0) then return end
+
+	for a=1,nf-1 do
 		local fa = f[a]
 		for i=1,2 do
 			local s, t = fa[i == 1 and "counters" or "traits"], i == 1 and counters or traits
@@ -1196,7 +1238,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 				t[v] = (t[v] or 0) + 1
 			end
 		end
-		local na, nw, nf2 = fa.active, fa.working, nf^2
+		local na, nw = fa.active, fa.working
 					
 		for b=a+1,nf do
 			local fb = f[b]
@@ -1213,18 +1255,27 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					end
 				end
 				local ns, na, nw = traits[79], na + (c and fc.active or 0), 3 - nw - (c and fc.working or 0)
-				
+
+				local c6 = counters[6]
+				counters[6] = c6 + traits[232]*0.5
 				for i=1, mic do
-					local mi, l, lc = mi[i]
-					local etc, cap = ec[mi[6]], (#mi-6)*6
-					local nc, d = (etc ~= 0 and traits[etc] or 0) > 0 and (etc == 42 and 1 or 2) or (etc == 4 and traits[244] > 0 and 2) or 0, mi[4]*2^-traits[221]
-					for i=7,#mi do
-						local c = mi[i]
-						local need = (l == c and 1 or 0)
-						local cs = (counters[c] or 0) > need and 6 or 0
-						nc, l, lc = nc + cs + (c == 6 and cs == 0 and traits[232] > (need - (need == 1 and lc > 0 and 1 or 0)) and 3 or 0), c, cs
+					local mi = mi[i]
+					local nc, cap, mlvl = traits[201]*2 + traits[202]*4, (#mi-6)*6, mi[2] do
+						local time, env = mi[4]*2^-traits[221], mi[6]
+						nc = nc + (env == 13 and 1 or 2) * ((traits[ec[env]] or 0) + (env == 11 and traits[244] or 0))
+						        + traits[(time >= 25200) and 76 or 77]*2
+
+						local lc, cn = mi[7], 1
+						for i=8, #mi+1 do
+							local c = mi[i]
+							if c == lc then
+								cn = cn + 1
+							else
+								local h = counters[lc] or 0
+								lc, cn, nc = c, 1, nc + 6 * (h > cn and cn or h)
+							end
+						end
 					end
-					nc = nc + traits[(d >= 25200) and 76 or 77]*2 + traits[201]*2 + traits[202]*4
 					if nc < cap then
 						local ra, rb, rc = fa.affinity or 0, fb.affinity, c and fc.affinity
 						local sa, sb, sc = fa.saffinity, fb.saffinity, fc.saffinity
@@ -1241,34 +1292,62 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 							ra, rb, sa, sb, rc = rb, rc, sb, sc
 						until nc >= cap or not ra
 					end
-					if nc < cap then
-						local mlvl, fa, fb, fc = mi[2], fa, fb, fc
-						for i=1,c and 3 or 2 do
-							if mlvl > 100 and fa.iLevel > mlvl then
-								local dl = fa.iLevel - mlvl
-								nc = nc + (dl < 15 and dl/15 or 1)
-							elseif mlvl < 100 and fa.level > mlvl then
-								local dl = fa.iLevel - mlvl
-								nc = nc + (dl < 3 and dl/3 or 1)
-							end
-							fa, fb = fb, fc
+					if nc < cap and mlvl ~= 100 then
+						local ng, la, lb, lc, lm, mx = c and 3 or 2
+						if mlvl > 100 then
+							la, lb, lc, lm, mx = fa.iLevel, fb.iLevel, fc.iLevel, 15, mlvl >= 660 and 675 or 655
+						else
+							la, lb, lc, lm, mx = fa.level, fb.level, fc.level, 3, 100
 						end
+						local mg = mx-mlvl
+						if cap-nc >= ng*(mg < lm and mg/lm or 1) then
+							nc, mlvl = nc + ng*mg/lm, mlvl + (mg < lm and mg or lm)
+						elseif mg > 0 then
+							mx = mg > lm and mlvl + lm or mx
+							la = la < mlvl and mlvl or la > mx and mx or la
+							lb = lb < mlvl and mlvl or lb > mx and mx or lb
+							lc = c and (lc < mlvl and mlvl or lc > mx and mx or lc) or mx
+							if lb < lc then lb, lc = lc, lb end
+							if la < lb then la, lb = lb, la end
+							if lb < lc then lb, lc = lc, lb end
+							if lc < mx then
+								local n, r = (cap-nc)*lm, 0
+								for i=1,ng+1 do
+									local d, ni = (lb - lc), (i > ng and ng or i)
+									local di = d * ni
+									if di >= n then
+										r = r + math.ceil(n/ni)
+										break
+									elseif d > 0 then
+										r, n = r + d, n-di
+									end
+									la, lb, lc = mx, la, lb
+								end
+								nc, mlvl = cap, mlvl + r
+							else
+								nc = cap
+							end
+						end
+					end
+					if nc >= cap then
+						nc = 100
+					else
+						nc = nc * 100 / cap
 						nc = nc - nc % 1
 					end
-					nc = nc > cap and cap or nc
 					
 					local best, sc = best[mi[1]], nc * s1
 					if best[1] - sc < s1 then
-						local mlvl, la, lb, lc = mi[2], fa.iLevel + fb.level*3, fb.iLevel + fb.level*3, fc.iLevel + fc.level*3
-						mlvl = mlvl > 100 and (mlvl + 300) or (600 + mlvl * 3)
-						local gap = (mlvl > la and (mlvl - la) or 0) + (mlvl > lb and (mlvl - lb) or 0) + (c and mlvl > lc and (mlvl - lc) or 0)
+						local la, lb, lc, glvl = fa.iLevel + fb.level*3, fb.iLevel + fb.level*3, fc.iLevel + fc.level*3, mlvl > 100 and (mlvl + 300) or (600 + mlvl * 3)
+						local gap = (glvl > la and (glvl - la) or 0) + (glvl > lb and (glvl - lb) or 0) + (c and glvl > lc and (glvl - lc) or 0)
 						local hi, lo = sc + s2 * ((mi[5] > 0 and ns * 16 or 0) + na * 4 + nw), (32767-gap)*16 + traits[221]
 						local d = (best[1] - hi - lo)
 						if d < 0 then
-							best[1], best[2], best[3], best[4] = hi + lo, a, b, c
+							best[1], best[2], best[3], best[4], best[5] = hi + lo, a, b, c, mlvl
 						end
 					end
 				end
+				counters[6] = c6
 				
 				for i=1,c and 2 or 0 do
 					local s, t = fc[i == 1 and "counters" or "traits"], i == 1 and counters or traits
@@ -1278,7 +1357,8 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					end
 				end
 				
-				c, mi, mic = (c or b) + 1, m3, n3
+				c, mi, mic, consideredGroups = (c or b) + 1, m3, n3, consideredGroups + 1
+				if yield and consideredGroups % 50 == 0 and yield(1, consideredGroups, totalGroups) then return end
 			until c > nf
 
 			for i=1,2 do
@@ -1297,14 +1377,13 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 				t[v] = t[v] - 1
 			end
 		end
-		if yield and yield(1, a, nf) then return end
 	end
 	
 	for i=1,#missions do
 		local best = best[missions[i][1]]
 		if best and best[1] > 0 then
 			wipe(counters) wipe(traits)
-			local bt, mi, l, lc = {}, missions[i]
+			local bt, mi = {}, missions[i]
 			for i=1, mi[3] do
 				local fi = f[best[1+i]]
 				bt[i] = fi.followerID
@@ -1316,18 +1395,59 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 					end
 				end
 			end
-			bt[4], bt[5], traits[232] = traits[79] or 0, (floor(best[1]/s1) + mi[3]*2)/((#mi-6)*6 + mi[3]*2), traits[232] or 0
-			for i=7,#mi do
+			
+			bt[4], bt[5], bt[6], counters[6] = traits[79] or 0, floor(best[1]/s1), best[5], (counters[6] or 0) + (traits[232] or 0)/2
+			local lc, cn, h
+			for i=7, #mi do
 				local c = mi[i]
-				local need = (l == c and 1 or 0)
-				local cs = (counters[c] or 0) > need and 6 or 0
-				bt[i], l, lc = (cs == 6) or (c == 6 and cs == 0 and traits[232] > (need - (need == 1 and lc > 0 and 1 or 0)) and 0.5) or false, c, cs
+				if c == lc then
+					cn = cn + 1
+				else
+					lc, cn, h = c, 1, counters[c] or 0
+				end
+				bt[i] = h >= cn or (h == cn-0.5 and 0.5 or nil)
 			end
 			missions[i].best = bt
 		else
 			missions[i].best = nil
 		end
 	end
+	
+	return true
+end
+
+function api.countFreeFollowers(f, finfo)
+	local ret = 0
+	for i=1,f and #f or 0 do
+		local st = finfo[f[i]].status
+		if not (st == GARRISON_FOLLOWER_INACTIVE or st == GARRISON_FOLLOWER_WORKING or T.config.ignore[f[i]]) then
+			ret = ret + 1
+		end
+	end
+	return ret
+end
+function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
+	local c = T.SpecCounters[specId]
+	if not c then return end
+	
+	self:ClearLines()
+	self:AddLine(specName or (ITEM_QUALITY_COLORS[4].hex .. L"Epic Ability"), 1,1,1)
+	if not specName then
+		self:AddLine(L"An additional random ability is unlocked when this follower reaches epic quality." .. "|n ", 1,1,1, 1)
+	end
+	self:AddLine(L"Potential counters:")
+	
+	local ci, finfo, dropCounter = api.GetCounterInfo(), api.GetFollowerInfo(), not ab2 and ab1 or nil
+	for i=1,#c do
+		if c[i] == dropCounter then
+			dropCounter = nil
+		else
+			local _, name, ico = api.GetMechanicInfo(c[i])
+			self:AddDoubleLine("|TInterface\\Buttons\\UI-Quickslot2:18:2:-1:0:64:64:31:32:31:32|t|T" .. ico .. ":16:16:0:0:64:64:5:59:5:59|t " .. name,  "(" .. api.countFreeFollowers(ci[c[i]], finfo) .. ")", 1,1,1, 1,1,1)
+		end
+	end
+	
+	return true
 end
 
 T.Garrison = api
