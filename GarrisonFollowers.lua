@@ -361,3 +361,7 @@ GarrisonMissionFrame.FollowerTab.ItemWeapon:HookScript("OnUpdate", function()
 		GarrisonFollowerPage_SetItem(self.ItemArmor, self.ItemArmor.itemID, self.ItemArmor.itemLevel)
 	end
 end)
+GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnEnter", GarrisonMissionMechanic_OnEnter)
+GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnLeave", function(self)
+	GarrisonMissionMechanicTooltip:Hide()
+end)

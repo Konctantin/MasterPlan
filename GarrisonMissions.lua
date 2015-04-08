@@ -5,18 +5,6 @@ local EV, G, L = T.Evie, T.Garrison, T.L
 local roamingParty, easyDrop = T.MissionsUI.roamingParty, T.MissionsUI.easyDrop
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
 
-local Hide do
-	local dungeon = CreateFrame("Frame")
-	dungeon:Hide()
-	function Hide(f, ...)
-		if f then
-			f:SetParent(dungeon)
-			return Hide(...)
-		end
-	end
-end
-Hide(GarrisonMissionFrameMissionsTab1, GarrisonMissionFrameMissionsTab2)
-
 do -- GarrisonFollowerList_SortFollowers
 	local toggle = CreateFrame("CheckButton", nil, GarrisonMissionFrameFollowers, "InterfaceOptionsCheckButtonTemplate")
 	toggle:SetSize(24, 24) toggle:SetHitRectInsets(0,0,0,0)
@@ -489,6 +477,15 @@ do -- Counter-follower lists
 			end
 		end
 	end)
+	hooksecurefunc("GarrisonFollowerTooltipTemplate_SetGarrisonFollower", function(self, data)
+		for i=1,#self.Abilities do
+			local ci = self.Abilities[i].CounterIcon
+			if ci:IsShown() then
+				ci:SetMask("")
+				ci:SetTexCoord(4/64,60/64,4/64,60/64)
+			end
+		end
+	end)
 	
 	local ctip = GarrisonMissionMechanicFollowerCounterTooltip
 	ctip.CounterOthers = ctip:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -534,6 +531,30 @@ do -- suppress completion toast while missions UI is visible
 			AlertFrame:RegisterEvent("GARRISON_MISSION_FINISHED")
 			registered = false
 		end
+	end)
+end
+do -- Rewards
+	local function Reward_OnClick(self)
+		if IsModifiedClick("CHATLINK") then
+			local q, text = self.quantity and self.quantity > 1 and self.quantity .. " " or ""
+			if self.itemID then
+				text = select(2, GetItemInfo(self.itemID))
+				if text then
+					text = q .. text
+				end
+			elseif self.currencyID and self.currencyID > 0 and self.currencyQuantity then
+				text = self.currencyQuantity .. " " .. GetCurrencyLink(self.currencyID)
+			elseif self.title then
+				text = q .. self.title
+			end
+			if text then
+				ChatEdit_InsertLink(text)
+			end
+		end
+	end
+	hooksecurefunc("GarrisonMissionPage_SetReward", function(self, reward)
+		self.quantity = reward.quantity or reward.followerXP
+		self:SetScript("OnMouseUp", Reward_OnClick)
 	end)
 end
 
