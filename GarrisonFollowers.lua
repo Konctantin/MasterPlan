@@ -25,6 +25,7 @@ local CreateMechanicButton do
 			GameTooltip:AddLine(C_Garrison.GetFollowerAbilityDescription(self.id), 1,1,1, 1)
 			if ci and #ci > 0 then
 				GameTooltip:AddLine("|n" .. L"Followers with this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+				G.sortByFollowerLevels(ci, fi)
 				for i=1,#ci do
 					GameTooltip:AddLine(G.GetFollowerLevelDescription(ci[i], nil, fi[ci[i]]), 1,1,1)
 				end
