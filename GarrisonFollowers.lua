@@ -1,5 +1,5 @@
 local _, T = ...
-if T.Mark ~= 23 then return end
+if T.Mark ~= 40 then return end
 local G, L, EV = T.Garrison, T.L, T.Evie
 local countFreeFollowers = G.countFreeFollowers
 
@@ -15,7 +15,7 @@ local floatingMechanics = CreateFrame("Frame", nil, mechanicsFrame)
 floatingMechanics:EnableMouse(true)
 local CreateMechanicButton, Mechanic_SetTrait do
 	local function Mechanic_OnEnter(self)
-		local ci, finfo = self.info, G.GetFollowerInfo()
+		local ci = self.info
 		GameTooltip:SetOwner(self, "ANCHOR_PRESERVE")
 		GameTooltip:ClearAllPoints()
 		GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMRIGHT")
@@ -25,14 +25,7 @@ local CreateMechanicButton, Mechanic_SetTrait do
 			floatingMechanics:SetOwner(self, ci)
 			return
 		elseif self.isDouble then
-			local ico = "|T" .. self.Icon:GetTexture() .. ":0:0:0:0:64:64:4:60:4:60|t "
-			GameTooltip:AddLine(ico .. self.name)
-			for i=1,ci and #ci or 0 do
-				GameTooltip:AddDoubleLine(G.GetFollowerLevelDescription(ci[i], nil, finfo[ci[i]]), G.GetOtherCounterIcons(finfo[ci[i]], self.id), 1,1,1)
-			end
-			if (ci and #ci or 0) == 0 then
-				GameTooltip:AddLine(L"You have no followers with duplicate counter combinations.", 1,1,1, 1)
-			end
+			G.SetDoubleCountersTooltip(GameTooltip, ci)
 		else
 			G.SetThreatTooltip(GameTooltip, self.id, ci, nil, true)
 		end
@@ -169,12 +162,15 @@ local function syncTotals()
 		i = i + 1
 	end
 
-	local di, doubles = G.GetDoubleCounters(finfo), {}
+	local di, doubles, cc = G.GetDoubleCounters(finfo), {}, 0
 	for l=1,2 do
 		for k,v in pairs(di) do
 			if k > 0 and #v > 1 then
 				if l == 1 then
 					G.sortByFollowerLevels(v, finfo)
+					if finfo[v[2]].status ~= GARRISON_FOLLOWER_INACTIVE then
+						cc = cc + countFreeFollowers(v, finfo)
+					end
 				end
 				for i=1,(finfo[v[2]].status == GARRISON_FOLLOWER_INACTIVE) == (l == 2) and #v or 0 do
 					doubles[#doubles+1] = v[i]
@@ -182,7 +178,7 @@ local function syncTotals()
 			end
 		end
 	end
-	local ico, cc = icons[i], countFreeFollowers(doubles, finfo)
+	local ico = icons[i]
 	ico.Icon:SetTexture("Interface\\Icons\\Inv_Misc_Book_11")
 	ico.Count:SetText(cc and cc > 0 and cc or "")
 	ico.info, ico.name, ico.isDouble = doubles, L"Duplicate counters", true
@@ -690,23 +686,3 @@ do -- Reroll items
 	end)
 	af.MPUpgradeItems = rb
 end
-
-
-hooksecurefunc("UIDropDownMenu_StopCounting", function(self)
-	local mf = self and GetMouseFocus()
-	local tt, tf = mf and mf.tooltipTitle, mf and mf.tooltipFunc
-	if mf and (tt or tf) and not mf:IsForbidden() and mf:GetParent() == self then
-		if type(tt) == "function" and mf.tooltipText == nil then
-			mf.tooltipFunc, mf.tooltipText, tf, tt, mf.tooltipTitle = tt, tt, tt
-		end
-		if tf and tt == nil and mf.tooltipText == tf then
-			self.tooltipOwner, self.tooltipOnLeave = mf, securecall(tf, mf, mf.arg1, mf.arg2)
-		end
-	end
-end)
-hooksecurefunc("UIDropDownMenu_StartCounting", function(self)
-	if self and self.tooltipOwner and type(self.tooltipOnLeave) == "function" then
-		securecall(self.tooltipOnLeave, self.tooltipOwner)
-		self.tooltipOnLeave, self.tooltipOwner = nil
-	end
-end)

@@ -1,76 +1,8 @@
 local _, T = ...
-if T.Mark ~= 23 then return end
+if T.Mark ~= 40 then return end
 local L, EV, G, api = T.L, T.Evie, T.Garrison, {}
 
-local CreateLazyActionButton do
-	local buttons = {}
-	function CreateLazyActionButton(parent, templates)
-		local container = CreateFrame("Frame", nil, parent)
-		local button = securecall(CreateFrame, "Button", nil, nil, "SecureActionButtonTemplate" .. (templates and "," .. templates or ""))
-		buttons[container], container.real, button.slot = button, button, container
-		if not InCombatLockdown() then
-			button:SetParent(container)
-			button:SetAllPoints(container)
-		end
-		return container, button
-	end
-	T.CreateLazyActionButton = CreateLazyActionButton
-	EV.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-		for _,v in pairs(buttons) do
-			v:ClearAllPoints()
-			v:SetParent(nil)
-			v:Hide()
-		end
-	end)
-	EV.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-		for k,v in pairs(buttons) do
-			v:SetParent(k)
-			v:SetAllPoints()
-			v:Show()
-		end
-	end)
-end
-local CreateLazyItemButton do
-	local itemIDs = {}
-	local function OnEnter(self)
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetItemByID(itemIDs[self])
-		GameTooltip:Show()
-	end
-	local function OnLeave(self)
-		if GameTooltip:IsOwned(self) then
-			GameTooltip:Hide()
-		end
-	end
-	local function OnShow(self)
-		self.slot.Count:SetText((GetItemCount(itemIDs[self])))
-	end
-	function CreateLazyItemButton(parent, itemID)
-		local f, b = CreateLazyActionButton(parent)
-		b:SetScript("OnShow", OnShow)
-		itemIDs[b], f.itemID = itemID, itemID
-		f.Icon = b:CreateTexture(nil, "ARTWORK")
-		f.Icon:SetAllPoints()
-		f.Icon:SetTexture(GetItemIcon(itemID))
-		f.Count = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightOutline")
-		f.Count:SetPoint("BOTTOMRIGHT", -1, 2)
-		b:SetAttribute("type", "macro")
-		b:SetAttribute("macrotext", SLASH_STOPSPELLTARGET1 .. "\n" .. SLASH_USE1 .. " item:" .. itemID)
-		b:SetScript("OnEnter", OnEnter)
-		b:SetScript("OnLeave", OnLeave)
-		b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
-		b:SetPushedTexture("Interface\\Buttons\\UI-Quickslot-Depress")
-		return f,b
-	end
-	EV.RegisterEvent("BAG_UPDATE_DELAYED", function()
-		for k in pairs(itemIDs) do
-			if k:IsVisible() then
-				OnShow(k)
-			end
-		end
-	end)
-	T.CreateLazyItemButton = CreateLazyItemButton
-end
+
 
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
 local RefreshActiveMissionsView, activeMissionsHandle
@@ -149,6 +81,12 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 	GarrisonMissionFrame.followerTraits = C_Garrison.GetFollowersTraitsForMission(mi.missionID)
 	
 	GarrisonMissionPage_ClearParty()
+	if C_Garrison.GetNumFollowersOnMission(mi.missionID) > 0 then
+		local ft = C_Garrison.GetBasicMissionInfo(mi.missionID).followers
+		for i=1,#ft do
+			C_Garrison.RemoveFollowerFromMission(mi.missionID, ft[i])
+		end
+	end
 	for i=1, mi.numFollowers do
 		if f1 then
 			GarrisonMissionPage_SetFollower(mp.Followers[i], C_Garrison.GetFollowerInfo(f1))
@@ -333,7 +271,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 			end
 		end)
 	end
-	activeUI.orders = CreateLazyItemButton(activeUI, 122514) do
+	activeUI.orders = T.CreateLazyItemButton(activeUI, 122514) do
 		activeUI.orders:SetSize(28, 28)
 		activeUI.orders:SetPoint("BOTTOMRIGHT", -308, 3)
 	end
@@ -922,7 +860,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				for i=1,#f2 do
 					local fi, fid = f2[i], f2[i].followerID
 					if fi.isCollected and (fi.status or "") == "" and (fid == cur or (fid ~= a1 and fid ~= a2 and fid ~= a3)) and not T.config.ignore[fid] and not MasterPlan:GetFollowerTentativeMission(fid) then
-						mn[#mn+1] = {text=G.GetFollowerLevelDescription(fi.followerID, nil), func=Roamer_SetFollower, arg1=slot, arg2=fi.followerID, checked=cur==fi.followerID, tooltipTitle=RoamerMenu_OnMouse}
+						mn[#mn+1] = {text=G.GetFollowerLevelDescription(fi.followerID, nil), func=Roamer_SetFollower, arg1=slot, arg2=fi.followerID, checked=cur==fi.followerID, tooltipOnButton=RoamerMenu_OnMouse}
 					end
 				end
 				if cur then
@@ -954,10 +892,10 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		b:SetSize(200, 26)
 		b:SetPoint("BOTTOM", -64, 5)
 		b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-		b:SetText(L"Send Tentative Parties")
 		b:Hide()
 		b:SetScript("OnLeave", dismissTooltip)
 		b:SetScript("OnEnter", function(self)
+			if G.GetNumPendingMissionStarts() > 0 then return end
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 			GameTooltip:SetText(L"Start Missions")
 			for mid, f1, f2, f3 in MasterPlan:GetFullTentativeParties() do
@@ -989,9 +927,17 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		local synced = true
 		local function sync()
 			synced = true
-			b:SetShown(MasterPlan:HasFullTentativeParties())
-			if b:IsShown() and GameTooltip:IsOwned(b) then
-				b:GetScript("OnEnter")(b)
+			local np = G.GetNumPendingMissionStarts()
+			b:SetShown(MasterPlan:HasFullTentativeParties() or np > 0)
+			if b:IsShown() then
+				b:SetText(np == 0 and L"Send Tentative Parties" or L("%d parties remaining..."):format(np))
+				if GameTooltip:IsOwned(b) then
+					if np == 0 then
+						b:GetScript("OnEnter")(b)
+					else
+						GameTooltip:Hide()
+					end
+				end
 			end
 		end
 		EV.RegisterEvent("MP_TENTATIVE_PARTY_UPDATE", function()
@@ -1000,6 +946,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				synced = false
 			end
 		end)
+		EV.RegisterEvent("MP_MISSION_START_QUEUE", sync)
 	end
 	api.roamingParty = roamingParty
 end
@@ -1181,14 +1128,13 @@ do -- tabs
 end
 
 local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState, GetFollowerXPAward do
-	local completionMissions, expire, mark, completionFollowers = {}, {}, {}
+	local completionMissions, mark, completionFollowers = {}, {}
 
 	local function cmp(a,b)
-		local ac, bc = expire[a.missionID], expire[b.missionID]
+		local ac, bc = a.readyTime, b.readyTime
 		if (not ac) ~= (not bc) then
 			return not ac
-		end
-		if ac == bc then
+		elseif ac == bc then
 			ac, bc = strcmputf8i(a.name, b.name), 0
 		end
 		return ac < bc
@@ -1206,26 +1152,15 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 				local v = t[i]
 				if not mark[v.missionID] then
 					if j == 1 then
-						v.timeLeftSeconds = 0
-						completionMissions[#completionMissions+1] = v
+						completionMissions[#completionMissions+1], v.readyTime = v, now - 1
 					end
 					G.ExtendMissionInfoWithXPRewardData(v)
-					if v.timeLeft and not v.timeLeftSeconds then
-						v.timeLeftSeconds = G.GetSecondsFromTimeString(v.timeLeft)
-						v.readyTime = now + v.timeLeftSeconds
-					end
-					if v.timeLeftSeconds then
-						v.readyTime = time() + v.timeLeftSeconds
+					if not v.readyTime then
+						local tls = v.followers and v.followers[1] and C_Garrison.GetFollowerMissionTimeLeftSeconds(v.followers[1])
+						v.readyTime = now + (tls or v.timeLeft and G.GetSecondsFromTimeString(v.timeLeft) or v.missionID/1000)
 					end
 					rt[rn], rn, mark[v.missionID or 0] = v, rn + 1, 1
 				end
-			end
-		end
-		for i=1,rn-1 do
-			local id, tl = rt[i].missionID, rt[i].timeLeftSeconds
-			local diff = tl and expire[id] and (expire[id] - now - tl) or 1
-			if (id and tl) and (diff > 0 or diff < -60) then
-				expire[id] = now + tl
 			end
 		end
 		table.sort(rt, cmp)
@@ -1715,9 +1650,16 @@ do -- activeMissionsHandle
 		local par = self:GetParent()
 		par.banner:Hide()
 	end
+	local function RefreshTimeOnShow(self)
+		local ou = self:GetScript("OnUpdate")
+		if ou then
+			ou(self, math.huge)
+		end
+	end
 	local function CreateActiveMission()
 		local b = CreateMissionButton(44)
 		b:SetScript("OnClick", ActiveMission_OnClick)
+		b:SetScript("OnShow", RefreshTimeOnShow)
 		
 		local t = b:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 		t:SetPoint("RIGHT", -160, 0)
@@ -1763,14 +1705,23 @@ do -- activeMissionsHandle
 	
 		return b
 	end
-	local function TimerUpdate(self)
+	local function TimerUpdate(self, elapsed)
+		local te = self.throttle or 0
+		if te > elapsed then
+			self.throttle = te - elapsed
+			return
+		end
 		local mi = core:GetRowData(activeMissionsHandle, self)
 		if mi and mi.readyTime then
 			local sec = mi.readyTime - time()
-			self.status:SetText(G.GetTimeStringFromSeconds(sec))
+			if sec > 0 then
+				self.status:SetText(G.GetTimeStringFromSeconds(sec))
+			end
 			if sec < -1 then
 				self:SetScript("OnUpdate", nil)
 				RefreshActiveMissionsView(false)
+			else
+				self.throttle = sec > 60 and ((sec % 60 - 1) % 60 + 2) or 1
 			end
 		end
 	end
@@ -1781,10 +1732,11 @@ do -- activeMissionsHandle
 		self.iconBG:SetVertexColor(0, d.isRare and 0.012 or 0, d.isRare and 0.291 or 0, 0.4)
 		self.mtype:SetAtlas(d.typeAtlas)
 		self.title:SetText(d.name)
-		local tl, col, state = d.timeLeftSeconds or G.GetSecondsFromTimeString(d.timeLeft), ""
-		self:SetScript("OnUpdate", tl > 0 and tl < 60 and TimerUpdate or nil)
+		local tl, col, state = d.readyTime-time(), ""
+		self:SetScript("OnUpdate", TimerUpdate)
 		if tl > 0 then
-			state = d.timeLeft
+			TimerUpdate(self, math.huge)
+			state = G.GetTimeStringFromSeconds(tl)
 		elseif d.failed then
 			col, state = "|cffff2020", L"Failed"
 		elseif d.skipped then
@@ -1861,20 +1813,17 @@ do -- activeMissionsHandle
 		if force then
 			ClearCompletionState()
 		end
-		local am = GetActiveMissions()
-		local nextUpdate, hasComplete = 60, false
+		local am, hasComplete = GetActiveMissions(), false
 		for i=1,#am do
-			local tl, m = am[i].timeLeftSeconds, am[i]
-			if tl == 120 then
-				nextUpdate = 1
-			elseif tl == 0 and not (m.succeeded or m.failed) then
+			local m = am[i]
+			if m.readyTime <= time() and not (m.succeeded or m.failed) then
 				hasComplete = true
+				break
 			end
 		end
 		core:SetData(am, activeMissionsHandle)
 		wipe(anim)
 		activeUI.CompleteAll:SetShown(not activeUI.lootFrame:IsShown() and (hasComplete and activeUI.completionState ~= "RUNNING"))
-		activeUI.nextRefresh = nextUpdate
 		if force then
 			if #am == 0 then
 				GarrisonMissionFrame_SelectTab(1)
@@ -2147,8 +2096,8 @@ do -- availMissionsHandle
 						if slot then
 							local cur
 							for slot=slot, slot + (slot > 10 and 1 or 0) do
-								local link = GetInventoryItemLink("player", slot)
-								local l = link and select(4, GetItemInfo(link))
+								local iid = GetInventoryItemID("player", slot)
+								local l = iid and select(4, GetItemInfo(iid))
 								cur = cur and l and cur > l and l or cur or l
 							end
 							if cur and cur <= l then
@@ -2187,34 +2136,32 @@ do -- availMissionsHandle
 		local sg = d.groups
 		for i=1,#sg do
 			local b, g, text = self.groups[i], sg[i]
-			local sc = "|cffffffff" .. g[1] .. "%"
-			if g[3] and g[3] > 0 and g[1] > 0 then
-				text = floor(g[1]*g[3]/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t"
-			elseif g[9] and g[9] > 0 and g[1] > 0 and G.HasSignificantRewards(d) == "gold" then
-				local eg = g[1]*g[9]/100
+			local sc, sp = "|cffffffff" .. g[1] .. "%", g[1]/100
+			local edt, er, eg, isxp = G.GetMissionGroupDeparture(g, d), g[3]*sp, g[9]*sp
+			if er >= 1 then
+				text = ("%d |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t"):format(er)
+			elseif eg >= 1e4 and G.HasSignificantRewards(d) == "gold" then
 				text = GetMoneyString(eg - eg % 1e4)
 			else
 				local _, exp = G.GetMissionGroupXP(g, d)
 				if (exp or 0) <= 0 then
 				elseif T.config.availableMissionSort == "xptime" then
-					text = (L"%s XP/h"):format(abridge(floor(exp*3600/g[4])))
+					text, isxp = (L"%s XP/h"):format(abridge(floor(exp*3600/g[4]))), true
 				else
-					text = (L"%s XP"):format(abridge(floor(exp)))
+					text, isxp = (L"%s XP"):format(abridge(floor(exp))), true
 				end
 			end
-			local edt = G.GetMissionGroupDeparture(g, d)
 			if edt then
-				if g[3] and g[3] > 0 then
+				if text and not isxp then
 					text = text .. ", " .. sc
 				elseif sg.rankType == "threats" or not text then
 					text = sc
 				end
 				text = "|cffb0b0b0" .. FormatCountdown(edt-time()) .. ": " .. text
-				b:Disable()
 			else
 				text = (text and text .. ", " or "") .. sc
-				b:Enable()
 			end
+			b:SetEnabled(not edt)
 			b:SetText(text)
 			local bw = b:GetFontString():GetStringWidth()+14
 			bw = math.max(GetLocale():match("zh") and 125 or 110, bw)
@@ -2304,7 +2251,7 @@ do -- availMissionsHandle
 					mi.ord = g and g[field] or -math.huge
 				end
 				if MasterPlan:HasTentativeParty(mi.missionID) == C_Garrison.GetMissionMaxFollowers(mi.missionID) then
-					mi.ord0 = 1
+					mi.ord0 = -1
 				end
 				mi.reqCheckFailed = checkReq and (mi.numFollowers > nf or mi.cost > nr)
 			end
@@ -2693,7 +2640,29 @@ do -- interestMissionsHandle
 		{132, 107, 175, s={100, 2, 21600, 824, 15, 4, 6}}, -- The Basilisk's Stare
 		{133, 101, 175, s={100, 2, 21600, 824, 18, 3, 8}}, -- Elemental Territory
 		{503, 105,   1, s={675, 2, 21600, 123858, 11, 1, 2, 3, 6, 10}}, -- Lessons of the Blade
-		{361, 102, 5e6, s={100, 3, 36000, 0, 25, 2, 3, 7, 9}}, -- Blingtron's Secret Vault
+		{361, 102, 500e4, s={100, 3, 36000, 0, 25, 2, 3, 7, 9}}, -- Blingtron's Secret Vault
+		{214, 104, 275e4, s={99, 3, 7200, 0, 11, 3, 10, 10}}, -- A Way Out
+		{213, 104, 250e4, s={98, 3, 7200, 0, 11, 1, 2, 8}}, -- Fired Up
+		{212, 107, 225e4, s={97, 3, 6750, 0, 15, 1, 2, 10}}, -- Cat Scratch Fever
+		{211, 107, 200e4, s={96, 3, 6750, 0, 19, 1, 3, 10}}, -- Peace unto You
+		{210, 105, 175e4, s={95, 3, 5400, 0, 14, 4, 8, 10}}, -- Flock Together
+		{397, 106, 150e4, s={675, 2, 36000, 0, 26, 2, 4, 8, 10}}, -- Green Fel
+		{379, 107, 150e4, s={90, 2, 28800, 0, 21, 1, 2, 6, 10}}, -- Too Much Business
+		{288, 107, 150e4, s={100, 3, 21600, 0, 14, 2, 6, 8, 9}}, -- The Golden Halls of Skyreach
+		{209, 105, 150e4, s={94, 3, 5400, 0, 11, 1, 3, 10}}, -- Lending a Hand
+		{208, 103, 125e4, s={93, 3, 5400, 0, 12, 6, 6, 7}}, -- Elements of Surprise
+		{304, 104, 100e4, s={630, 3, 28800, 0, 25, 1, 3, 7, 10}}, -- Spored to Death
+		{302, 101, 100e4, s={630, 3, 21600, 0, 12, 3, 6, 8, 9}}, -- Shafted Miners
+		{306, 103, 100e4, s={630, 3, 28800, 0, 17, 2, 6, 8, 9}}, -- Rollin' like a Kraken
+		{303, 103, 100e4, s={630, 3, 21600, 0, 11, 3, 6, 7, 10}}, -- Got a Light?
+		{305, 106, 100e4, s={630, 3, 28800, 0, 19, 1, 6, 7, 8}}, -- Ghost Wranglers
+		{284, 101, 100e4, s={100, 2, 21600, 0, 23, 4, 8}}, -- Ug'lok the Incompetent
+		{285, 106, 100e4, s={100, 2, 21600, 0, 20, 7, 8}}, -- The One True Brambleking
+		{289, 106, 100e4, s={100, 2, 21600, 0, 26, 1, 2}}, -- Profitable Machinations
+		{334, 104, 100e4, s={100, 3, 36000, 0, 12, 1, 2, 2}}, -- Mogor's Dilemma
+		{286, 103, 100e4, s={100, 2, 21600, 0, 11, 2, 9}}, -- Lost in the Foundry
+		{287, 103, 100e4, s={100, 2, 21600, 0, 22, 2, 6}}, -- Blackrock Munitions
+		{207, 103, 100e4, s={92, 3, 5400, 0, 20, 1, 2, 9}}, -- Environmental Hazard
 		{407, 105,   3, s={100, 3, 86000, 115280, 13, 3, 4, 6, 8, 8}}, -- Tower of Terror
 		{405, 102,   3, s={100, 3, 86000, 115280, 20, 1, 2, 4, 7, 9}}, -- Lost in the Weeds
 		{403, 104,   3, s={100, 3, 86000, 115280, 27, 3, 6, 7, 8}}, -- Rock the Boat
@@ -2750,8 +2719,11 @@ do -- interestMissionsHandle
 		end
 		for i=1,#missions do
 			local b = missions[i].best
+			local muf = b and b.used
 			for j=1, b and missions[i].s[2] or 0 do
-				uf[b[j] or 0] = nil
+				if muf % (2^j) >= 2^(j-1) then
+					uf[b[j] or 0] = nil
+				end
 			end
 		end
 		for k in pairs(uf) do
@@ -2784,6 +2756,7 @@ do -- interestMissionsHandle
 		end
 	end)
 	EV.RegisterEvent("MP_RELEASE_CACHES", function()
+		interestMissionsHandle.ident = nil
 		for i=1,#missions do
 			missions[i].best = nil
 		end
@@ -2808,14 +2781,6 @@ do -- RefreshActiveMissionsView
 	end
 	activeUI:SetScript("OnShow", RefreshActiveMissionsView)
 end
-activeUI:SetScript("OnUpdate", function(self, elapsed)
-	local nr = self.nextRefresh or 0
-	if nr < elapsed then
-		RefreshActiveMissionsView()
-	else
-		self.nextRefresh = nr - elapsed
-	end
-end)
 EV.RegisterEvent("GET_ITEM_INFO_RECEIVED", function()
 	if core:IsShown() then
 		core:Refresh()

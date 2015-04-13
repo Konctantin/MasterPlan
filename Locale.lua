@@ -1,6 +1,6 @@
 local L, _, T = GetLocale(), ...
 
--- See http://wow.curseforge.com/addons/master-plan/localization/
+-- See http://townlong-yak.com/master-plan/localization
 T.L =
 L == "deDE" and {
 	["*"] = "*",
@@ -37,6 +37,7 @@ L == "deDE" and {
 	["Idle (max-level)"] = "untätig (Höchststufe)",
 	Ignore = "Ignorieren",
 	Ignored = "Ignoriert",
+	Instant = "unmittelbar",
 	["In Tentative Party"] = "In vorläufiger Gruppe",
 	["Last offered: %s ago"] = "Zuletzt abgeschlossen: Vor %s",
 	["Mission duration"] = "Missionsdauer",
@@ -49,10 +50,13 @@ L == "deDE" and {
 	Ready = "Bereit",
 	["Redundant followers:"] = "Nicht benötigte Anhänger:",
 	["Reward: %s XP"] = "Belohnung: %s EP",
+	["Right-click to clear all tentative parties."] = "Rechts-Klick um alle vorläufigen Gruppen zu löschen",
 	["Select a follower to focus on"] = "Wähle einen Anhänger, den du in den Mittelpunkt stellen möchtest",
+	["Send Tentative Parties"] = "Vorläufige Gruppen senden",
 	["+%s experience expected"] = "+%s Erfahrung erwartet",
 	["%sk"] = "%sk",
 	Skipped = "Übersprungen",
+	["Start Missions"] = "Missionen starten",
 	Success = "Erfolgreich",
 	["Success chance"] = "Erfolgschance",
 	["Suggested groups"] = "Vorgeschlagene Gruppen",
@@ -60,7 +64,14 @@ L == "deDE" and {
 	["%s XP gained"] = "%s EP erhalten",
 	["%s XP/h"] = "%s EP/h",
 	["This follower could counter the following threats:"] = "Dieser Anhänger könnte folgende Gefahren kontern:",
+	["Time Horizon"] = "Zeithorizont",
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[Die erwatete Zeit bis du zum nächsten mal mit Garnison Missionen interagieren kannst.
+
+Dies kann die vorgeschlagen Gruppen und Mission-Sortierreihenfolge beeinflussen.]=],
 	Unignore = "Einbeziehen",
+	["Unique ability rerolls:"] = "Einzigartige Fähigkeit neu würfeln:",
 	["View Rewards"] = "Belohnungen ansehen",
 	["You have no followers to counter this mechanic."] = "Du hast keine Begleiter, die diese Fähigkeit kontern können.",
 	["You have no followers who activate this trait."] = "Du hast keine Anhänger die diese Eigenschaft auslösen.",
@@ -132,6 +143,11 @@ L == "esES" and {
 	["%s XP/h"] = "%s XP/h",
 	["This follower could counter the following threats:"] = "Este seguidor podría contrarrestar estas amenazas:",
 	["Time Horizon"] = "Tiempo Previsto",
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[Tiempo hasta la siguiente vez que puedas interactuar con las misiones de la ciudadela.
+
+Esto puede afectar a los grupos sugeridos y el ordenamiento de las misiones.]=],
 	Unignore = "Quitar Ignorar",
 	["Unique ability rerolls:"] = "Reasignación de habilidades únicas:",
 	["View Rewards"] = "Mostrar Recompensas",
@@ -177,6 +193,7 @@ L == "esMX" and {
 	["Idle (max-level)"] = "Desocupado (nivel-max)",
 	Ignore = "Ignorar",
 	Ignored = "Ignorado",
+	Instant = "Instantáneo",
 	["In Tentative Party"] = "En Grupo Tentativo",
 	["Last offered: %s ago"] = "Últimos completados: hace %s",
 	["Mission duration"] = "Duración de la misión",
@@ -203,6 +220,13 @@ L == "esMX" and {
 	["%s XP gained"] = "%s EXP ganada",
 	["%s XP/h"] = "%s EXP/h",
 	["This follower could counter the following threats:"] = "Este seguidor podría contrarrestar las siguientes amenazas:",
+	["Time Horizon"] = "Horizonte temporal",
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[Cantidad de tiempo que pasará hasta que puedas interactuar con las misiones de la fortaleza.
+
+Esto puede afectar las sugerencias de grupos y el ordenamiento de las misiones.
+]=],
 	Unignore = "Quitar Ignorar",
 	["Unique ability rerolls:"] = "Probabilidad de combo unico",
 	["View Rewards"] = "Mostrar Recompensas",
@@ -227,6 +251,7 @@ L == "frFR" and {
 	["Complete Missions"] = "Terminer les missions",
 	["Complete party"] = "Groupe complet",
 	["%dh %dm"] = "%d h %d m ",
+	["+%d Inactive (hold ALT to view)"] = "+%d inactif (maintenez ALT pour afficher)",
 	Done = "Terminé",
 	["%d%% success chance"] = "%d%% chances de succès",
 	["Duplicate counters"] = "Contre-attaque en double",
@@ -242,10 +267,12 @@ L == "frFR" and {
 	["Future Mission #%d"] = "Future mission #%d",
 	["Garrison resources"] = "ressources de fief",
 	["Group %d"] = "Groupe %d",
+	["Group suggestions will be updated to include the selected follower."] = "Les suggestions de groupe seront mise à jour pour inclure le sujet sélectionné.",
 	Idle = "inactif(s)",
 	["Idle (max-level)"] = "inactif(s) (niv maxi)",
 	Ignore = "Ignorer",
 	Ignored = "Ignoré",
+	Instant = "Instantané",
 	["In Tentative Party"] = "En équipe provisoire",
 	["Last offered: %s ago"] = "Finie il y a %s",
 	["Mission duration"] = "durée de mission",
@@ -258,9 +285,13 @@ L == "frFR" and {
 	Ready = "Prêt",
 	["Redundant followers:"] = "Sujets en surnombre :",
 	["Reward: %s XP"] = "Récompense : %s d'EXP",
+	["Right-click to clear all tentative parties."] = "Faites un clic droit pour effacer tous les groupes provisoires.",
+	["Select a follower to focus on"] = "Choisissez un sujet sur lequel se concentrer.",
+	["Send Tentative Parties"] = "Envoyer les groupes provisoires",
 	["+%s experience expected"] = "Expérience attendue : +%s",
 	["%sk"] = "%s k",
 	Skipped = "Passé",
+	["Start Missions"] = "Commencer les missions",
 	Success = "Réussite",
 	["Success chance"] = "Chances de réussite",
 	["Suggested groups"] = "Groupes suggérés",
@@ -268,7 +299,14 @@ L == "frFR" and {
 	["%s XP gained"] = "%s EXP gagnés",
 	["%s XP/h"] = "%s EXP/h",
 	["This follower could counter the following threats:"] = "Ce sujet peut contrecarrer les menaces suivantes :",
+	["Time Horizon"] = "Horizon temporel",
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[Temps restant supposé avant de pouvoir interagir avec les missions du fief.
+
+Peut affecter la suggestion de groupes et l'ordre de tri des missions.]=],
 	Unignore = "Ne pas ignorer",
+	["Unique ability rerolls:"] = "Relance des capacités spéciales :",
 	["View Rewards"] = "Voir les récompenses",
 	["You have no followers to counter this mechanic."] = "Vous n'avez aucun sujet pour contrer cette menace.",
 	["You have no followers who activate this trait."] = "Vous n'avez pas de sujet avec ce profil.",
@@ -588,6 +626,7 @@ L == "zhCN" and {
 	["Idle (max-level)"] = "空闲（满级）",
 	Ignore = "忽略",
 	Ignored = "已忽略",
+	Instant = "立即",
 	["In Tentative Party"] = "在预设队伍中",
 	["Last offered: %s ago"] = "上次下单：%s 前",
 	["Mission duration"] = "任务时间",
@@ -600,10 +639,13 @@ L == "zhCN" and {
 	Ready = "就绪",
 	["Redundant followers:"] = "多余的追随者：",
 	["Reward: %s XP"] = "奖励：%s 经验",
+	["Right-click to clear all tentative parties."] = "右击清除全部暂选队伍。",
 	["Select a follower to focus on"] = "选择一个重点追随者",
+	["Send Tentative Parties"] = "派遣暂选队伍",
 	["+%s experience expected"] = "预计 +%s 经验",
 	["%sk"] = "%sk",
 	Skipped = "已忽略",
+	["Start Missions"] = "开始任务",
 	Success = "成功",
 	["Success chance"] = "成功几率",
 	["Suggested groups"] = "推荐组合",
@@ -611,7 +653,14 @@ L == "zhCN" and {
 	["%s XP gained"] = "获得 %s 经验",
 	["%s XP/h"] = "%s 经验/时",
 	["This follower could counter the following threats:"] = "此追随者能够应对以下威胁：",
+	["Time Horizon"] = "时间跨度",
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[距离下次希望能够与要塞任务进行交互的时间。
+
+这可能会影响建议的队伍和任务排序顺序。]=],
 	Unignore = "取消忽略",
+	["Unique ability rerolls:"] = "重选独特技能：",
 	["View Rewards"] = "查看奖励",
 	["You have no followers to counter this mechanic."] = "你没有追随者应对这种威胁。",
 	["You have no followers who activate this trait."] = "没有追随者激活这个专长。",
@@ -655,6 +704,7 @@ L == "zhTW" and {
 	["Idle (max-level)"] = "閒置(最高等級)",
 	Ignore = "忽略",
 	Ignored = "已忽略",
+	Instant = "馬上",
 	["In Tentative Party"] = "在暫定隊伍中",
 	["Last offered: %s ago"] = "最後完成：%s前",
 	["Mission duration"] = "任務持續時間",
@@ -681,6 +731,12 @@ L == "zhTW" and {
 	["%s XP gained"] = "獲得 %s 經驗值",
 	["%s XP/h"] = "%s 每小時經驗值",
 	["This follower could counter the following threats:"] = "此追隨者將可能反制以下威脅：",
+	["Time Horizon"] = "時間範圍",
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[距離你下次能回來與指派要塞任務的時間。
+
+這可能會改變建議的隊伍和任務排序。]=],
 	Unignore = "解除忽略",
 	["Unique ability rerolls:"] = "非重複組合機會:",
 	["View Rewards"] = "檢視獎勵",

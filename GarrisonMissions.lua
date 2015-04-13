@@ -1,5 +1,5 @@
 local _, T = ...
-if T.Mark ~= 23 then return end
+if T.Mark ~= 40 then return end
 local EV, G, L = T.Evie, T.Garrison, T.L
 
 local roamingParty, easyDrop = T.MissionsUI.roamingParty, T.MissionsUI.easyDrop
