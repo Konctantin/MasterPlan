@@ -898,16 +898,20 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			if G.GetNumPendingMissionStarts() > 0 then return end
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 			GameTooltip:SetText(L"Start Missions")
-			for mid, f1, f2, f3 in MasterPlan:GetFullTentativeParties() do
-				local p1,p2,p3 = f1,f2,f3
-				while p1 do
-					p1,p2,p3 = p2, p3, C_Garrison.AddFollowerToMission(mid, p1) and nil
-				end
-				local sc = select(4,C_Garrison.GetPartyMissionInfo(mid))
-				GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(mid), sc .. "%", 1,1,1,1,1,1)
-				p1,p2,p3 = f1,f2,f3
-				while p1 do
-					p1,p2,p3 = p2, p3, C_Garrison.RemoveFollowerFromMission(mid, p1) and nil
+			if C_Garrison.IsAboveFollowerSoftCap() then
+				GameTooltip:AddLine(GARRISON_MAX_FOLLOWERS_MISSION_TOOLTIP, 1, 0, 0, 1)
+			else
+				for mid, f1, f2, f3 in MasterPlan:GetFullTentativeParties() do
+					local p1,p2,p3 = f1,f2,f3
+					while p1 do
+						p1,p2,p3 = p2, p3, C_Garrison.AddFollowerToMission(mid, p1) and nil
+					end
+					local sc = select(4,C_Garrison.GetPartyMissionInfo(mid))
+					GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(mid), sc .. "%", 1,1,1,1,1,1)
+					p1,p2,p3 = f1,f2,f3
+					while p1 do
+						p1,p2,p3 = p2, p3, C_Garrison.RemoveFollowerFromMission(mid, p1) and nil
+					end
 				end
 			end
 			GameTooltip:AddLine("|n" .. L"Right-click to clear all tentative parties.")
@@ -916,12 +920,13 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		b:SetScript("OnClick", function(_, button)
 			if button == "RightButton" then
 				MasterPlan:DissolveAllMissions()
-				return
+				PlaySound("UChatScrollButton")
+			elseif not C_Garrison.IsAboveFollowerSoftCap() then
+				for mid, p1, p2, p3 in MasterPlan:GetFullTentativeParties() do
+					G.StartMissionQueue(mid, p1, p2, p3)
+				end
+				PlaySound("UI_Garrison_CommandTable_MissionStart")
 			end
-			for mid, p1, p2, p3 in MasterPlan:GetFullTentativeParties() do
-				G.StartMissionQueue(mid, p1, p2, p3)
-			end
-			PlaySound("UI_Garrison_CommandTable_MissionStart")
 		end)
 		
 		local synced = true
@@ -2186,6 +2191,9 @@ do -- availMissionsHandle
 				ac, bc = a.ord, b.ord
 			end
 			if ac == bc then
+				ac, bc = a.ord1, b.ord1
+			end
+			if ac == bc then
 				ac, bc = a.level, b.level
 			end
 			if ac == bc then
@@ -2233,7 +2241,8 @@ do -- availMissionsHandle
 			for i=1, #missions do
 				local mi, g = missions[i]
 				local sg = groupCache[mi.missionID]
-				mi.groups, g, mi.ord0 = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or nil, 0
+				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or nil
+				mi.ord0, mi.ord1 = 0, max(1e-10, g[1])*((G.HasSignificantRewards(mi) == true and 1 or g[3])*1e8 + g[9])
 				
 				if order == "duration" then
 					mi.ord = -mi.durationSeconds
@@ -2241,7 +2250,8 @@ do -- availMissionsHandle
 					local max = mi.offerEndTime or G.GetMissionSeen(mi.missionID, mi)
 					mi.ord = (max or -1) >= 0 and -floor(max/1800) or -math.huge
 				elseif order == "level" then
-					mi.ord = 0
+					local i, l = mi.iLevel, mi.level
+					mi.ord = l == 100 and i > 600 and i or l
 				elseif order == "threats2" then
 					mi.ord = g and g[1] == 100 and computeThreat(mi) or -1
 				elseif g and (order == "xp" or order == "xptime") then
@@ -2460,8 +2470,9 @@ do -- interestMissionsHandle
 		t:SetPoint("TOP", b.level, "BOTTOM", 0, -1)
 		t:SetAlpha(0.8)
 		t, b.fc = b:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge"), t
-		t:SetPoint("RIGHT", -70, 0)
 		t, b.chance = b:CreateFontString(nil, "ARTWORK", "GameFontNormal"), t
+		t:SetPoint("TOP", b.chance, "BOTTOM", 0, -1)
+		t, b.fstack = b:CreateFontString(nil, "ARTWORK", "GameFontNormal"), t
 		t:SetPoint("TOPLEFT", b.title, "BOTTOMLEFT", 0, -2)
 		t, b.seen = {}, t
 		for i=1,7 do
@@ -2512,6 +2523,7 @@ do -- interestMissionsHandle
 		self.title:SetText("")
 		self.seen:SetText("")
 		self.chance:SetText("")
+		self.fstack:SetText("")
 		self.mtype:SetTexture(0,0,0,0)
 		unusedFollowers:SetParent(self)
 		unusedFollowers:SetPoint("BOTTOM")
@@ -2603,6 +2615,16 @@ do -- interestMissionsHandle
 			self.chance:SetTextColor(0, 1, 0)
 		else
 			self.chance:SetTextColor(1, 0.55, 0)
+		end
+		if best and best[4] and nf > 0 then
+			self.chance:SetPoint("RIGHT", -70, 6)
+			self.fstack:SetText(best[4] .. "/" .. nf)
+			local r, g, b = 0.1, 1, 0.1
+			if best[4] < nf then r, g, b = 1, 0.55, 0 end
+			self.fstack:SetTextColor(r,g,b)
+		else
+			self.chance:SetPoint("RIGHT", -70, 0)
+			self.fstack:SetText("")
 		end
 		
 		local r, rt = self.rewards[1], mappedRewards[s[4]] or s[4]

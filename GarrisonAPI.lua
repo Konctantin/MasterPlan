@@ -974,8 +974,7 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion do -- +api.GetSugge
 					end
 				end
 			end
-			ret1 = balanced + risk * (conf.xpPerCopper * g[9] + conf.xpPerResource * g[3]) + (api.HasSignificantRewards(minfo) == true and conf.xpWithToken or 0)
-			ret2 = floor(expected)
+			ret1, ret2 = balanced, floor(expected)
 			equivXP[g], expectedXP[g] = ret1, ret2
 		end
 		return ret1, ret2
@@ -1706,7 +1705,8 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 				end
 			end
 			
-			bt[4] = traits[ts[mi[4]]] or 0
+			local rtid = ts[mi[4]]
+			bt[4] = rtid and (traits[rtid] or 0) or nil
 			bt.used = (best[8] and 1 or 0) + (best[9] and 2 or 0) + (best[10] and 4 or 0)
 			bt.ttrait, bt.dtrait = mi[3]*2^-(traits[221] or 0) >= 25200 and 76 or 77
 			local lc, cn, h
