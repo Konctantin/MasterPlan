@@ -610,6 +610,7 @@ L == "zhCN" and {
 	["%dh %dm"] = "%d时 %d分",
 	["+%d Inactive (hold ALT to view)"] = "+%d 未激活（按 Alt 查看）",
 	Done = "完成",
+	["%d parties remaining..."] = "%d 队伍剩余…",
 	["%d%% success chance"] = "%d%% 成功几率",
 	["Duplicate counters"] = "重复应对",
 	["Epic Ability"] = "史诗技能",

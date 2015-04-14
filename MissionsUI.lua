@@ -2225,24 +2225,21 @@ do -- availMissionsHandle
 			wipe(used)
 			return ret < 0 and -1 or 0
 		end
-		local fields = {threats=1}
-		function GetAvailableMissions()
-			local order, missions, droppedMissionCost = T.config.availableMissionSort, G.GetAvailableMissions()
+		local fields, eg, srv = {threats=1}, {0, [3]=0, [9]=0}, {gold=1, [true]=2, resource=3}
+		local function sortMissions(missions, nf, nr)
+			local order, horizon = T.config.availableMissionSort, T.config.timeHorizon
 			local field = fields[order] or 1
 			local groupCache = G.GetSuggestedMissionGroups(missions, roamingParty:GetFollowers())
 			if order == "threats2" then
 				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
 			end
-			
-			local nf, nr = GetAvailableResources(droppedMissionCost)
 			local checkReq = (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire"
-			local horizon = T.config.timeHorizon
 			
 			for i=1, #missions do
 				local mi, g = missions[i]
-				local sg = groupCache[mi.missionID]
-				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or nil
-				mi.ord0, mi.ord1 = 0, max(1e-10, g[1])*((G.HasSignificantRewards(mi) == true and 1 or g[3])*1e8 + g[9])
+				local sg, sr = groupCache[mi.missionID], G.HasSignificantRewards(mi)
+				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or eg
+				mi.ord0, mi.ord1 = 0, max(g[1]*(g[3]*1e8 + g[9]), sr == true and g[1]*1e8 or 0, srv[sr] or 0)
 				
 				if order == "duration" then
 					mi.ord = -mi.durationSeconds
@@ -2253,12 +2250,12 @@ do -- availMissionsHandle
 					local i, l = mi.iLevel, mi.level
 					mi.ord = l == 100 and i > 600 and i or l
 				elseif order == "threats2" then
-					mi.ord = g and g[1] == 100 and computeThreat(mi) or -1
-				elseif g and (order == "xp" or order == "xptime") then
+					mi.ord = g[1] == 100 and computeThreat(mi) or -1
+				elseif g[4] and (order == "xp" or order == "xptime") then
 					local xp = G.GetMissionGroupXP(g, mi) or 0
 					mi.ord = order == "xptime" and xp/max(g[4], horizon) or xp
 				else
-					mi.ord = g and g[field] or -math.huge
+					mi.ord = g[4] and g[field] or -math.huge
 				end
 				if MasterPlan:HasTentativeParty(mi.missionID) == C_Garrison.GetMissionMaxFollowers(mi.missionID) then
 					mi.ord0 = -1
@@ -2266,6 +2263,10 @@ do -- availMissionsHandle
 				mi.reqCheckFailed = checkReq and (mi.numFollowers > nf or mi.cost > nr)
 			end
 			table.sort(missions, cmp)
+		end
+		function GetAvailableMissions()
+			local missions, droppedMissionCost = G.GetAvailableMissions()
+			securecall(sortMissions, missions, GetAvailableResources(droppedMissionCost))
 			cinfo, finfo = nil
 			GarrisonMissionFrame.MissionTab.MissionList.EmptyListString:SetText(#missions > 0 and "" or GARRISON_EMPTY_MISSION_LIST)
 			return missions
