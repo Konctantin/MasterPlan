@@ -5,15 +5,15 @@ if T.Mark ~= 40 then
 	return print("|cffffffff[Master Plan]: |cffff8000" .. m)
 end
 
-do -- Localizer stub
-	local LL, L = type(T.L) == "table" and T.L or {}, newproxy(true)
+local L = newproxy(true) do
+	local LL = type(T.L) == "table" and T.L or {}
 	getmetatable(L).__call = function(_, k)
 		return LL[k] or k
 	end
 	T.L = L
 end
 
-local conf, api = setmetatable({}, {__index={
+local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	availableMissionSort="xp",
 	sortFollowers=true,
 	batchMissions=true,
@@ -28,46 +28,48 @@ local conf, api = setmetatable({}, {__index={
 	legendStep=0,
 	timeHorizon=0,
 	timeHorizonMin=300,
+	crateLevelGrace=25,
 	ignore={},
 	complete={},
 }})
 T.config, api = conf, setmetatable({}, {__index={GarrisonAPI=T.Garrison}})
 
-T.Evie.RegisterEvent("ADDON_LOADED", function(_, addon)
-	if addon == addonName then
-		T.Evie.RegisterEvent("PLAYER_LOGOUT", function()
-			local complete = securecall(T._GetMissionSeenTable)
-			MasterPlanPC, conf.ignore, conf.complete = conf, next(conf.ignore) and conf.ignore, complete or conf.complete
-		end)
-		
-		local pc
-		if type(MasterPlanPC) == "table" then
-			pc, MasterPlanPC = MasterPlanPC
-		else
-			pc = {}
-		end
-		
-		if type(pc.lastCacheTime) == "number" then -- TODO:TEMP
-			MasterPlanA.data.lastCacheTime = MasterPlanA.data.lastCacheTime or pc.lastCacheTime
-		end
-		
-		for k,v in pairs(pc) do
-			local tv = type(v)
-			if k ~= "ignore" and k ~= "complete" and tv == type(conf[k]) then
-				conf[k] = v
-			elseif k == "ignore" and tv == "table" then
-				for k,v in pairs(v) do
-					conf.ignore[k] = v
-				end
+function EV:ADDON_LOADED(addon)
+	if addon ~= addonName then
+		return
+	end
+	function EV:PLAYER_LOGOUT()
+		local complete = securecall(T._GetMissionSeenTable)
+		MasterPlanPC, conf.ignore, conf.complete = conf, next(conf.ignore) and conf.ignore, complete or conf.complete
+	end
+	
+	local pc
+	if type(MasterPlanPC) == "table" then
+		pc, MasterPlanPC = MasterPlanPC
+	else
+		pc = {}
+	end
+	
+	if type(pc.lastCacheTime) == "number" then -- TODO:TEMP
+		MasterPlanA.data.lastCacheTime = MasterPlanA.data.lastCacheTime or pc.lastCacheTime
+	end
+	
+	for k,v in pairs(pc) do
+		local tv = type(v)
+		if k ~= "ignore" and k ~= "complete" and tv == type(conf[k]) then
+			conf[k] = v
+		elseif k == "ignore" and tv == "table" then
+			for k,v in pairs(v) do
+				conf.ignore[k] = v
 			end
 		end
-		T._SetMissionSeenTable(pc.complete)
-		conf.version = GetAddOnMetadata(addonName, "Version")
-		T.Evie.RaiseEvent("MP_SETTINGS_CHANGED")
-		
-		return "remove"
 	end
-end)
+	T._SetMissionSeenTable(pc.complete)
+	conf.version = GetAddOnMetadata(addonName, "Version")
+	EV("MP_SETTINGS_CHANGED")
+	
+	return "remove"
+end
 
 function api:GetSortFollowers()
 	return conf.sortFollowers
@@ -75,13 +77,13 @@ end
 function api:SetSortFollowers(sort)
 	assert(type(sort) == "boolean", 'Syntax: MasterPlan:SetSortFollowers(sort)')
 	conf.sortFollowers = sort
-	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "sortFollowers")
+	EV("MP_SETTINGS_CHANGED", "sortFollowers")
 end
 
 function api:SetMissionOrder(order)
 	assert(type(order) == "string", 'Syntax: MasterPlan:SetMissionOrder("order")')
 	conf.availableMissionSort = order
-	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "availableMissionSort")
+	EV("MP_SETTINGS_CHANGED", "availableMissionSort")
 end
 function api:GetMissionOrder()
 	return conf.availableMissionSort
@@ -89,13 +91,13 @@ end
 function api:SetTimeHorizon(sec)
 	assert(type(sec) == "number" and sec >= 0, 'Syntax: MasterPlan:SetTimeHorizon(sec)')
 	conf.timeHorizon = sec
-	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "timeHorizon")
+	EV("MP_SETTINGS_CHANGED", "timeHorizon")
 end
 
 function api:SetBatchMissionCompletion(batch)
 	assert(type(batch) == "boolean", 'Syntax: MasterPlan:SetBatchMissionCompletion(batch)')
 	conf.batchMissions = batch
-	T.Evie.RaiseEvent("MP_SETTINGS_CHANGED", "batchMissions")
+	EV("MP_SETTINGS_CHANGED", "batchMissions")
 end
 function api:GetBatchMissionCompletion()
 	return conf.batchMissions
@@ -109,7 +111,7 @@ local function dissolve(mid, doNotUpdate)
 		local f1, f2, f3 = p[1], p[2], p[3]
 		parties[mid], tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = nil
 		if not doNotUpdate then
-			T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+			EV("MP_TENTATIVE_PARTY_UPDATE")
 		end
 		return f1, f2, f3
 	end
@@ -134,7 +136,7 @@ function api:SaveMissionParty(mid, f1, f2, f3)
 	if not f1 then f1, f2, f3 = f2, f3 end
 	parties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
 	tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
-	T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+	EV("MP_TENTATIVE_PARTY_UPDATE")
 end
 function api:HasTentativeParty(mid)
 	local p = parties[mid]
@@ -160,16 +162,16 @@ function api:DissolveAllMissions()
 	if next(parties) or next(tentativeState) then
 		wipe(parties)
 		wipe(tentativeState)
-		T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
+		EV("MP_TENTATIVE_PARTY_UPDATE")
 	end
 end
-T.Evie.RegisterEvent("MP_MISSION_START", function(mid, f1, f2, f3)
+function EV:MP_MISSION_START(mid, f1, f2, f3)
 	dissolve(mid, true)
 	dissolve(tentativeState[f1], true)
 	dissolve(tentativeState[f2], true)
 	dissolve(tentativeState[f3], true)
-	T.Evie.RaiseEvent("MP_TENTATIVE_PARTY_UPDATE")
-end)
+	EV("MP_TENTATIVE_PARTY_UPDATE")
+end
 
 function api:IsFollowerIgnored(fid)
 	return not not conf.ignore[fid]

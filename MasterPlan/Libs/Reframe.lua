@@ -86,3 +86,5 @@ local CreateLazyItemButton do
 	end
 	T.CreateLazyItemButton = CreateLazyItemButton
 end
+
+ShoppingTooltip1TextLeft3:SetJustifyH("LEFT")
