@@ -334,6 +334,8 @@ local lfgButton do
 			local mm = G.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 			if mm and #mm > 1 then
 				easyDrop:Open(self, mm, "TOPRIGHT", self, "TOPLEFT", -2, 12)
+			else
+				self:Hide()
 			end
 		end
 	end)
@@ -363,7 +365,7 @@ do -- Mission details close button size [6.1]
 	GarrisonMissionFrame.MissionTab.MissionPage.CloseButton:SetPoint("TOPRIGHT", 2, 2)
 end
 do -- Minimize mission
-	local min = CreateFrame("Button", nil, GarrisonMissionFrame.MissionTab.MissionPage, "UIPanelCloseButton")
+	local min = CreateFrame("Button", nil, GarrisonMissionFrame.MissionTab.MissionPage, "UIPanelCloseButtonNoScripts")
 	GarrisonMissionFrame.MissionTab.MissionPage.MinimizeButton = min
 	min:SetNormalTexture("Interface\\Buttons\\UI-Panel-HideButton-Up")
 	min:SetPushedTexture("Interface\\Buttons\\UI-Panel-HideButton-Down")

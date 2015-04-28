@@ -190,12 +190,34 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		pushStart(id, f1, f2, f3, true)
 		EV("MP_MISSION_START", id, f1, f2, f3)
 	end
+	local function releaseToTentative(mid, f1, f2, f3)
+		for i=1,3 do
+			if f1 then
+				C_Garrison.RemoveFollowerFromMission(mid, f1)
+				dropFollowers[f1] = nil
+			end
+			f1, f2, f3 = f2, f3, f1
+		end
+	end
+	function api.AbortMissionQueue()
+		if startQueueSize > 0 then
+			for k,v in pairs(startQueue) do
+				missionEndTime[k], startQueue[k], complete[k] = nil
+				securecall(releaseToTentative, k, v[1], v[2], v[3])
+				securecall(MasterPlan.SaveMissionParty, MasterPlan, k, v[1], v[2], v[3])
+			end
+			startQueueSize = 0
+			EV("MP_MISSION_START_QUEUE", startQueueSize)
+		end
+	end
 	function api.GetNumPendingMissionStarts()
 		return startQueueSize
 	end
 	function EV:GARRISON_MISSION_STARTED(id)
-		startQueueSize, startQueue[id] = startQueueSize - (startQueue[id] and 1 or 0)
-		EV("MP_MISSION_START_QUEUE", startQueueSize)
+		if startQueueSize > 0 then
+			startQueueSize, startQueue[id] = startQueueSize - (startQueue[id] and 1 or 0)
+			EV("MP_MISSION_START_QUEUE", startQueueSize)
+		end
 	end
 	function EV:GARRISON_MISSION_NPC_CLOSED()
 		wipe(complete)
@@ -445,7 +467,7 @@ function api.GetFollowerLevelDescription(fid, mlvl, fi, mentor, mid)
 	local tooLow, q = api.GetLevelEfficiency(api.GetFMLevel(fi, mentor), mlvl) < 0.5, fi and fi.quality or 0
 	local lc, away = ITEM_QUALITY_COLORS[tooLow and 0 or q].hex, fi.missionEndTime
 	if fi.status == GARRISON_FOLLOWER_INACTIVE then
-		away = RED_FONT_COLOR_CODE .. " (" .. GARRISON_FOLLOWER_INACTIVE .. ")"
+		away = "|cffccc78f (" .. GARRISON_FOLLOWER_INACTIVE .. ")"
 	elseif fi.status == GARRISON_FOLLOWER_WORKING then
 		away = YELLOW_FONT_COLOR_CODE .. " (" .. GARRISON_FOLLOWER_WORKING .. ")"
 	elseif away then
@@ -1350,7 +1372,7 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 		local hasPartialParty = np > 0 and np < nf
 		local rank, rt = api.GetMissionDefaultGroupRank(mi)
 		local trank = rt ~= "threats" and api.GroupRank.threats2
-		local ag, fg, pg, ds = api.GetMissionGroups(mid), {}, hasPartialParty and {}, mi.durationSeconds
+		local ag, fg, pg, ds = api.GetMissionGroups(mid), {}, hasPartialParty and {} or nil, mi.durationSeconds
 		for i=1,#ag do
 			local ok, g = true, ag[i]
 			for i=5,fin do
@@ -1390,7 +1412,7 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 				end
 			end
 		end
-		if fg[1] == nil and (pg == nil or pg[1] == nil) then
+		if fg[1] == nil and (not pg or pg[1] == nil) then
 			return
 		end
 		local mm = {}
@@ -1964,7 +1986,7 @@ local function addFollowerList(tip, info, finfo, mlvl, showInactive, thisMech, s
 		if info[i] ~= specDup then
 			local fi = finfo[info[i]]
 			if not showInactive and fi.status == GARRISON_FOLLOWER_INACTIVE then
-				tip:AddLine((L"+%d Inactive (hold ALT to view)"):format(#info-i+1), 1, 1/4, 0, 1)
+				tip:AddLine((L"+%d Inactive (hold ALT to view)"):format(#info-i+1), 0.8, 0.78, 0.56)
 				break
 			end
 			local p = specDup and select(4, api.CountUniqueRerolls(T.SpecCounters[fi.classSpec], info[i]))
@@ -2008,7 +2030,7 @@ function api.CountUniqueRerolls(counters, thisFollowerID)
 	end
 	
 	local total = #c*(#c-1)/2
-	local desc = inact > 0 and "|cffa8a8a8" .. (novel > 0 and "+" or "") .. inact .. "|r" or ""
+	local desc = inact > 0 and "|cffccc78f" .. (novel > 0 and "+" or "") .. inact .. "|r" or ""
 	desc = (novel > 0 and "|cff20ff20" .. novel .. "|r" or "") .. desc .. "|cffffffff/" .. total
 	return novel, inact, total, desc
 end
@@ -2036,7 +2058,7 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 			local _, name, ico = api.GetMechanicInfo(c[i])
 			local counters = ci[c[i]]
 			local freeCount, totalCount = api.countFreeFollowers(counters, finfo), counters and #counters or 0
-			local counts = (freeCount > 0 and "|cff20ff20" .. freeCount or "0") .. "|r+|cffa8a8a8" .. (totalCount - freeCount)
+			local counts = (freeCount > 0 and "|cff20ff20" .. freeCount or "0") .. "|r+|cffccc78f" .. (totalCount - freeCount)
 			self:AddDoubleLine("|TInterface\\Buttons\\UI-Quickslot2:13:2:-1:0:64:64:31:32:31:32|t|T" .. ico .. ":0:0:0:0:64:64:5:59:5:59|t " .. name, counts, 1,1,1, 1,1,1)
 		end
 	end
@@ -2244,7 +2266,7 @@ function api.SetDoubleCountersTooltip(tip, ci)
 		end
 	end
 	if skip > 0 then
-		tip:AddLine((L"+%d Inactive (hold ALT to view)"):format(skip), 1, 1/4, 0, 1)
+		tip:AddLine((L"+%d Inactive (hold ALT to view)"):format(skip), 0.8, 0.78, 0.56)
 	elseif (ci and #ci or 0) == 0 then
 		tip:AddLine(L"You have no followers with duplicate counter combinations.", 1,1,1, 1)
 	end

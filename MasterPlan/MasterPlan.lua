@@ -14,7 +14,7 @@ local L = newproxy(true) do
 end
 
 local EV, conf, api = T.Evie, setmetatable({}, {__index={
-	availableMissionSort="xp",
+	availableMissionSort="reward",
 	sortFollowers=true,
 	batchMissions=true,
 	riskReward=1,
@@ -43,15 +43,19 @@ function EV:ADDON_LOADED(addon)
 		MasterPlanPC, conf.ignore, conf.complete = conf, next(conf.ignore) and conf.ignore, complete or conf.complete
 	end
 	
-	local pc
+	local pc, ov
 	if type(MasterPlanPC) == "table" then
 		pc, MasterPlanPC = MasterPlanPC
+		ov = type(pc.version) == "string" and tonumber(pc.version:match("%d+%.%d+")) or nil
 	else
 		pc = {}
 	end
 	
 	if type(pc.lastCacheTime) == "number" then -- TODO:TEMP
 		MasterPlanA.data.lastCacheTime = MasterPlanA.data.lastCacheTime or pc.lastCacheTime
+	end
+	if ov and ov < 0.43 then
+		pc.availableMissionSort = nil
 	end
 	
 	for k,v in pairs(pc) do
@@ -92,15 +96,6 @@ function api:SetTimeHorizon(sec)
 	assert(type(sec) == "number" and sec >= 0, 'Syntax: MasterPlan:SetTimeHorizon(sec)')
 	conf.timeHorizon = sec
 	EV("MP_SETTINGS_CHANGED", "timeHorizon")
-end
-
-function api:SetBatchMissionCompletion(batch)
-	assert(type(batch) == "boolean", 'Syntax: MasterPlan:SetBatchMissionCompletion(batch)')
-	conf.batchMissions = batch
-	EV("MP_SETTINGS_CHANGED", "batchMissions")
-end
-function api:GetBatchMissionCompletion()
-	return conf.batchMissions
 end
 
 local parties, tentativeState = {}, {}
@@ -171,6 +166,9 @@ function EV:MP_MISSION_START(mid, f1, f2, f3)
 	dissolve(tentativeState[f2], true)
 	dissolve(tentativeState[f3], true)
 	EV("MP_TENTATIVE_PARTY_UPDATE")
+end
+function EV:GARRISON_MISSION_STARTED(id)
+	dissolve(id)
 end
 
 function api:IsFollowerIgnored(fid)
