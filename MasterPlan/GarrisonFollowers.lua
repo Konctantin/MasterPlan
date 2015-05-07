@@ -561,12 +561,12 @@ end
 
 local function Recruiter_ShowTraitTooltip(self)
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	G.SetTraitTooltip(GameTooltip, self.value, nil, true)
+	G.SetTraitTooltip(GameTooltip, self.value)
 	GameTooltip:Show()
 end
 local function Recruiter_ShowCounterTooltip(self)
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	G.SetThreatTooltip(GameTooltip, self.value, nil, nil, true)
+	G.SetThreatTooltip(GameTooltip, self.value)
 	GameTooltip:Show()
 end
 hooksecurefunc("GarrisonRecruiterFrame_Init", function(_, level)
@@ -580,7 +580,7 @@ hooksecurefunc("GarrisonRecruiterFrame_Init", function(_, level)
 		local b = _G[bn .. i]
 		local entry = b.arg1
 		if type(entry) == "table" and entry.id then
-			b.tooltipTitle, b.tooltipText = level == 2 and Recruiter_ShowTraitTooltip or Recruiter_ShowCounterTooltip
+			b.tooltipOnButton, b.tooltipTitle, b.tooltipText = level == 2 and Recruiter_ShowTraitTooltip or Recruiter_ShowCounterTooltip
 		end
 	end
 end)

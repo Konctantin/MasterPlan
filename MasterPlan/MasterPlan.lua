@@ -24,11 +24,12 @@ local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	xpCapGrace=2000,
 	goldRewardThreshold=100e4,
 	levelDecay=0.9,
-	currencyWasteThreshold=0.25,
+	currencyWasteThreshold=0.20,
 	legendStep=0,
 	timeHorizon=0,
 	timeHorizonMin=300,
 	crateLevelGrace=25,
+	interestMask=0,
 	ignore={},
 	complete={},
 }})
@@ -43,19 +44,11 @@ function EV:ADDON_LOADED(addon)
 		MasterPlanPC, conf.ignore, conf.complete = conf, next(conf.ignore) and conf.ignore, complete or conf.complete
 	end
 	
-	local pc, ov
+	local pc
 	if type(MasterPlanPC) == "table" then
 		pc, MasterPlanPC = MasterPlanPC
-		ov = type(pc.version) == "string" and tonumber(pc.version:match("%d+%.%d+")) or nil
 	else
 		pc = {}
-	end
-	
-	if type(pc.lastCacheTime) == "number" then -- TODO:TEMP
-		MasterPlanA.data.lastCacheTime = MasterPlanA.data.lastCacheTime or pc.lastCacheTime
-	end
-	if ov and ov < 0.43 then
-		pc.availableMissionSort = nil
 	end
 	
 	for k,v in pairs(pc) do
@@ -177,6 +170,9 @@ end
 function api:SetFollowerIgnored(fid, ignore)
 	assert(type(fid) == "string", 'Syntax: MasterPlan:SetFollowerIgnored("followerID", ignore)')
 	conf.ignore[fid] = ignore and 1 or nil
+end
+function api:FireRelease()
+	EV("MP_RELEASE_CACHES")
 end
 
 MasterPlan = api

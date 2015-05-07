@@ -219,6 +219,7 @@ local CreateLoader do -- (parent, W, G, H)
 			end
 			loader:SetAlpha(1)
 			self.nf, self.job = 0
+			self:Hide()
 		end)
 		return loader
 	end
@@ -302,26 +303,11 @@ local missionList = CreateFrame("Frame", "MasterPlanMissionList", GarrisonMissio
 		end
 	end
 end
-local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenuTemplate") do
-	api.easyDrop = easyDrop
+local hoverFocus = CreateFrame("Frame") do
 	local OPEN_DELAY, CLOSE_DELAY, CLOSE_GRACE = 0.2, 0.4, 0.5
-	function easyDrop:IsOpen(owner)
-		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
-	end
-	function easyDrop:Close()
-		if UIDROPDOWNMENU_OPEN_MENU == self then
-			CloseDropDownMenus()
-		end
-		if self.owner and self.owner.OnEasyDropHide then
-			securecall(self.owner.OnEasyDropHide, self.owner)
-		end
-		self.owner, self.closeOwner, self.closeGrace = nil
-	end
-	local function CheckOwner(self, elapsed)
-		if self.owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown() then
-			if self.owner:IsVisible() then
-				DropDownList1.isCounting = nil
-			else
+	function hoverFocus:Update(elapsed)
+		if self.owner then
+			if not (self.owner:IsVisible() and (self.checkFunc == nil or self.checkFunc(self.owner))) then
 				self:Close()
 			end
 		end
@@ -331,7 +317,8 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 				local tl = self.closeGrace - elapsed
 				self.closeGrace = tl > 0 and tl or nil
 			end
-			if self.closeOwner:IsVisible() and (self.closeOwner:IsMouseOver(4,-4,-4,4) or DropDownList1:IsMouseOver(4,-4,-4,4)) then
+			local co, frame = self.closeOwner, self.frame
+			if co:IsVisible() and (co:IsMouseOver(4,-4,-4,4) or (frame and frame:IsMouseOver(4,-4,-4,4))) then
 				self.closeDelay = CLOSE_DELAY
 			else
 				local dl = self.closeDelay - elapsed
@@ -360,34 +347,77 @@ local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenu
 			self:SetScript("OnUpdate", nil)
 		end
 	end
+	function hoverFocus:Close()
+		if self.closeFunc then
+			securecall(self.closeFunc, self.owner)
+		end
+		self.closeFunc, self.owner, self.closeOwner = nil
+	end
+	function hoverFocus:Open(owner, frame, checkFunc, closeFunc)
+		if self.owner then self:Close() end
+		self.owner, self.frame, self.closeFunc, self.checkFunc, self.closeOwner, self.openOwner, self.closeGrace = owner, frame, closeFunc, checkFunc
+		self:SetScript("OnUpdate", self.Update)
+	end
+	function hoverFocus:CheckToggle(owner)
+		if self.owner == owner then
+			if self.closeOwner == owner and self.closeGrace then
+				self.closeOwner = nil
+			else
+				self:Close()
+			end
+		else
+			return true
+		end
+	end
+	function hoverFocus:DelayOpenClick(owner)
+		if self.owner ~= owner then
+			self.openOwner, self.openDelay = owner, OPEN_DELAY
+			self:SetScript("OnUpdate", self.Update)
+		end
+	end
+end
+local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenuTemplate") do
+	api.easyDrop = easyDrop
+	function easyDrop:IsOpen(owner)
+		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
+	end
+	function easyDrop:Close()
+		hoverFocus:Close()
+	end
+	local function checkMenu()
+		if UIDROPDOWNMENU_OPEN_MENU == easyDrop and DropDownList1:IsShown() then
+			DropDownList1.isCounting = nil
+			return true
+		end
+	end
+	local function closeEasyDrop(owner)
+		if UIDROPDOWNMENU_OPEN_MENU == easyDrop then
+			CloseDropDownMenus()
+		end
+		if owner.OnEasyDropHide then
+			securecall(owner.OnEasyDropHide, owner)
+		end
+		easyDrop.owner = nil
+	end
 	function easyDrop:Open(owner, menu, ...)
 		self:Close()
+		hoverFocus:Open(owner, DropDownList1, checkMenu, closeEasyDrop)
 		self.owner, self.closeOwner, self.openOwner, self.closeGrace = owner
-		self:SetScript("OnUpdate", CheckOwner)
 		EasyMenu(menu, self, "cursor", 9000, 9000, "MENU", 4)
 		DropDownList1:ClearAllPoints()
 		DropDownList1:SetPoint(...)
 	end
 	function easyDrop:CheckToggle(owner)
-		if self:IsOpen(owner) then
-			if self.closeOwner == owner and self.closeGrace then
-				self.closeOwner = nil
-				return
-			end
-			self:Close()
-		else
-			return true
-		end
+		return hoverFocus:CheckToggle(owner)
 	end
 	function easyDrop:Toggle(owner, ...)
-		if self:CheckToggle(owner) then
+		if hoverFocus:CheckToggle(owner) then
 			self:Open(owner, ...)
 		end
 	end
 	function easyDrop:DelayOpenClick(owner)
 		if not self:IsOpen(owner) then
-			self.openOwner, self.openDelay = owner, OPEN_DELAY
-			self:SetScript("OnUpdate", CheckOwner)
+			hoverFocus:DelayOpenClick(owner)
 		end
 	end
 end
@@ -406,7 +436,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		activeUI.orders:SetPoint("BOTTOMRIGHT", -308, 3)
 	end
 	local ctl = CreateFrame("Frame") do
-		ctl:SetSize(26, 22)
+		ctl:SetSize(56, 22)
 		activeUI.batch = CreateFrame("CheckButton", nil, ctl) do
 			local b = activeUI.batch
 			b:SetSize(20, 20)
@@ -417,7 +447,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 			b:SetCheckedTexture("Interface\\PetBattles\\DeadPetIcon")
 			local nt = b:GetNormalTexture()
 			nt:SetTexCoord(68/256, 92/256, 164/256, 188/256)
-			nt:SetVertexColor(0.8, 0.8, 0.65)
+			nt:SetVertexColor(0.8, 0.8, 0.7)
 			local ct = b:GetCheckedTexture()
 			ct:SetBlendMode("BLEND")
 			ct:ClearAllPoints()
@@ -431,6 +461,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 				if GameTooltip:IsOwned(self) then
 					self:GetScript("OnEnter")(self)
 				end
+				activeUI.waste:SetEnabled(self:GetChecked())
 			end)
 			b:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_NONE")
@@ -438,13 +469,107 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 				GameTooltip:SetText(L"Expedited mission completion")
 				GameTooltip:AddLine(self:GetChecked() and VIDEO_OPTIONS_ENABLED or VIDEO_OPTIONS_DISABLED, 1,1,1, 1)
 				GameTooltip:Show()
+				hoverFocus:Close()
 			end)
 			b:SetScript("OnLeave", dismissTooltip)
 			function EV:MP_SETTINGS_CHANGED(set)
 				if set == "batchMissions" or set == nil then
 					b:SetChecked(T.config.batchMissions)
+					activeUI.waste:SetEnabled(T.config.batchMissions)
 				end
 			end
+		end
+		activeUI.waste = CreateFrame("Button", nil, ctl) do
+			local popup = CreateFrame("Frame", nil, UIParent) do
+				local f = popup
+				f:SetFrameStrata("DIALOG")
+				f:SetSize(260, 68)
+				f:SetBackdrop({edgeFile="Interface/Tooltips/UI-Tooltip-Border", bgFile="Interface/DialogFrame/UI-DialogBox-Background-Dark", tile=true, edgeSize=16, tileSize=16, insets={left=4,right=4,bottom=4,top=4}})
+				f:SetBackdropColor(0,0,0, 0.95)
+				f:SetBackdropBorderColor(0.75,0.75,0.75)
+				f:SetHitRectInsets(-4, -4, 0, -4)
+				f:EnableMouse(true)
+				f:Hide()
+				local t = f:CreateFontString(nil, "ARTWORK", "GameTooltipHeaderText")
+				t:SetTextColor(NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+				t:SetText(L"Require Currency Reward")
+				t:SetPoint("TOPLEFT", 10, -10)
+				local s = CreateFrame("Slider", nil, popup)
+				s:SetSize(236, 17)
+				s:SetPoint("TOP", 0, -42)
+				s:SetHitRectInsets(0,0,-10,-10)
+				s:SetBackdrop({bgFile="Interface\\Buttons\\UI-SliderBar-Background", edgeFile="Interface\\Buttons\\UI-SliderBar-Border", tile=true, edgeSize=8, tileSize=8, insets={left=3,right=3,top=6,bottom=6}})
+				s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+				local tt = s:GetThumbTexture()
+				tt:SetSize(24,32)
+				tt:SetTexCoord(4/32, 28/32, 0, 1)
+				s:SetOrientation("HORIZONTAL")
+				s:SetValue(110)
+				s:SetMinMaxValues(0, 100)
+				s:SetValueStep(10)
+				s:SetObeyStepOnDrag(true)
+				t = s:CreateTexture(nil, "BACKGROUND")
+				t:SetHeight(10)
+				t:SetTexture(0, 1, 0)
+				t:SetAlpha(0.25)
+				t:SetPoint("LEFT", 3, 0)
+				t:SetPoint("RIGHT", tt, "CENTER", 0, 0)
+				t = s:CreateTexture(nil, "BACKGROUND")
+				t:SetHeight(10)
+				t:SetTexture(1, 0, 0)
+				t:SetAlpha(0.25)
+				t:SetPoint("RIGHT", -3, 0)
+				t:SetPoint("LEFT", tt, "CENTER", 0, 0)
+				local lo = s:CreateFontString(nil, "ARTWORK", "GameFontDisableSmallLeft")
+				lo:SetPoint("BOTTOMLEFT", s, "TOPLEFT", 0, 0)
+				lo:SetText("0%")
+				local hi = s:CreateFontString(nil, "ARTWORK", "GameFontDisableSmallLeft")
+				hi:SetPoint("BOTTOMRIGHT", s, "TOPRIGHT", 4, 0)
+				hi:SetText("100%")
+				local vt = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+				vt:SetPoint("BOTTOM", tt, "TOP", 0, -6)
+				s:SetScript("OnValueChanged", function(_self, v, user)
+					if user then
+						T.config.currencyWasteThreshold = 1-v/100
+					end
+					vt:SetText(v .. "%")
+					hi:SetAlpha(v < 90 and 1 or 0)
+					lo:SetAlpha(v > 10 and 1 or 0)
+				end)
+				s:SetScript("OnShow", function(self)
+					self:SetValue((1-T.config.currencyWasteThreshold)*100)
+				end)
+				s:SetValue(0)
+			end
+			local b = activeUI.waste
+			b:SetSize(20, 20)
+			b:SetPoint("LEFT", 30, 0)
+			b:SetNormalTexture("Interface\\Minimap\\ObjectIcons")
+			b:SetDisabledTexture("Interface\\Minimap\\ObjectIcons")
+			b:SetHighlightTexture("Interface\\Minimap\\ObjectIcons")
+			local nt = b:GetNormalTexture()
+			nt:SetTexCoord(0, 32/256, 64/256, 96/256)
+			nt:SetVertexColor(0.8, 0.8, 0.8)
+			local dt = b:GetDisabledTexture()
+			dt:SetTexCoord(0, 32/256, 64/256, 96/256)
+			dt:SetDesaturated(true)
+			dt:SetVertexColor(0.8, 0.8, 0.8)
+			local ht = b:GetHighlightTexture()
+			ht:SetTexCoord(0, 32/256, 64/256, 96/256)
+			ht:SetAlpha(0.25)
+			local function hidePopup()
+				popup:Hide()
+			end
+			b:SetScript("OnClick", function(self)
+				if hoverFocus:CheckToggle(self) then
+					hoverFocus:Open(self, popup, nil, hidePopup)
+					popup:SetPoint("TOPLEFT", self, "BOTTOMLEFT", -60, -2)
+					popup:Show()
+				end
+			end)
+			b:SetScript("OnEnter", function(self)
+				hoverFocus:DelayOpenClick(self)
+			end)
 		end
 	end
 	activeUI:SetScript("OnShow", function(self)
@@ -805,10 +930,10 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 	availUI:SetSize(880, 22)
 	availUI:SetPoint("BOTTOMLEFT", GarrisonMissionFrameMissions, "TOPLEFT", 0, 4)
 	availUI:Hide()
-	local ctlContainer = CreateFrame("Frame") do
-		ctlContainer:SetSize(60, 22)
-		local sortIndicator = CreateFrame("Button", nil, ctlContainer) do
-			sortIndicator:SetPoint("LEFT", 6, 0)
+	local ctl = CreateFrame("Frame") do
+		ctl:SetSize(56, 22)
+		local sortIndicator = CreateFrame("Button", nil, ctl) do
+			sortIndicator:SetPoint("LEFT", 4, 0)
 			sortIndicator:SetSize(20, 20)
 			for i=1, 2 do
 				local t = sortIndicator:CreateTexture(nil, i == 1 and "BACKGROUND" or "HIGHLIGHT")
@@ -858,8 +983,8 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				easyDrop:DelayOpenClick(self)
 			end)
 		end
-		local horizon = CreateFrame("Button", nil, ctlContainer) do
-			horizon:SetPoint("LEFT", sortIndicator, "RIGHT", 8, 0)
+		local horizon = CreateFrame("Button", nil, ctl) do
+			horizon:SetPoint("LEFT", 30, 0)
 			horizon:SetSize(20, 20)
 			for i=1, 2 do
 				local t = horizon:CreateTexture(nil, i == 1 and "BACKGROUND" or "HIGHLIGHT")
@@ -876,7 +1001,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				return T.config.timeHorizon == self.arg1
 			end
 			local menu = {
-				{text=L"Time Horizon", isTitle=true, notCheckable=true},
+				{text=L"Time Horizon", isTitle=true, notCheckable=true, justifyH="CENTER"},
 				{text=L"Instant", checked=isChecked, func=MasterPlan.SetTimeHorizon, arg1=0},
 				{arg1=3600},
 				{arg1=7200},
@@ -910,9 +1035,9 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				showHint()
 			end)
 		end
-		local loader = CreateLoader(ctlContainer, 10, 4, 10, 10, true) do
+		local loader = CreateLoader(ctl, 10, 4, 10, 10, true) do
 			loader:SetPoint("LEFT", horizon, "RIGHT", 8, 0)
-			local baseWidth = ctlContainer:GetWidth()
+			local baseWidth = ctl:GetWidth()
 			loader:HookScript("OnShow", function()
 				missionList.ctlContainer:SetInnerWidth(baseWidth + 8 + loader:GetWidth(), true)
 			end)
@@ -923,7 +1048,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		end
 	end
 	availUI:SetScript("OnShow", function(self)
-		missionList.ctlContainer:Steal(self, ctlContainer)
+		missionList.ctlContainer:Steal(self, ctl)
 		RefreshAvailMissionsView(true)
 	end)
 
@@ -1110,7 +1235,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 					end
 				end
 			end
-			GameTooltip:AddLine("|n" .. L"Right-click to clear all tentative parties.")
+			GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. L"Clear all tentative parties.", 0.5, 0.8, 1)
 			GameTooltip:Show()
 		end)
 		b:SetScript("OnClick", function(_, button)
@@ -1164,7 +1289,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 		end
 	end
 	local ctl = CreateFrame("Frame") do
-		ctl:SetSize(26, 22)
+		ctl:SetSize(56, 22)
 		interestUI.excludeInactive = CreateFrame("CheckButton", nil, ctl) do
 			local b = interestUI.excludeInactive
 			b:SetSize(20, 20)
@@ -1175,7 +1300,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 			b:SetCheckedTexture("Interface\\PetBattles\\DeadPetIcon")
 			local nt = b:GetNormalTexture()
 			nt:SetTexCoord(4/32,28/32, 4/32,28/32)
-			nt:SetVertexColor(0.8, 0.8, 0.65)
+			nt:SetVertexColor(0.8, 0.8, 0.7)
 			local ct = b:GetCheckedTexture()
 			ct:SetBlendMode("BLEND")
 			ct:ClearAllPoints()
@@ -1196,6 +1321,64 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				GameTooltip:SetText(self:GetChecked() and L"Ignoring inactive followers" or L"Considering inactive followers")
 				GameTooltip:AddLine(self:GetChecked() and L"Inactive followers are never included in suggested groups." or L"Inactive followers are only included in suggested groups when they are beneficial.", 1,1,1, 1)
 				GameTooltip:Show()
+				easyDrop:Close()
+			end)
+			b:SetScript("OnLeave", dismissTooltip)
+		end
+		interestUI.interestSet = CreateFrame("Button", nil, ctl) do
+			local b = interestUI.interestSet
+			b:SetSize(20, 20)
+			b:SetPoint("LEFT", 30, 0)
+			b:SetNormalTexture("Interface\\Minimap\\ObjectIcons")
+			b:SetHighlightTexture("Interface\\Minimap\\ObjectIcons")
+			local nt = b:GetNormalTexture()
+			nt:SetTexCoord(64/256, 96/256, 192/256, 224/256)
+			nt:SetVertexColor(0.8, 0.8, 0.8)
+			local ht = b:GetHighlightTexture()
+			ht:SetTexCoord(64/256, 96/256, 192/256, 224/256)
+			ht:SetAlpha(0.25)
+			local m = {
+				{isTitle=true, text=L"Desirable rewards", notCheckable=true, justifyH="CENTER"},
+				{arg1=118529},
+				{arg1=122484},
+				{arg1=120945},
+				{arg1=994},
+				{arg1=823},
+				{arg1=824},
+				{arg1=0, text="|TInterface\\Icons\\INV_Misc_Coin_02:16:16:0:0:64:64:4:60:4:60|t " .. BONUS_ROLL_REWARD_MONEY},
+				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC}
+			}
+			local function toggleInterestBit(_, key)
+				T.config.interestMask = bit.bxor(T.config.interestMask, 2^(T.InterestMask[key]-1))
+				interestMissionsHandle:Show(not interestUI.excludeInactive:GetChecked())
+			end
+			local function checkInterestBit(self)
+				local b, m = T.InterestMask[self.arg1], T.config.interestMask
+				return (m % 2^b) < 2^(b-1)
+			end
+			for i=2,#m do
+				m[i].func, m[i].checked, m[i].isNotRadio, m[i].keepShownOnClick = toggleInterestBit, checkInterestBit, true, true
+			end
+			b:SetScript("OnClick", function(self)
+				for i=2,#m do
+					local mi = m[i]
+					if (not mi.text or mi.placeholder) then
+						local key, name, ico, _ = mi.arg1
+						if key > 1e3 then
+							name, ico = GetItemInfo(key), GetItemIcon(key)
+						else
+							name, _, ico = GetCurrencyInfo(key)
+						end
+						mi.text, mi.placeholder = "|T" .. (ico or "Interaface\\Icons\\INV_Misc_QuestionMark") .. ":16:16:0:0:64:64:4:60:4:60|t " .. (name or ("#" .. key)), not name or nil
+					end
+				end
+				if m[#m].arg1 == 115280 and T.config.legendStep >= 2 then
+					m[#m] = nil
+				end
+				easyDrop:Toggle(self, m, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
+			end)
+			b:SetScript("OnEnter", function(self)
+				easyDrop:DelayOpenClick(self)
 			end)
 			b:SetScript("OnLeave", dismissTooltip)
 		end
@@ -1532,6 +1715,7 @@ local core = {} do
 				self.view[i] = f
 			end
 			if f then
+				f:Hide()
 				f:SetID(i)
 				securecall(self.props.Update, f, self.data[i])
 				f:SetParent(sc)
@@ -1809,9 +1993,16 @@ local CreateFollowerPortrait do
 		v:SetPoint("TOPLEFT", -2, 2) v:SetPoint("BOTTOMRIGHT", 2, -2)
 		v:SetAtlas("Garr_FollowerPortrait_Ring")
 		v, x.ring = x:CreateTexture(nil, "HIGHLIGHT"), v
-		v:SetPoint("TOPLEFT", -2, 2) v:SetPoint("BOTTOMRIGHT", 2, -2)
+		v:SetPoint("TOPLEFT", -4, 2) v:SetPoint("BOTTOMRIGHT", 2, -2)
 		v:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 		v:SetBlendMode("ADD")
+		v = x:CreateTexture(nil, "ARTWORK", nil, 4)
+		v:Hide()
+		v:SetTexture("Interface\\Buttons\\IconBorder-GlowRing")
+		v:SetPoint("TOPLEFT", 0,1)
+		v:SetPoint("BOTTOMRIGHT", -2,2)
+		v:SetBlendMode("ADD")
+		x.glow = v
 		x:SetScript("OnEnter", Follower_OnEnter)
 		x:SetScript("OnLeave", Follower_OnLeave)
 		x:SetScript("OnHide", Follower_OnLeave)
@@ -1973,6 +2164,13 @@ do -- activeMissionsHandle
 				if fi and w then
 					w.followerID, nf = fi.followerID, nf + 1
 					w.portrait:SetToFileData(fi.portraitIconID)
+					local ct = (fi.level < 100 or fi.quality < 4) and ITEM_QUALITY_COLORS[fi.quality]
+					if ct then
+						w.glow:SetVertexColor(ct.r, ct.g, ct.b)
+						w.glow:Show()
+					else
+						w.glow:Hide()
+					end
 					w:Show()
 				end
 			end
@@ -2104,6 +2302,9 @@ do -- availMissionsHandle
 			GameTooltip:ClearAllPoints()
 			GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", -6, 0)
 			G.SetGroupTooltip(GameTooltip, g, mi)
+			if self:IsEnabled() then
+				GameTooltip:AddLine("|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. L"Set tentative party", 0.5, 0.8, 1)
+			end
 			GameTooltip:Show()
 		elseif mi.upgroup then
 			GameTooltip:SetOwner(self, "ANCHOR_PRESERVE")
@@ -2125,7 +2326,7 @@ do -- availMissionsHandle
 			tex[i]:SetShown((i > 3) ~= isDisabled)
 		end
 	end
-	local function GroupButton_OnClick(self)
+	local function GroupButton_OnClick(self, button)
 		local mi = core:GetRowData(availMissionsHandle, self:GetParent())
 		local g = mi and mi.groups and mi.groups[self:GetID()]
 		if not g then
@@ -2144,8 +2345,9 @@ do -- availMissionsHandle
 				end
 				GarrisonMissionFrameTab2:Click()
 			end
-		elseif IsAltKeyDown() then
+		elseif button == "RightButton" or IsAltKeyDown() then
 			MasterPlan:SaveMissionParty(mi.missionID, g[5], g[6], g[7])
+			api.roamingParty:DropFollowers(g[5], g[6], g[7])
 		else
 			OpenToMission(mi, g[5], g[6], g[7])
 		end
@@ -2199,6 +2401,7 @@ do -- availMissionsHandle
 		b:GetFontString():SetTextColor(0.973, 0.902, 0.581)
 		
 		b:SetMotionScriptsWhileDisabled(true)
+		b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		b:SetScript("OnEnter", GroupButton_OnEnter)
 		b:SetScript("OnLeave", dismissTooltipAndHighlight)
 		b:SetScript("OnMouseDown", GroupButton_OnMouseDown)
@@ -2353,23 +2556,29 @@ do -- availMissionsHandle
 			tt[i]:Hide()
 		end
 
-		local sg = d.groups
+		local sg, p1, p2, p3 = d.groups, api.roamingParty:GetFollowers()
+		p1 = not (p2 and p3) and p1
 		for i=1,#sg do
 			local b, g, text = self.groups[i], sg[i]
 			local sc, sp = "|cffffffff" .. g[1] .. "%", g[1]/100
-			local edt, er, eg, isxp = G.GetMissionGroupDeparture(g, d), g[3]*sp, g[9]*sp
+			local edt, er, eg, isxp, _, exp, tf = G.GetMissionGroupDeparture(g, d), g[3]*sp, g[9]*sp
 			if er >= 1 then
 				text = ("%d |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t"):format(er)
 			elseif eg >= 1e4 and G.HasSignificantRewards(d) == "gold" then
 				text = GetMoneyString(eg - eg % 1e4)
 			else
-				local _, exp = G.GetMissionGroupXP(g, d)
+				if p1 and (g[11] and g[11] > 0) then
+					tf, exp = "|cffd0ff73%s|r", g[11]
+				else
+					_, exp = G.GetMissionGroupXP(g, d)
+				end
 				if (exp or 0) <= 0 then
 				elseif T.config.availableMissionSort == "xptime" then
 					text, isxp = (L"%s XP/h"):format(abridge(floor(exp*3600/g[4]))), true
 				else
 					text, isxp = (L"%s XP"):format(abridge(floor(exp))), true
 				end
+				text = tf and tf:format(text) or text
 			end
 			if edt then
 				if text and not isxp then
@@ -2447,15 +2656,17 @@ do -- availMissionsHandle
 			wipe(used)
 			return ret < 0 and -1 or 0
 		end
-		local fields, eg, srv = {threats=1}, {0, [3]=0, [9]=0}, {minor=1, gold=2, [true]=3, resource=4}
+		local fields, eg, srv = {threats=1}, {0, [3]=0,[4]=0, [9]=0, [11]=0}, {minor=1, gold=2, [true]=3, resource=4}
 		local function sortMissions(missions, nf, nr)
 			local order, horizon = T.config.availableMissionSort, T.config.timeHorizon
 			local field = fields[order] or 1
-			local groupCache = G.GetSuggestedMissionGroups(missions, roamingParty:GetFollowers())
+			local groupCache = G.GetSuggestedMissionGroups(missions, order, roamingParty:GetFollowers())
 			if order == "threats2" then
 				cinfo, finfo = G.GetCounterInfo(), G.GetFollowerInfo()
 			end
 			local checkReq = (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire"
+			local p1, p2, p3 = api.roamingParty:GetFollowers()
+			p1 = not (p2 and p3) and p1
 			
 			for i=1, #missions do
 				local mi, g = missions[i]
@@ -2472,14 +2683,14 @@ do -- availMissionsHandle
 					local i, l = mi.iLevel, mi.level
 					mi.ord = l == 100 and i > 600 and i or l
 				elseif order == "reward" then
-					mi.ord, mi.ord1 = mi.ord1, (g[4] and G.GetMissionGroupXP(g, mi) or 0) * 100 + (g and g[1] or 0)
+					mi.ord, mi.ord1 = mi.ord1, (g[11] or 0)*1e8 + ((g[5] and G.GetMissionGroupXP(g, mi) or 0)) * 100 + (g and g[1] or 0)
 				elseif order == "threats2" then
 					mi.ord = g[1] == 100 and computeThreat(mi) or -1
-				elseif g[4] and (order == "xp" or order == "xptime") then
-					local xp = G.GetMissionGroupXP(g, mi) or 0
+				elseif g[5] and (order == "xp" or order == "xptime") then
+					local xp = p1 and (g[11] or 0) or G.GetMissionGroupXP(g, mi) or 0
 					mi.ord = order == "xptime" and xp/max(g[4], horizon) or xp
 				else
-					mi.ord = g[4] and g[field] or -math.huge
+					mi.ord = g[5] and g[field] or -math.huge
 				end
 				if MasterPlan:HasTentativeParty(mi.missionID) == C_Garrison.GetMissionMaxFollowers(mi.missionID) then
 					mi.ord0 = -1
@@ -2741,6 +2952,7 @@ do -- interestMissionsHandle
 		unusedFollowers.ufollowers = c
 	end
 	local function SetUnusedFollowers(self, d)
+		self.veil:Hide()
 		self.altBG:Show()
 		for i=1,#self.rewards do
 			self.rewards[i]:Hide()
@@ -2790,6 +3002,7 @@ do -- interestMissionsHandle
 		self.title:SetText(mname ~= "" and mname or (L"Future Mission #%d"):format(d[1]))
 		self.loc:SetAtlas(T.MissionLocationBanners[d[2]] .. "-List")
 		self.fc:SetText(("|TInterface\\FriendsFrame\\UI-Toast-FriendOnlineIcon:11:11:3:0:32:32:8:24:8:24:214:170:115|t"):rep(s[2]))
+		self.veil:SetShown(d.redundantIgnored)
 
 		local mc, isAvailable, lastAppeared = T.MissionCoalescing[s[4]]
 		for i=0, mc and #mc or 0 do
@@ -2831,10 +3044,13 @@ do -- interestMissionsHandle
 			local fb, fi = self.followers[i], finfo[best[i]]
 			fb.followerID, fb.targetLevel = best[i], (mentor < mlvl or fi.garrFollowerID == T.MENTOR_FOLLOWER) and mlvl or 0
 			fb.portrait:SetToFileData(fi and fi.portraitIconID or 0)
+			fb.glow:Hide()
 			if fi.status == GARRISON_FOLLOWER_INACTIVE then
 				fb.portrait:SetVertexColor(0.2, 0.2, 1)
 			elseif fb.targetLevel > (mlvl > 100 and fi.iLevel or fi.level) then
-				fb.portrait:SetVertexColor(1, 0.2, 0.2)
+				fb.portrait:SetVertexColor(1, 0.6, 0.6)
+				fb.glow:Show()
+				fb.glow:SetVertexColor(1,0,0)
 			else
 				fb.portrait:SetVertexColor(1,1,1)
 			end
@@ -2879,67 +3095,92 @@ do -- interestMissionsHandle
 		r:Show()
 	end
 	interestMissionsHandle = core:CreateHandle(CreateInterestMission, SetInterestMission, 60)
-	local unusedEntry, emptyTable, missions, drop = {unused={}}, {}, {}, {}
-	local function updateInterestMissions()
-		local ts, ls, mp, ni = T.TraitStack, T.config.legendStep, T.InterestPool, 1
-		local c2, c3 = ls > 0 or IsQuestFlaggedCompleted(35998), ls > 1 or IsQuestFlaggedCompleted(36013)
-		T.config.legendStep, drop[115280], drop[115510] = c3 and 2 or c2 and 1 or nil, c2, c3
-		drop[35] = not (C_Garrison.GetOwnedBuildingInfoAbbrev(25) == 36 or C_Garrison.GetOwnedBuildingInfoAbbrev(22) == 36)
-		
-		for i=1,#mp do
-			local m = mp[i]
-			if not (drop[m[4]] or drop[m.s[4]]) then
-				missions[ni], ni = m, ni + 1
+	local emptyTable, missions = {}, {}
+	local updateRedundantFollowers do
+		local unusedEntry = {unused={}}
+		function updateRedundantFollowers(missions)
+			local mask, mt = T.config.interestMask, T.InterestMask
+			if missions.imask == mask then
+				return
+			end
+			
+			local uf, ua, hasUE = {}, unusedEntry.unused, missions[1] == unusedEntry
+			wipe(ua)
+			for k, v in pairs(G.GetFollowerInfo()) do
+				if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] then
+					uf[k] = true
+				end
+			end
+			for i=hasUE and 2 or 1,#missions do
+				local mi = missions[i]
+				local mb, b = mt[mi[5] or mi.s[4]] or 0, mi.best
+				local keep =  b and (mask % 2^mb < 2^(mb-1))
+				mi.redundantIgnored = not keep
+				if keep then
+					local muf = b and b.used
+					for j=1, mi.s[2] do
+						if muf % (2^j) >= 2^(j-1) then
+							uf[b[j] or 0] = nil
+						end
+					end
+				end
+			end
+			for k in pairs(uf) do
+				ua[#ua + 1] = k
+			end
+			if #ua > 0 then
+				local fi = G.GetFollowerInfo()
+				table.sort(ua, function(a,b)
+					a, b = fi[a], fi[b]
+					return (a.level + a.iLevel) > (b.level + b.iLevel)
+				end)
+				if not hasUE then
+					table.insert(missions, 1, unusedEntry)
+				end
+			elseif hasUE then
+				table.remove(missions, 1)
 			end
 		end
-		for i=ni,#missions do
-			missions[i] = nil
-		end
+	end
+	local updateInterestMissions do
+		local drop = {}
+		function updateInterestMissions()
+			local ts, ls, mp, ni = T.TraitStack, T.config.legendStep, T.InterestPool, 1
+			local c2, c3 = ls > 0 or IsQuestFlaggedCompleted(35998), ls > 1 or IsQuestFlaggedCompleted(36013)
+			T.config.legendStep, drop[115280], drop[115510] = c3 and 2 or c2 and 1 or nil, c2, c3
+			drop[35] = not (C_Garrison.GetOwnedBuildingInfoAbbrev(25) == 36 or C_Garrison.GetOwnedBuildingInfoAbbrev(22) == 36)
 		
-		for k,r in pairs(T.MissionRewardSets) do
-			for i=1,#r do
-				local c, r = 0, r[i]
-				for i=3,r[2] > 0 and #r or 0 do
-					c = c + (tonumber(GetStatistic(r[i]) or 0) or 0)
+			for i=1,#mp do
+				local m = mp[i]
+				if not (drop[m[4]] or drop[m.s[4]]) then
+					missions[ni], ni = m, ni + 1
 				end
-				if c >= r[2] then
-					mappedRewards[k], r[2], ts[k] = r[1], 0, ts[k] or r.ts
-					break
+			end
+			for i=ni,#missions do
+				missions[i] = nil
+			end
+		
+			for k,r in pairs(T.MissionRewardSets) do
+				for i=1,#r do
+					local c, r = 0, r[i]
+					for i=3,r[2] > 0 and #r or 0 do
+						c = c + (tonumber(GetStatistic(r[i]) or 0) or 0)
+					end
+					if c >= r[2] then
+						mappedRewards[k], r[2], ts[k] = r[1], 0, ts[k] or r.ts
+						break
+					end
 				end
 			end
 		end
 	end
 	local function loadAndRefresh(id, includeInactive)
+		interestMissionsHandle.ident = nil
 		core:SetData(emptyTable, interestMissionsHandle)
 		updateInterestMissions()
 		G.UpdateGroupEstimates(missions, includeInactive, coroutine.yield)
-		local uf, ua = {}, unusedEntry.unused
-		wipe(ua)
-		for k, v in pairs(G.GetFollowerInfo()) do
-			if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] then
-				uf[k] = true
-			end
-		end
-		for i=1,#missions do
-			local b = missions[i].best
-			local muf = b and b.used
-			for j=1, b and missions[i].s[2] or 0 do
-				if muf % (2^j) >= 2^(j-1) then
-					uf[b[j] or 0] = nil
-				end
-			end
-		end
-		for k in pairs(uf) do
-			ua[#ua + 1] = k
-		end
-		if #ua > 0 then
-			local fi = G.GetFollowerInfo()
-			table.sort(ua, function(a,b)
-				a, b = fi[a], fi[b]
-				return (a.level + a.iLevel) > (b.level + b.iLevel)
-			end)
-			table.insert(missions, 1, unusedEntry)
-		end
+		missions.imask = nil
+		updateRedundantFollowers(missions)
 		interestMissionsHandle.ident = id
 		coroutine.yield(2, 100,100)
 		if core:IsOwned(interestMissionsHandle) then
@@ -2953,9 +3194,12 @@ do -- interestMissionsHandle
 			local job = coroutine.wrap(loadAndRefresh)
 			interestUI.loader.job = job, job(id, includeInactive)
 			interestUI.loader:Show()
+			return
 		elseif not core:IsOwned(interestMissionsHandle) then
+			updateRedundantFollowers(missions)
 			core:SetData(missions, interestMissionsHandle)
 		else
+			updateRedundantFollowers(missions)
 			core:Refresh()
 		end
 	end

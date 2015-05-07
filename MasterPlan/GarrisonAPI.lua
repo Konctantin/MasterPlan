@@ -8,7 +8,7 @@ local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INA
 local f, data = CreateFrame("Frame"), {}
 f:SetScript("OnUpdate", function(self) wipe(data) self:Hide() end)
 
-local cacheTables = {} do
+do
 	local watching, onZone, onOpen, onClose
 	function onZone()
 		if not (C_Garrison.IsOnGarrisonMap() or GarrisonMissionFrame:IsVisible()) then
@@ -31,11 +31,6 @@ local cacheTables = {} do
 		return "remove"
 	end
 	EV.GARRISON_MISSION_NPC_CLOSED = onClose
-	function EV:MP_RELEASE_CACHES()
-		for i=1,#cacheTables do
-			wipe(cacheTables[i])
-		end
-	end
 end
 
 local parseTime = {} do
@@ -89,7 +84,6 @@ local parseTime = {} do
 		self[k] = ret
 		return ret
 	end})
-	cacheTables[#cacheTables+1] = parseTime
 end
 function api.GetSecondsFromTimeString(time)
 	local t = parseTime[time]
@@ -462,7 +456,7 @@ function api.GetLevelEfficiency(fLevel, mLevel)
 	end
 	return 0.1
 end
-function api.GetFollowerLevelDescription(fid, mlvl, fi, mentor, mid)
+function api.GetFollowerLevelDescription(fid, mlvl, fi, mentor, mid, gi)
 	local fi = fi or api.GetFollowerInfo()[fid]
 	local tooLow, q = api.GetLevelEfficiency(api.GetFMLevel(fi, mentor), mlvl) < 0.5, fi and fi.quality or 0
 	local lc, away = ITEM_QUALITY_COLORS[tooLow and 0 or q].hex, fi.missionEndTime
@@ -481,6 +475,15 @@ function api.GetFollowerLevelDescription(fid, mlvl, fi, mentor, mid)
 	end
 	if fi.level == 100 and fi.quality >= 4 and tooLow then
 		away = ITEM_QUALITY_COLORS[4].hex .. L"*" .. (away ~= "" and "|r " .. away or "|r")
+	end
+	if gi and mlvl and (fi.level < 100 or fi.quality < 4) then
+		local xpd, base, bonus = fi.levelXP - fi.xp, api.GetFollowerXPGain(fi, mlvl, gi[2], gi[8], mentor)
+		if gi[1] == 100 then base, bonus = base + bonus, 0 end
+		if xpd <= base then
+			away = " |cff10ff10+" .. away
+		elseif xpd <= (base + bonus) then
+			away = " |cff00aaff+" .. away
+		end
 	end
 	return ("%s[%d]|r %s%s|r%s"):format(lc, fi.level < 100 and fi.level or fi.iLevel, HIGHLIGHT_FONT_COLOR_CODE, fi.name, away)
 end
@@ -866,15 +869,14 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			for i=1,nf do
 				C_Garrison.RemoveFollowerFromMission(mid, msi[t[i]])
 			end
-			
 			msd[mid] = m
 			releaseFollowerEvents()
 		end
 		return msd[mid]
 	end
-	cacheTables[#cacheTables+1] = msd
-	cacheTables[#cacheTables+1] = msf
-	cacheTables[#cacheTables+1] = msi
+	function EV:MP_RELEASE_CACHES()
+		msd, msf, msi = {}, {}, {}
+	end
 end
 function api.GetFilteredMissionGroups(minfo, filter, cmp, limit)
 	local mg = api.GetMissionGroups(minfo.missionID)
@@ -970,7 +972,6 @@ local risk = {} do
 			wipe(risk)
 		end
 	end
-	cacheTables[#cacheTables+1] = risk
 end
 local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotations do -- +api.GetSuggestedMissionGroups
 	local max, min, inf, weakKeys = math.max, math.min, math.huge, {__mode="k"}
@@ -1054,11 +1055,40 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 		equivXP[g], expectedXP[g], edtime[g] = nil
 	end
 
+	local setFocusRank do
+		local orank, f1, checkTime, mlvl
+		local function focusRank(a, b, finfo, minfo, now)
+			local ar, a1, a2 = risk[a[1]], api.GetFollowerXPGain(f1, mlvl, a[2], a[8], a[10])
+			local br, b1, b2 = risk[b[1]], api.GetFollowerXPGain(f1, mlvl, b[2], b[8], b[10])
+			local ac, bc = a1+a2*ar, b1+b2*br
+			if ac > 0 and bc > 0 and (ac == bc or checkTime) then
+				local at = computeEarliestCompletion(a, finfo, minfo, false, now)-now
+				local bt = computeEarliestCompletion(b, finfo, minfo, false, now)-now
+				if at ~= bt then
+					ac, bc = ac/at, bc/bt
+				end
+			end
+			if ac ~= bc then
+				return ac > bc
+			end
+			return orank(a, b, finfo, minfo, now)
+		end
+		function setFocusRank(fi, mi, rank, order)
+			orank, checkTime = rank, order == "xptime"
+			f1, mlvl = fi, mi and api.GetFMLevel(mi)
+			return focusRank
+		end
+	end
+	local function expectedFocusGain(fi, mlvl, g)
+		local base, bonus = api.GetFollowerXPGain(fi, mlvl, g[2], g[8], g[10])
+		return base + bonus*g[1]/100
+	end
+
 	local groupCache, lastTimeHorizon = {}
-	function api.GetSuggestedMissionGroups(missions, f1, f2, f3)
+	function api.GetSuggestedMissionGroups(missions, order, f1, f2, f3)
 		api.PrepareAllMissionGroups()
 		local fid, finfo = api.GetFollowerIdentity(false, true), api.GetFollowerInfo()
-		fid = fid .. "#-ROAM-#" .. (f1 or "!") .. "-" .. (f2 or "!") .. "-" .. (f3 or "!")
+		fid = (order == "xptime" and "T" or "!") .. fid .. "#-ROAM-#" .. (f1 or "!") .. "-" .. (f2 or "!") .. "-" .. (f3 or "!")
 		timeHorizon = time() + T.config.timeHorizon
 		if groupCache._identity ~= fid or math.abs((lastTimeHorizon or 0) - timeHorizon) > 180 then
 			wipe(groupCache)
@@ -1077,11 +1107,13 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 		end
 		
 		local rank2, now, defValid = api.GroupRank.threats2, time(), not (f1 or f2 or f3)
+		local useFocus = finfo[not (f2 or f3) and f1]
 		for i=1,#missions do
 			local mi = missions[i]
 			if not groupCache[mi.missionID] then
-				local mid, rank, rt = mi.missionID, api.GetMissionDefaultGroupRank(mi)
+				local mid, rank, rt = mi.missionID, api.GetMissionDefaultGroupRank(mi, order)
 				local mig, nf, sg, a, a2, b, b2, c = api.GetMissionGroups(mid, true), mi.numFollowers, 0
+				local irank = useFocus and rt == "xp" and setFocusRank(useFocus, mi, rank, order) or rank
 				for i=1,#mig do
 					local g = mig[i]
 					local isValid, isAway = defValid or backfillGroupMatch(g, nf, f1, f2, f3), false
@@ -1096,11 +1128,11 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 					end
 					if not isValid then
 					elseif isAway then
-						c = c and rank(c, g, finfo, mi, now) and c or g
+						c = c and irank(c, g, finfo, mi, now) and c or g
 					else
-						if a == nil or rank(g, a, finfo, mi, now) then
+						if a == nil or irank(g, a, finfo, mi, now) then
 							a, a2 = g, a
-						elseif a2 == nil or rank(g, a2, finfo, mi, now) then
+						elseif a2 == nil or irank(g, a2, finfo, mi, now) then
 							a2 = g
 						end
 						if b == nil or rank2(g, b, finfo, mi, now) then
@@ -1118,34 +1150,31 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 				elseif a2 then
 					sg[#sg+1] = a2
 				end
-				if c and (sg[1] == nil or rank(c, sg[1], finfo, mi, now)) then
+				if c and (sg[1] == nil or irank(c, sg[1], finfo, mi, now)) then
 					sg[#sg+1] = c
+				end
+				for i=1,#sg do
+					sg[i][11] = useFocus and expectedFocusGain(useFocus, api.GetFMLevel(mi), sg[i])
 				end
 				groupCache[mi.missionID] = sg
 			end
 		end
+		setFocusRank()
 		timeHorizon = nil
 		return groupCache
 	end
 	local function wipeAll()
-		wipe(equivXP)
-		wipe(expectedXP)
-		wipe(groupCache)
+		edtime, equivXP, expectedXP, groupCache = setmetatable({}, weakKeys), setmetatable({}, weakKeys), setmetatable({}, weakKeys), setmetatable({}, weakKeys)
 	end
 	local function wipeActive()
-		wipe(edtime)
-		wipe(groupCache)
+		edtime,groupCache = setmetatable({}, weakKeys), setmetatable({}, weakKeys)
 	end
 	EV.GARRISON_FOLLOWER_XP_CHANGED = wipeAll
 	EV.GARRISON_MISSION_NPC_CLOSED = wipeAll
 	EV.MP_MISSION_START = wipeActive
 	EV.MP_TENTATIVE_PARTY_UPDATE = wipeActive
 	EV.GARRISON_MISSION_NPC_OPENED = wipeActive
-	
-	cacheTables[#cacheTables+1] = edtime
-	cacheTables[#cacheTables+1] = equivXP
-	cacheTables[#cacheTables+1] = expectedXP
-	cacheTables[#cacheTables+1] = groupCache
+	EV.MP_RELEASE_CACHES = wipeAll
 end
 api.GroupRank, api.GroupFilter = {}, {} do
 	local function computeDingScore(g, finfo)
@@ -1225,12 +1254,26 @@ api.GroupRank, api.GroupFilter = {}, {} do
 		end
 		return ac > bc
 	end
+	function api.GroupRank.xptime(a, b, finfo, minfo, now)
+		local ac, bc = computeEquivXP(a, finfo, minfo), computeEquivXP(b, finfo, minfo)
+		if (ac > 0) ~= (bc > 0) then
+			return ac > 0
+		end
+		local at, bt = computeEarliestCompletion(a, finfo, minfo, false, now)-now, computeEarliestCompletion(b, finfo, minfo, false, now)-now
+		local a2, b2 = ac/at, bc/bt
+		if a2 ~= b2 then
+			return a2 > b2
+		elseif ac ~= bc then
+			return ac > bc
+		end
+		return success(a,b, finfo, minfo, now)
+	end
 	api.GroupRank.threats, api.GroupRank.resources, api.GroupRank.xp = success, res, xp
 end
-function api.GetMissionDefaultGroupRank(mi)
+function api.GetMissionDefaultGroupRank(mi, order)
 	local rew = api.HasSignificantRewards(mi)
 	local key = (rew or "minor") == "minor" and "xp" or (rew == "resource" or rew == "gold") and "resources" or "threats"
-	return api.GroupRank[key], key
+	return api.GroupRank[key == "xp" and order == "xptime" and "xptime" or key], key
 end
 function api.GroupFilter.IDLE(res, finfo, minfo)
 	local mid = minfo.missionID
@@ -1316,7 +1359,9 @@ do -- HasSignificantRewards(minfo)
 		cache[mid] = ret
 		return ret
 	end
-	cacheTables[#cacheTables+1] = cache
+	function EV:MP_RELEASE_CACHES()
+		cache = {}
+	end
 end
 do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 	local function SetGroup(_, group)
@@ -1850,7 +1895,9 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 end
 do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 	local upgroups, summaries, tt, gt = {}, {}, {}, {0,0,0, nil,nil,nil, 0,0,0}
-	cacheTables[#cacheTables+1], cacheTables[#cacheTables+2] = upgroups, summaries
+	function EV:MP_RELEASE_CACHES()
+		upgroups, summaries = {}, {}
+	end
 	function api.GetMissionSummary(mi)
 		local mid = mi.missionID
 		local s = summaries[mid]
@@ -2199,19 +2246,18 @@ function api.SetCurrencyTraitTip(tip, id)
 	end
 end
 function api.SetGroupTooltip(tip, g, mi)
-	tip:SetText(g[1] .. "% |cffc0c0c0(" .. SecondsToTime(g[4]) .. ")")
+	tip:ClearLines()
+	local rl = g[3] and g[3] > 0 and (g[3] .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t")
+	        or g[9] and g[9] > 0 and (GetMoneyString(g[9] - g[9] % 1e4))
+	tip:AddDoubleLine(g[1] .. "% |cffc0c0c0(" .. SecondsToTime(g[4]) .. ")", rl or "")
 	local finfo, ml = api.GetFollowerInfo(), api.GetFMLevel(mi)
 	for i=1,mi.numFollowers do
-		tip:AddLine(api.GetFollowerLevelDescription(g[4+i], ml, finfo[g[4+i]], g[10], mi.missionID))
+		tip:AddLine(api.GetFollowerLevelDescription(g[4+i], ml, finfo[g[4+i]], g[10], mi.missionID, g))
 	end
 	local _, exp = api.GetMissionGroupXP(g, mi)
 	if (exp or 0) > 0 then
 		local exp = BreakUpLargeNumbers(floor(exp))
 		tip:AddLine((L"+%s experience expected"):format(exp))
-	end
-	if g[3] > 0 or g[9] > 0 then
-		local r = g[3] > 0 and g[3] .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t" or GetMoneyString(g[9])
-		tip:AddLine(REWARDS .. ": |cffffffff" .. r) --TODO
 	end
 end
 function api.SetUpGroupTooltip(tip, g, mi)
