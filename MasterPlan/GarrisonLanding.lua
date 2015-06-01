@@ -28,7 +28,12 @@ local function Ship_OnEnter(self, ...)
 		self.UpdateTooltip = Ship_OnEnter
 		GameTooltip:Show()
 	else
-		return GarrisonLandingPageReportShipment_OnEnter(self, ...)
+		GarrisonLandingPageReportShipment_OnEnter(self, ...)
+		local n = C_Garrison.GetFollowerInfoForBuilding(self.plotID)
+		if n and GameTooltip:IsShown() then
+			GameTooltipTextLeft2:SetText(GARRISON_LANDING_SHIPMENT_LABEL .. " |cff909090(" .. n .. ")")
+			GameTooltip:Show()
+		end
 	end
 end
 hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
@@ -38,6 +43,7 @@ hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
 	local ships = self.Shipments
 	for i=1,#ships do
 		local ship = ships[i]
+		ship:SetScript("OnEnter", Ship_OnEnter)
 		if not ship:IsShown() then
 			ship.Done:SetShown(cv == mv)
 			ship.Border:SetShown(cv < mv)
@@ -52,9 +58,10 @@ hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
 				ship.Swipe:SetCooldownUNIX(st, md);
 			end
 			ship.buildingID, ship.plotID = -1, -42
-			ship:SetScript("OnEnter", Ship_OnEnter)
 			ship:Show()
 			break
+		elseif C_Garrison.GetFollowerInfoForBuilding(ship.plotID) then
+			ship.Name:SetText("|cff90e090" .. ship.Name:GetText())
 		end
 	end
 end)

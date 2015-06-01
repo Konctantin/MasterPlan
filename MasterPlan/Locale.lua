@@ -1,6 +1,6 @@
 local L, _, T = GetLocale(), ...
 
--- See http://townlong-yak.com/master-plan/localization
+-- See https://townlong-yak.com/master-plan/localization
 T.L =
 L == "deDE" and {
 	["*"] = "*",
@@ -8,7 +8,7 @@ L == "deDE" and {
 	["Additional mission loot may be delivered via mail."] = "Zusätzliche Missionsbeute kann per Post zugestellt werden.",
 	["Amount affected by"] = "Menge beeinflusst durch",
 	["An additional random ability is unlocked when this follower reaches epic quality."] = "Wird freigeschaltet wenn dieser Anhänger epische Qualität erreicht hat.",
-	["Available; expires in %s"] = "Zur Verfügung; erlischt in %s",
+	["Available; expires in %s"] = "|cffff0000Zur Verfügung; erlischt in %s",
 	["Available Missions (%d)"] = "Verfügbare Missionen (%d)",
 	["Can be countered by:"] = "Kann gekontert werden von:",
 	["Chance of success"] = "Aussicht auf Erfolg",
@@ -20,7 +20,7 @@ L == "deDE" and {
 	["Complete party"] = "Gruppe vervollständigen",
 	["Considering inactive followers"] = "Inaktive Anhänger werden einbezogen",
 	["%d |4party:parties; remaining..."] = "%d |4Gruppe:Gruppen; verbleibend...",
-	["Desirable rewards"] = "Wünschenstwerte Belohnungen abwählen",
+	["Desirable rewards"] = "Wünschenswerte Belohnungen",
 	["%dh %dm"] = "%dstd %dmin",
 	["+%d Inactive (hold ALT to view)"] = "+%d Untätig (halte ALT-Taste zum betrachten)",
 	Done = "Fertig",
@@ -442,6 +442,7 @@ L == "koKR" and {
 	["Can be countered by:"] = "제거 가능 추종자:",
 	["Chance of success"] = "성공 확률",
 	["Clear all tentative parties."] = "모든 임시 파티를 초기화 합니다.",
+	["Clear Tentative Parties"] = "임시 파티 초기화",
 	["Click to view upgrade options"] = "업그레이드 옵션을 보려면 클릭",
 	["Complete All"] = "모두 완료",
 	["Complete Missions"] = "임무 완료",
@@ -681,6 +682,7 @@ L == "zhTW" and {
 	["Can be countered by:"] = "反制於：",
 	["Chance of success"] = "成功機率",
 	["Clear all tentative parties."] = "取消所有暫定隊伍",
+	["Clear Tentative Parties"] = "清除暫定隊伍",
 	["Click to view upgrade options"] = "點擊檢視升級選項",
 	["Complete All"] = "全部完成",
 	["Complete Missions"] = "完成任務",

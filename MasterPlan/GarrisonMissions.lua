@@ -225,8 +225,12 @@ local function FollowerButton_OnEnter(self)
 		GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 4, 4)
 		GameTooltip:SetText(L"In Tentative Party")
 		GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(T.tentativeState[self.id]), GetRewardsDesc(T.tentativeState[self.id]), 1,1,1)
-		GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. GARRISON_MISSION_ADD_FOLLOWER, 0.5, 0.8, 1)
+		if GarrisonMissionFrame.MissionTab.MissionPage:IsVisible() then
+			GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. GARRISON_MISSION_ADD_FOLLOWER, 0.5, 0.8, 1)
+		end
 		GameTooltip:Show()
+	elseif GameTooltip:IsOwned(self) then
+		GameTooltip:Hide()
 	end
 end
 local function FollowerButton_OnLeave(self)
@@ -263,11 +267,30 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 					buttons[i].ILevel:SetText(ITEM_LEVEL_ABBR .. " " .. fi.iLevel .. " (" .. weaponItemLevel .. "/" .. armorItemLevel .. ")")
 				end
 			end
-			buttons[i]:SetScript("OnEnter", FollowerButton_OnEnter)
-			buttons[i]:SetScript("OnLeave", FollowerButton_OnLeave)
+			if self == GarrisonMissionFrame then
+				buttons[i]:SetScript("OnEnter", FollowerButton_OnEnter)
+				buttons[i]:SetScript("OnLeave", FollowerButton_OnLeave)
+			end
 		end
 	end
 end)
+local function mousewheelListUpdate(self, ...)
+	HybridScrollFrame_OnMouseWheel(self, ...)
+	local buttons = self.buttons
+	for i = 1, #buttons do
+		if buttons[i]:IsMouseOver() then
+			local oe = buttons[i]:GetScript("OnEnter")
+			if oe then
+				oe(buttons[i])
+				return
+			end
+		end
+	end
+end
+GarrisonMissionFrame.FollowerList.listScroll:SetScript("OnMouseWheel", mousewheelListUpdate)
+GarrisonLandingPage.FollowerList.listScroll:SetScript("OnMouseWheel", mousewheelListUpdate)
+GarrisonRecruitSelectFrame.FollowerList.listScroll:SetScript("OnMouseWheel", mousewheelListUpdate)
+
 local function Mechanic_OnClick(self)
 	T.Mechanic_OnClick(self)
 end
