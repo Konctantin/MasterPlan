@@ -113,8 +113,8 @@ local function tentativeFullNext(self, mid)
 		return tentativeFullNext(self, mid)
 	end
 end
-function api:GetMissionParty(mid)
-	return dissolve(mid)
+function api:GetMissionParty(mid, quiet)
+	return dissolve(mid, quiet)
 end
 function api:SaveMissionParty(mid, f1, f2, f3)
 	dissolve(mid, true)

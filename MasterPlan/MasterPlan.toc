@@ -4,7 +4,7 @@
 ## LoadOnDemand: 1
 ## LoadWith: Blizzard_GarrisonUI
 ## RequiredDeps: Blizzard_GarrisonUI, MasterPlanA
-## Version: 0.44
+## Version: 0.45
 ## Author: foxlit
 ## X-Website: http://www.townlong-yak.com/master-plan/
 ## SavedVariablesPerCharacter: MasterPlanPC

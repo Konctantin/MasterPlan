@@ -151,22 +151,48 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		EV("MP_MISSION_START", id, f1, f2, f3)
 		return f1, f2, f3
 	end
-	local function pushStart(id, f1, f2, f3, syncParty)
-		local mi = C_Garrison.GetBasicMissionInfo(id)
-		if not mi then return error("Mission is not available") end
-		local mif = mi.followers
-		if syncParty or not mif or mif[1] ~= f1 or mif[2] ~= f2 or mif[3] ~= f3 then
-			for i=1,mif and #mif or 0 do
-				C_Garrison.RemoveFollowerFromMission(id, mif[i])
+	local function releaseQueued(mid, toTentative)
+		local q = startQueue[mid]
+		if q then
+			startQueueSize, missionEndTime[mid], startQueue[mid], complete[mid] = startQueueSize - 1
+			local f1, f2, f3 = q[1], q[2], q[3]
+			for i=1,3 do
+				if f1 then
+					C_Garrison.RemoveFollowerFromMission(mid, f1)
+					dropFollowers[f1] = nil
+				end
+				f1, f2, f3 = f2, f3, f1
 			end
-			for i=1, mi.numFollowers do
-				C_Garrison.AddFollowerToMission(id, f1)
-				f1, f2, dropFollowers[f1] = f2, f3, id
+			if toTentative then
+				MasterPlan:SaveMissionParty(mid, f1, f2, f3)
 			end
 		end
-		complete[id], missionEndTime[id] = it, time()+select(2,C_Garrison.GetPartyMissionInfo(id))
+	end
+	local function pushStart(id, f1, f2, f3)
+		local mi, _, cgr = C_Garrison.GetBasicMissionInfo(id), GetCurrencyInfo(824)
+		if not mi or (cgr or 0) < (mi.cost or 0) then
+			releaseQueued(id)
+			EV("MP_MISSION_REJECT", id, f1, f2, f3)
+			return
+		end
+		local mif = mi.followers
+		for i=1,mif and #mif or 0 do
+			C_Garrison.RemoveFollowerFromMission(id, mif[i])
+		end
+		local p1, p2 = f1, f2
+		for i=1, mi.numFollowers do
+			if C_Garrison.GetFollowerMissionTimeLeft(p1) ~= nil then
+				releaseQueued(id)
+				EV("MP_MISSION_REJECT", id, f1, f2, f3)
+				return
+			end
+			C_Garrison.AddFollowerToMission(id, p1)
+			p1, p2, dropFollowers[p1] = p2, f3, id
+		end
+		complete[id], missionEndTime[id] = it, 5+time()+select(2,C_Garrison.GetPartyMissionInfo(id))
 		wipe(data)
 		C_Garrison.StartMission(id)
+		return true
 	end
 	local function startQueuePing()
 		if next(startQueue) then
@@ -177,28 +203,30 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		end
 	end
 	function api.StartMissionQueue(id, f1, f2, f3)
+		local fi, fc = api.GetFollowerInfo(), C_Garrison.GetMissionMaxFollowers(id) or 0
+		for i=1,fc do
+			local fi = fi[i == 1 and f1 or i == 2 and f2 or i == 3 and f3]
+			if not (fi and C_Garrison.GetFollowerMissionTimeLeft(fi.followerID) == nil) then
+				fc = 0
+				break
+			end
+		end
+		if fc < 1 then
+			EV("MP_MISSION_REJECT", id, f1, f2, f3)
+			return
+		end
 		if not next(startQueue) then
 			C_Timer.After(0.5, startQueuePing)
 		end
 		startQueue[id], startQueueSize = {f1, f2, f3}, startQueueSize + (startQueue[id] and 0 or 1)
-		pushStart(id, f1, f2, f3, true)
-		EV("MP_MISSION_START", id, f1, f2, f3)
-	end
-	local function releaseToTentative(mid, f1, f2, f3)
-		for i=1,3 do
-			if f1 then
-				C_Garrison.RemoveFollowerFromMission(mid, f1)
-				dropFollowers[f1] = nil
-			end
-			f1, f2, f3 = f2, f3, f1
+		if pushStart(id, f1, f2, f3) then
+			EV("MP_MISSION_START", id, f1, f2, f3)
 		end
 	end
 	function api.AbortMissionQueue()
 		if startQueueSize > 0 then
-			for k,v in pairs(startQueue) do
-				missionEndTime[k], startQueue[k], complete[k] = nil
-				securecall(releaseToTentative, k, v[1], v[2], v[3])
-				securecall(MasterPlan.SaveMissionParty, MasterPlan, k, v[1], v[2], v[3])
+			for k in pairs(startQueue) do
+				releaseQueued(k, true)
 			end
 			startQueueSize = 0
 			EV("MP_MISSION_START_QUEUE", startQueueSize)
@@ -208,8 +236,8 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		return startQueueSize
 	end
 	function EV:GARRISON_MISSION_STARTED(id)
-		if startQueueSize > 0 then
-			startQueueSize, startQueue[id] = startQueueSize - (startQueue[id] and 1 or 0)
+		if startQueue[id] then
+			startQueueSize, startQueue[id] = startQueueSize - 1
 			EV("MP_MISSION_START_QUEUE", startQueueSize)
 		end
 	end

@@ -1253,29 +1253,36 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			end
 		end)
 		
-		local synced = true
-		local function sync()
-			synced = true
-			local np = G.GetNumPendingMissionStarts()
-			b:SetShown(MasterPlan:HasFullTentativeParties() or np > 0)
-			if b:IsShown() then
-				b:SetText(np == 0 and L"Send Tentative Parties" or L("%d |4party:parties; remaining..."):format(np))
-				if GameTooltip:IsOwned(b) then
-					if np == 0 then
-						b:GetScript("OnEnter")(b)
-					else
-						GameTooltip:Hide()
+		local syncLater do
+			local synced = true
+			local function sync()
+				synced = true
+				local np = G.GetNumPendingMissionStarts()
+				b:SetShown(MasterPlan:HasFullTentativeParties() or np > 0)
+				if b:IsShown() then
+					b:SetText(np == 0 and L"Send Tentative Parties" or L("%d |4party:parties; remaining..."):format(np))
+					if GameTooltip:IsOwned(b) then
+						if np == 0 then
+							b:GetScript("OnEnter")(b)
+						else
+							GameTooltip:Hide()
+						end
 					end
 				end
 			end
-		end
-		function EV:MP_TENTATIVE_PARTY_UPDATE()
-			if synced then
-				C_Timer.After(0, sync)
-				synced = false
+			function syncLater()
+				if synced then
+					C_Timer.After(0, sync)
+					synced = false
+				end
 			end
+			EV.MP_MISSION_START_QUEUE, EV.MP_TENTATIVE_PARTY_UPDATE = sync, syncLater
 		end
-		EV.MP_MISSION_START_QUEUE = sync
+		function EV:MP_MISSION_REJECT(mid)
+			syncLater()
+			MasterPlan:GetMissionParty(mid, true)
+			PlaySound("igQuestFailed")
+		end
 	end
 	api.roamingParty = roamingParty
 end
@@ -2191,12 +2198,9 @@ do -- activeMissionsHandle
 					quant = abridge(v.quantity * d.materialMultiplier)
 				elseif v.itemID then
 					local _, _, q, l, _, _, _, _, _, tex = GetItemInfo(v.itemID)
-					if not tex then tex = GetItemIcon(v.itemID) end
+					l, icon = T.CrateLevels[v.itemID] or l, tex or GetItemIcon(v.itemID)
 					if v.quantity == 1 and q and l and l > 500 then
 						quant = ITEM_QUALITY_COLORS[q].hex .. l
-					end
-					if tex then
-						icon = tex
 					end
 				end
 				r.quantity:SetText(quant or "")
@@ -2345,7 +2349,7 @@ do -- availMissionsHandle
 				end
 				GarrisonMissionFrameTab2:Click()
 			end
-		elseif button == "RightButton" or IsAltKeyDown() then
+		elseif (button == "RightButton" or IsAltKeyDown()) and (select(2,GetCurrencyInfo(824)) or 0) >= (mi.cost or 0) then
 			MasterPlan:SaveMissionParty(mi.missionID, g[5], g[6], g[7])
 			api.roamingParty:DropFollowers(g[5], g[6], g[7])
 		else
@@ -2457,12 +2461,18 @@ do -- availMissionsHandle
 		local function forget()
 			numFollowers, garrResources = nil
 		end
-		function GetAvailableResources(dropCost)
+		function GetAvailableResources(dropCost, missions)
 			if not numFollowers then
 				local n, _, r = 0, GetCurrencyInfo(GARRISON_CURRENCY)
 				for k,v in pairs(G.GetFollowerInfo()) do
-					if v.isCombat and (v.status == GARRISON_FOLLOWER_IN_PARTY or v.status == nil) and not T.config.ignore[v.followerID] then
+					if v.isCombat and (v.status == GARRISON_FOLLOWER_IN_PARTY or v.status == nil) and not T.config.ignore[v.followerID] and not T.tentativeState[v.followerID] then
 						n = n + 1
+					end
+				end
+				for i=1,#missions do
+					local mi = missions[i]
+					if mi.cost and MasterPlan:HasTentativeParty(mi.missionID) == mi.numFollowers then
+						r = r - mi.cost
 					end
 				end
 				numFollowers, garrResources = n, r
@@ -2670,14 +2680,15 @@ do -- availMissionsHandle
 			
 			for i=1, #missions do
 				local mi, g = missions[i]
-				local sg, sr = groupCache[mi.missionID], G.HasSignificantRewards(mi)
+				local mid, sr = mi.missionID, G.HasSignificantRewards(mi)
+				local sg = groupCache[mid]
 				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or eg
 				mi.ord0, mi.ord1 = 0, max(g[1]*(g[3]*1e8 + g[9]), sr == true and g[1]*1e8 or 0, srv[sr] or 0)
 				
 				if order == "duration" then
 					mi.ord = -mi.durationSeconds
 				elseif order == "expire" then
-					local max = mi.offerEndTime or G.GetMissionSeen(mi.missionID, mi)
+					local max = mi.offerEndTime or G.GetMissionSeen(mid, mi)
 					mi.ord = (max or -1) >= 0 and -floor(max/1800) or -math.huge
 				elseif order == "level" then
 					local i, l = mi.iLevel, mi.level
@@ -2692,16 +2703,18 @@ do -- availMissionsHandle
 				else
 					mi.ord = g[5] and g[field] or -math.huge
 				end
-				if MasterPlan:HasTentativeParty(mi.missionID) == C_Garrison.GetMissionMaxFollowers(mi.missionID) then
-					mi.ord0 = -1
+				local tc = MasterPlan:HasTentativeParty(mid)
+				if tc == mi.numFollowers then
+					mi.ord0, mi.reqCheckFailed = -1, false
+				else
+					mi.reqCheckFailed = checkReq and mi.numFollowers > (nf + tc) or (mi.cost > nr)
 				end
-				mi.reqCheckFailed = checkReq and (mi.numFollowers > nf or mi.cost > nr)
 			end
 			table.sort(missions, cmp)
 		end
 		function GetAvailableMissions()
 			local missions, droppedMissionCost = G.GetAvailableMissions()
-			securecall(sortMissions, missions, GetAvailableResources(droppedMissionCost))
+			securecall(sortMissions, missions, GetAvailableResources(droppedMissionCost, missions))
 			local job = securecall(G.GetSuggestedMissionUpgradeGroups, missions, roamingParty:GetFollowers())
 			availUI.loader.job = job
 			if job then
