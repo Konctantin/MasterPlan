@@ -201,6 +201,39 @@ do -- Follower counter button tooltips
 	end)
 end
 
+local function GetRewardsDesc(mid)
+	local r, mi = "", C_Garrison.GetBasicMissionInfo(mid)
+	if mi and mi.rewards then
+		for k,v in pairs(mi.rewards) do
+			if v.currencyID == 0 then
+				r = r .. " |TInterface\\MoneyFrame\\UI-GoldIcon:0|t"
+			elseif v.icon then
+				r = r .. " |T" .. v.icon .. ":0|t"
+			elseif v.currencyID then
+				local c = select(3, GetCurrencyInfo(v.currencyID))
+				r = r .. " |T" .. (c or "Interface/Icons/Temp") .. ":0|t"
+			elseif v.itemID then
+				r = r .. " |T" .. GetItemIcon(v.itemID) .. ":0|t"
+			end
+		end
+	end
+	return r
+end
+local function FollowerButton_OnEnter(self)
+	if self and self.id and T.tentativeState[self.id] then
+		GameTooltip:SetOwner(self, "ANCHOR_NONE")
+		GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 4, 4)
+		GameTooltip:SetText(L"In Tentative Party")
+		GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(T.tentativeState[self.id]), GetRewardsDesc(T.tentativeState[self.id]), 1,1,1)
+		GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. GARRISON_MISSION_ADD_FOLLOWER, 0.5, 0.8, 1)
+		GameTooltip:Show()
+	end
+end
+local function FollowerButton_OnLeave(self)
+	if GameTooltip:IsOwned(self) then
+		GameTooltip:Hide()
+	end
+end
 hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	local buttons, fl = self.FollowerList.listScroll.buttons, G.GetFollowerInfo()
 	local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
@@ -230,6 +263,8 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 					buttons[i].ILevel:SetText(ITEM_LEVEL_ABBR .. " " .. fi.iLevel .. " (" .. weaponItemLevel .. "/" .. armorItemLevel .. ")")
 				end
 			end
+			buttons[i]:SetScript("OnEnter", FollowerButton_OnEnter)
+			buttons[i]:SetScript("OnLeave", FollowerButton_OnLeave)
 		end
 	end
 end)
@@ -399,9 +434,6 @@ do -- Minimize mission
 		end
 		G.PushFollowerPartyStatus(info.followerID)
 	end)
-	function EV:GARRISON_MISSION_NPC_CLOSED()
-		MasterPlan:DissolveAllMissions()
-	end
 end
 
 do -- GarrisonFollowerTooltip xp textures

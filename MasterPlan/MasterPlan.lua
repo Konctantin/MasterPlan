@@ -16,7 +16,6 @@ end
 local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	availableMissionSort="reward",
 	sortFollowers=true,
-	batchMissions=true,
 	riskReward=1,
 	xpPerCopper=1e-5,
 	xpPerResource=5e-1,
@@ -92,7 +91,7 @@ function api:SetTimeHorizon(sec)
 end
 
 local parties, tentativeState = {}, {}
-T.tentativeState = tentativeState
+T.tentativeState, T.tentativeParties = tentativeState, parties
 local function dissolve(mid, doNotUpdate)
 	local p = parties[mid]
 	if p then

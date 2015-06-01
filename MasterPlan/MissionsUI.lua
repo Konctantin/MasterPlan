@@ -425,60 +425,19 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 	activeUI:SetSize(880, 22)
 	activeUI:SetPoint("BOTTOMLEFT", GarrisonMissionFrameMissions, "TOPLEFT", 0, 4)
 	activeUI:Hide()
-	activeUI.CompleteAll = CreateFrame("Button", nil, activeUI, "UIPanelButtonTemplate") do
+	activeUI.CompleteAll = CreateFrame("Button", "MPCompleteAll", activeUI, "UIPanelButtonTemplate") do
 		local b = activeUI.CompleteAll
 		b:SetSize(200, 26)
 		b:SetPoint("BOTTOM", -64, 5)
 		b:SetText(L"Complete All")
+		b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	end
 	activeUI.orders = T.CreateLazyItemButton(activeUI, 122514) do
 		activeUI.orders:SetSize(28, 28)
 		activeUI.orders:SetPoint("BOTTOMRIGHT", -308, 3)
 	end
 	local ctl = CreateFrame("Frame") do
-		ctl:SetSize(56, 22)
-		activeUI.batch = CreateFrame("CheckButton", nil, ctl) do
-			local b = activeUI.batch
-			b:SetSize(20, 20)
-			b:SetPoint("LEFT", 3, 0)
-			b:SetChecked(true)
-			b:SetNormalTexture("Interface\\Minimap\\ObjectIcons")
-			b:SetHighlightTexture("Interface\\Minimap\\ObjectIcons")
-			b:SetCheckedTexture("Interface\\PetBattles\\DeadPetIcon")
-			local nt = b:GetNormalTexture()
-			nt:SetTexCoord(68/256, 92/256, 164/256, 188/256)
-			nt:SetVertexColor(0.8, 0.8, 0.7)
-			local ct = b:GetCheckedTexture()
-			ct:SetBlendMode("BLEND")
-			ct:ClearAllPoints()
-			ct:SetSize(12, 12)
-			ct:SetPoint("BOTTOMRIGHT")
-			local ht = b:GetHighlightTexture()
-			ht:SetTexCoord(64/256, 96/256, 160/256, 192/256)
-			ht:SetAlpha(0.25)
-			b:SetScript("OnClick", function(self)
-				T.config.batchMissions = self:GetChecked()
-				if GameTooltip:IsOwned(self) then
-					self:GetScript("OnEnter")(self)
-				end
-				activeUI.waste:SetEnabled(self:GetChecked())
-			end)
-			b:SetScript("OnEnter", function(self)
-				GameTooltip:SetOwner(self, "ANCHOR_NONE")
-				GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMLEFT", -24, -4)
-				GameTooltip:SetText(L"Expedited mission completion")
-				GameTooltip:AddLine(self:GetChecked() and VIDEO_OPTIONS_ENABLED or VIDEO_OPTIONS_DISABLED, 1,1,1, 1)
-				GameTooltip:Show()
-				hoverFocus:Close()
-			end)
-			b:SetScript("OnLeave", dismissTooltip)
-			function EV:MP_SETTINGS_CHANGED(set)
-				if set == "batchMissions" or set == nil then
-					b:SetChecked(T.config.batchMissions)
-					activeUI.waste:SetEnabled(T.config.batchMissions)
-				end
-			end
-		end
+		ctl:SetSize(29, 22)
 		activeUI.waste = CreateFrame("Button", nil, ctl) do
 			local popup = CreateFrame("Frame", nil, UIParent) do
 				local f = popup
@@ -543,7 +502,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 			end
 			local b = activeUI.waste
 			b:SetSize(20, 20)
-			b:SetPoint("LEFT", 30, 0)
+			b:SetPoint("LEFT", 4, 0)
 			b:SetNormalTexture("Interface\\Minimap\\ObjectIcons")
 			b:SetDisabledTexture("Interface\\Minimap\\ObjectIcons")
 			b:SetHighlightTexture("Interface\\Minimap\\ObjectIcons")
@@ -669,7 +628,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 			GarrisonMissionList_UpdateMissions() -- TODO
 			RefreshActiveMissionsView(self == lootFrame.Dismiss)
 		end
-		t = CreateFrame("Button", nil, lootFrame, "UIPanelButtonTemplate")
+		t = CreateFrame("Button", "MPLootSummaryDone", lootFrame, "UIPanelButtonTemplate")
 		t:SetSize(200, 24) t:SetText(L"Done") t:SetPoint("BOTTOM", 0, 18)
 		t:SetScript("OnClick", close)
 		t, lf.Dismiss = CreateFrame("Button", nil, lootFrame, "UIPanelCloseButtonNoScripts"), t
@@ -1208,7 +1167,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			C_Timer.After(0, clearRP)
 		end
 	end
-	availUI.SendTentative = CreateFrame("Button", nil, availUI, "UIPanelButtonTemplate") do
+	availUI.SendTentative = CreateFrame("Button", "MPPokeTentativeParties", availUI, "UIPanelButtonTemplate") do
 		local b = availUI.SendTentative
 		b:SetSize(200, 26)
 		b:SetPoint("BOTTOM", -64, 5)
@@ -1216,7 +1175,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		b:Hide()
 		b:SetScript("OnLeave", dismissTooltip)
 		b:SetScript("OnEnter", function(self)
-			if G.GetNumPendingMissionStarts() > 0 then return end
+			if G.GetNumPendingMissionStarts() > 0 or not MasterPlan:HasFullTentativeParties() then return end
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 			GameTooltip:SetText(L"Start Missions")
 			if C_Garrison.IsAboveFollowerSoftCap() then
@@ -1242,7 +1201,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			if G.GetNumPendingMissionStarts() > 0 then
 				G.AbortMissionQueue()
 				RefreshAvailMissionsView()
-			elseif button == "RightButton" then
+			elseif button == "RightButton" or not MasterPlan:HasFullTentativeParties() then
 				MasterPlan:DissolveAllMissions()
 				PlaySound("UChatScrollButton")
 			elseif not C_Garrison.IsAboveFollowerSoftCap() then
@@ -1258,9 +1217,17 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			local function sync()
 				synced = true
 				local np = G.GetNumPendingMissionStarts()
-				b:SetShown(MasterPlan:HasFullTentativeParties() or np > 0)
+				b:SetShown(np > 0 or next(T.tentativeState) ~= nil)
 				if b:IsShown() then
-					b:SetText(np == 0 and L"Send Tentative Parties" or L("%d |4party:parties; remaining..."):format(np))
+					local text
+					if np > 0 then
+						text = L("%d |4party:parties; remaining..."):format(np)
+					elseif MasterPlan:HasFullTentativeParties() then
+						text = L"Send Tentative Parties"
+					else
+						text = L"Clear Tentative Parties"
+					end
+					b:SetText(text)
 					if GameTooltip:IsOwned(b) then
 						if np == 0 then
 							b:GetScript("OnEnter")(b)
@@ -1367,6 +1334,9 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				m[i].func, m[i].checked, m[i].isNotRadio, m[i].keepShownOnClick = toggleInterestBit, checkInterestBit, true, true
 			end
 			b:SetScript("OnClick", function(self)
+				if m[#m].arg1 == 115280 and T.config.legendStep >= 2 then
+					m[#m] = nil
+				end
 				for i=2,#m do
 					local mi = m[i]
 					if (not mi.text or mi.placeholder) then
@@ -1378,9 +1348,6 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 						end
 						mi.text, mi.placeholder = "|T" .. (ico or "Interaface\\Icons\\INV_Misc_QuestionMark") .. ":16:16:0:0:64:64:4:60:4:60|t " .. (name or ("#" .. key)), not name or nil
 					end
-				end
-				if m[#m].arg1 == 115280 and T.config.legendStep >= 2 then
-					m[#m] = nil
 				end
 				easyDrop:Toggle(self, m, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
 			end)
@@ -1397,7 +1364,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 end
 do -- tabs
 	local activeTab = CreateFrame("Button", "GarrisonMissionFrameTab3", GarrisonMissionFrame, "GarrisonMissionFrameTabTemplate", 1)
-	local availTab = GarrisonMissionFrameTab1
+	local availTab, followerTab = GarrisonMissionFrameTab1, GarrisonMissionFrameTab2
 	local interestTab = CreateFrame("Button", "GarrisonMissionFrameTab4", GarrisonMissionFrame, "GarrisonMissionFrameTabTemplate", 1)
 	missionList.activeTab, missionList.availTab, missionList.interestTab = activeTab, availTab, interestTab
 	activeTab:SetPoint("LEFT", availTab, "RIGHT", -5, 0)
@@ -1448,6 +1415,13 @@ do -- tabs
 			PanelTemplates_SetTab(GarrisonMissionFrame, self:GetID() == 2 and 3 or 1)
 		end
 	end)
+	local function SetTabState(tab, selected)
+		if selected == nil then
+			PanelTemplates_SetDisabledTabState(tab)
+		else
+			(selected and PanelTemplates_SelectTab or PanelTemplates_DeselectTab)(tab)
+		end
+	end
 	local updateMissionTabs = oncePerFrame(function()
 		local cm = GarrisonMissionFrame.MissionComplete.completeMissions
 		activeTab:SetFormattedText(L"Active Missions (%d)", math.max(#GarrisonMissionFrameMissions.inProgressMissions, cm and #cm or 0))
@@ -1456,14 +1430,18 @@ do -- tabs
 		ResizeTabs()
 		C_Timer.After(0, ResizeTabs)
 		if #GarrisonMissionFrameMissions.inProgressMissions == 0 and (cm and #cm or 0) == 0 then
-			PanelTemplates_SetDisabledTabState(activeTab)
+			SetTabState(activeTab, nil)
 		else
-			(GarrisonMissionFrame.selectedTab == 3 and PanelTemplates_SelectTab or PanelTemplates_DeselectTab)(activeTab)
+			SetTabState(activeTab, GarrisonMissionFrame.selectedTab == 3)
 		end
-		(GarrisonMissionFrame.selectedTab == 4 and PanelTemplates_SelectTab or PanelTemplates_DeselectTab)(interestTab)
+		
 		if not missionList:IsShown() then
-			PanelTemplates_SetDisabledTabState(interestTab)
+			SetTabState(interestTab, nil)
+		else
+			SetTabState(interestTab, GarrisonMissionFrame.selectedTab == 4)
 		end
+		SetTabState(availTab, GarrisonMissionFrame.selectedTab == 1)
+		SetTabState(followerTab, GarrisonMissionFrame.selectedTab == 2)
 		api.roamingParty:Update()
 		api:SetMissionsUI(GarrisonMissionFrame.selectedTab)
 		if GarrisonMissionFrame.selectedTab == 3 or #C_Garrison.GetCompleteMissions() == 0 then
@@ -1601,9 +1579,9 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 	end
 	EV.MP_RELEASE_CACHES = ClearCompletionState
 end
-activeUI.CompleteAll:SetScript("OnClick", function()
+activeUI.CompleteAll:SetScript("OnClick", function(_, button)
 	PlaySound("UChatScrollButton")
-	if T.config.batchMissions then
+	if button ~= "RightButton" then
 		StartCompleteAll()
 	else
 		GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
@@ -1722,7 +1700,6 @@ local core = {} do
 				self.view[i] = f
 			end
 			if f then
-				f:Hide()
 				f:SetID(i)
 				securecall(self.props.Update, f, self.data[i])
 				f:SetParent(sc)
@@ -1730,6 +1707,11 @@ local core = {} do
 				f:SetPoint("TOP", -10, ofs - 2 - (i-1)*entryHeight)
 				f:Show()
 			end
+		end
+		local mf = GetMouseFocus()
+		local oe = mf and mf:GetScript("OnEnter")
+		if mf and oe and mf.IsEnabled and mf:IsEnabled() then
+			oe(mf)
 		end
 	end
 
@@ -2677,6 +2659,12 @@ do -- availMissionsHandle
 			local checkReq = (nf < 3 or nr < 100) and T.config.availableMissionSort ~= "expire"
 			local p1, p2, p3 = api.roamingParty:GetFollowers()
 			p1 = not (p2 and p3) and p1
+			if p1 then
+				local f1 = G.GetFollowerInfo()[p1]
+				if not (f1 and (f1.level < 100 or f1.quality < 4)) then
+					p1 = nil
+				end
+			end
 			
 			for i=1, #missions do
 				local mi, g = missions[i]

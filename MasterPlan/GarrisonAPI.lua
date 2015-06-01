@@ -711,12 +711,29 @@ do -- GetMissionSeen
 	local lastOffer
 	local expire = T.MissionExpire
 	function api.ObserveMissions(missions)
-		local missions, dnow = lastOffer and (missions or C_Garrison.GetAvailableMissions()), stime() - GetTime()
+		local missions, dnow, tp = lastOffer and (missions or C_Garrison.GetAvailableMissions()), stime() - GetTime(), T.tentativeParties
 		for i=1,missions and #missions or 0 do
 			local mi = missions[i]
 			local ex, oet = expire[mi.missionID], mi.offerEndTime
 			if oet and ex and ex > 0 then
 				lastOffer[mi.missionID] = floor(dnow + oet - ex * 3600)
+			end
+			local p = tp and tp[mi.missionID]
+			if p then
+				p.tag = true
+			end
+		end
+		if tp then
+			local d = false
+			for k,v in pairs(tp) do
+				if not v.tag then
+					MasterPlan:GetMissionParty(k, true)
+					d = true
+				end
+				v.tag = nil
+			end
+			if d then
+				EV("MP_TENTATIVE_PARTY_UPDATE")
 			end
 		end
 	end
@@ -1136,6 +1153,7 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 		
 		local rank2, now, defValid = api.GroupRank.threats2, time(), not (f1 or f2 or f3)
 		local useFocus = finfo[not (f2 or f3) and f1]
+		useFocus = useFocus and (useFocus.level < 100 or useFocus.quality < 4) and useFocus
 		for i=1,#missions do
 			local mi = missions[i]
 			if not groupCache[mi.missionID] then
