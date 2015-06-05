@@ -2944,13 +2944,13 @@ do -- interestMissionsHandle
 		local c, t = {}, unusedFollowers:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 		t:SetText(L"Redundant followers:")
 		t:SetPoint("BOTTOM", unusedFollowers, "TOP", 0, 4)
+		unusedFollowers.ufollowers, unusedFollowers.label = c, t
 		for i=1,21 do
-			local t = CreateFollowerPortrait(unusedFollowers, 34, i)
+			t = CreateFollowerPortrait(unusedFollowers, 34, i)
 			t:SetPoint("BOTTOMLEFT", 36*i-35, 4)
 			t:SetScript("OnClick", InterestFollower_OnClick)
 			c[i], t.showAbilityDescriptions = t, true
 		end
-		unusedFollowers.ufollowers = c
 	end
 	local function SetUnusedFollowers(self, d)
 		self.veil:Hide()
@@ -3039,10 +3039,11 @@ do -- interestMissionsHandle
 			end
 		end
 		local nf, blvl, mentor, finfo = best and s[2] or 0, best and best[6], best and best.mentorLevel or 0, G.GetFollowerInfo()
+		local muf = best and best.used or 0
 		for i=1,nf do
 			local mlvl = blvl and blvl % 1e3 or d[2]
 			blvl = blvl and (blvl - mlvl) / 1e3
-			local fb, fi = self.followers[i], finfo[best[i]]
+			local fb, fi, usedGlow = self.followers[i], finfo[best[i]]
 			fb.followerID, fb.targetLevel = best[i], (mentor < mlvl or fi.garrFollowerID == T.MENTOR_FOLLOWER) and mlvl or 0
 			fb.portrait:SetToFileData(fi and fi.portraitIconID or 0)
 			fb.glow:Hide()
@@ -3052,8 +3053,13 @@ do -- interestMissionsHandle
 				fb.portrait:SetVertexColor(1, 0.6, 0.6)
 				fb.glow:Show()
 				fb.glow:SetVertexColor(1,0,0)
+				usedGlow = true
 			else
 				fb.portrait:SetVertexColor(1,1,1)
+			end
+			if not usedGlow and muf % 2^i >= 2^(i-1) then
+				fb.glow:Show()
+				fb.glow:SetVertexColor(1, 0.8, 0)
 			end
 			fb:Show()
 		end
@@ -3105,9 +3111,9 @@ do -- interestMissionsHandle
 				return
 			end
 			
-			local uf, ua, hasUE = {}, unusedEntry.unused, missions[1] == unusedEntry
-			wipe(ua)
-			for k, v in pairs(G.GetFollowerInfo()) do
+			local finfo = G.GetFollowerInfo()
+			local uf, ua, hasUE, hasInactive = {}, unusedEntry.unused, missions[1] == unusedEntry
+			for k, v in pairs(finfo) do
 				if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] then
 					uf[k] = true
 				end
@@ -3123,12 +3129,18 @@ do -- interestMissionsHandle
 						if muf % (2^j) >= 2^(j-1) then
 							uf[b[j] or 0] = nil
 						end
+						hasInactive = hasInactive or (finfo[b[j]].status == GARRISON_FOLLOWER_INACTIVE)
 					end
 				end
 			end
-			for k in pairs(uf) do
-				ua[#ua + 1] = k
+			
+			wipe(ua)
+			if not hasInactive then
+				for k in pairs(uf) do
+					ua[#ua + 1] = k
+				end
 			end
+			
 			if #ua > 0 then
 				local fi = G.GetFollowerInfo()
 				table.sort(ua, function(a,b)

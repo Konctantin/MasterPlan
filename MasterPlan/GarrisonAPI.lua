@@ -347,11 +347,13 @@ function api.GetCounterInfo()
 	end
 	return data.counters
 end
-function api.GetDoubleCounters(finfo)
-	if not data.counters2 then
+function api.GetDoubleCounters(skipInactive)
+	local ckey = skipInactive and "counters2" or "counters2i"
+	if not data[ckey] then
 		local rt, aai, cai = {}, C_Garrison.GetFollowerAbilityAtIndex, C_Garrison.GetFollowerAbilityCounterMechanicInfo
-		for fid, fi in pairs(finfo) do
-			if not T.config.ignore[fid] then
+		local keepInactive = not skipInactive
+		for fid, fi in pairs(api.GetFollowerInfo()) do
+			if not T.config.ignore[fid] and (keepInactive or fi.status ~= GARRISON_FOLLOWER_INACTIVE) then
 				if fi.quality >= 4 then
 					local c1, c2 = cai(aai(fid, 1)), cai(aai(fid, 2))
 					local k = c1 <= c2 and (c1*100 + c2) or (c2*100 + c1)
@@ -362,7 +364,8 @@ function api.GetDoubleCounters(finfo)
 				if sc then
 					local c1, s1 = aai(fid, 1) or 0, false
 					c1 = c1 > 0 and cai(c1) or false
-					-- actually, this is wrong. we only need c1 logic for current ability + one of spec's abilities for quality < 4. but then, we also get a difference between "Gain naturally" and "if rerolled."
+					-- actually, this is wrong. we only need c1 logic for current ability + one of spec's abilities for quality < 4.
+					-- but then, we also get a difference between "Gain naturally" and "if rerolled."
 					for i=#sc-1,0,-1 do
 						local c1 = sc[i] or c1
 						for j=i+1,#sc do
@@ -377,10 +380,10 @@ function api.GetDoubleCounters(finfo)
 				end
 			end
 		end
-		data.counters2 = rt
+		data[ckey] = rt
 		f:Show()
 	end
-	return data.counters2
+	return data[ckey]
 end
 function api.GetFollowerTraits()
 	if not data.traits then
@@ -2100,7 +2103,7 @@ function api.countFreeFollowers(f, finfo)
 end
 function api.CountUniqueRerolls(counters, thisFollowerID)
 	local finfo, c = api.GetFollowerInfo(), counters
-	local dc, novel, inact = api.GetDoubleCounters(finfo), 0, 0
+	local dc, novel, inact = api.GetDoubleCounters(), 0, 0
 	
 	for i=1,#c do
 		for j=i+1, #c do

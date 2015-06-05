@@ -49,7 +49,16 @@ local CreateLazyItemButton do
 	local itemIDs = {}
 	local function OnEnter(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetItemByID(itemIDs[self])
+		local iid = itemIDs[self]
+		GameTooltip:SetItemByID(iid)
+		for i=0,4 do
+			for j=1,GetContainerNumSlots(i) do
+				if GetContainerItemID(i, j) == iid then
+					GameTooltip:SetBagItem(i, j)
+					break
+				end
+			end
+		end
 		GameTooltip:Show()
 	end
 	local function OnLeave(self)
