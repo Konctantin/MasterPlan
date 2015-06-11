@@ -538,12 +538,17 @@ L == "ruRU" and {
 	["Complete Missions"] = "Завершить задания",
 	["Complete party"] = "Собрать группу",
 	["Considering inactive followers"] = "Учитывать неактивных соратников",
+	["Could be countered by re-rolling:"] = "Может быть получено при изменении способностей:", -- Needs review
+	["Counter and Trait Combinations"] = "Комбинации способностей и особенностей", -- Needs review
 	["%d |4party:parties; remaining..."] = "Осталось %d |4party:parties; ...",
+	["%d active"] = "%d активных", -- Needs review
 	["Desirable rewards"] = "Предпочтительные награды",
+	["%d followers recruited"] = "%d нанятых соратников", -- Needs review
 	["%dh %dm"] = "%dч %dм",
 	["+%d Inactive (hold ALT to view)"] = "+%d Неактивный (удерживайте ALT для просмотра)",
 	Done = "Завершено",
 	["%d%% success chance"] = "%d%% вероятность успеха",
+	["%d total"] = "%d всего", -- Needs review
 	["Duplicate counters"] = "Одинаковые противодействия",
 	["Epic Ability"] = "Эпическая способность",
 	["Expires in:"] = "Истекает через",
@@ -551,6 +556,7 @@ L == "ruRU" and {
 	["Follower experience"] = "Опыт соратника",
 	["Follower experience per hour"] = "Опыт соратника в час",
 	["Followers activating this trait:"] = "Соратники, активирующие эту особенность:",
+	["Follower Summary"] = "Информация по соратникам", -- Needs review
 	["Followers with this trait:"] = "Соратники с данной особенностью:",
 	["Follower XP"] = "XP соратника",
 	["Future Mission #%d"] = "Будущее задание #%d",
@@ -564,7 +570,7 @@ L == "ruRU" and {
 	["Ignoring inactive followers"] = "Не учитывать неактивных соратников",
 	["Inactive followers are never included in suggested groups."] = "Не включать в предлагаемые группы неактивных соратников.",
 	["Inactive followers are only included in suggested groups when they are beneficial."] = "Неактивные соратники будут включены в предложенные группы, когда они выгодны.",
-	Instant = "момент",
+	Instant = "сейчас", -- Needs review
 	["In Tentative Party"] = "В предварительной группе",
 	["Last offered: %s ago"] = "Завершено в последний раз: %s назад",
 	["Mission duration"] = "Длительность задания",
@@ -574,6 +580,7 @@ L == "ruRU" and {
 	["Missions of Interest"] = "Важные задания",
 	["Mitigated threats"] = "Нейтрализованные угрозы",
 	["Potential counters:"] = "Возможно нейтрализовать:",
+	Races = "Расы", -- Needs review
 	Ready = "Готово",
 	["Redundant followers:"] = "Резервные соратники",
 	["Require Currency Reward"] = "Валюта в качестве награды",
@@ -586,6 +593,7 @@ L == "ruRU" and {
 	["%sk"] = "%sк",
 	Skipped = "Пропущено",
 	["Start Missions"] = "Начать миссии",
+	Statistics = "Статистика", -- Needs review
 	Success = "Успешно",
 	["Success chance"] = "Вероятность успеха",
 	["Suggested groups"] = "Предлагаемые группы",
@@ -593,8 +601,14 @@ L == "ruRU" and {
 	["%s XP gained"] = "%s XP получено",
 	["%s XP/h"] = "%s XP/ч",
 	["This follower could counter the following threats:"] = "Соратник может нейтрализовать угрозы:",
-	["Time Horizon"] = "время горизонт",
+	["Time Horizon"] = "Гарнизонное время", -- Needs review
+	[ [=[Time until you next expect to be able to interact with garrison missions.
+
+This may affect suggested groups and mission sorting order.]=] ] = [=[Время, на протяжении которого вы не можете управлять миссиями в гарнизоне.
+
+Это может повлиять на предлагаемые группы и порядок сортировки миссий.]=], -- Needs review
 	Unignore = "Не игнорировать",
+	["Unique ability rerolls:"] = "Изменений уникальных спсобностей:", -- Needs review
 	["View Rewards"] = "Посмотреть награды",
 	["You have no followers to counter this mechanic."] = "У вас нет соратников, чтобы  противостоять данной способности.",
 	["You have no followers who activate this trait."] = "У вас нет соратников, активирующих эту особенность.",
