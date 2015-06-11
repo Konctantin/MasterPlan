@@ -1,5 +1,5 @@
 local _, T = ...
-if T.Mark ~= 40 then return end
+if T.Mark ~= 50 then return end
 local G, L, EV = T.Garrison, T.L, T.Evie
 local countFreeFollowers = G.countFreeFollowers
 
@@ -10,6 +10,7 @@ local function hideGameTooltip(self)
 end
 
 local mechanicsFrame = CreateFrame("Frame")
+T.mechanicsFrame = mechanicsFrame
 mechanicsFrame:SetSize(1,1) mechanicsFrame:Hide()
 local floatingMechanics = CreateFrame("Frame", nil, mechanicsFrame)
 floatingMechanics:EnableMouse(true)
@@ -74,7 +75,7 @@ local CreateMechanicButton, Mechanic_SetTrait do
 		local count = info and G.countFreeFollowers(info) or 0
 		self.Count:SetText((count or 0) > 0 and count or "")
 	end
-	T.Mechanic_OnClick = Mechanic_OnClick
+	T.CreateMechanicButton, T.Mechanic_OnClick = CreateMechanicButton, Mechanic_OnClick
 end
 
 floatingMechanics:SetFrameStrata("DIALOG")
@@ -128,10 +129,13 @@ local icons = setmetatable({}, {__index=function(self, k)
 end})
 local traits, traitGroups = {221, 76, 77, 79, 256}, {
 	{80, 236, 29, icon="Interface\\Icons\\XPBonus_Icon"},
-	{63,64,65,66,67,68,69,70,71,72,73,74,75,252,253,254,255,  icon="Interface\\Icons\\PetBattle_Health", affinities=true},
+	T.UsableAffinities,
 	{4,36,37,38,39,40,41,42,43, 7,8,9,44,45,46,48,49, icon="Interface\\Icons\\Ability_Hunter_MarkedForDeath"},
 	{52,53,54,55,56,57,58,59,60,61,62,227,231, icon="Interface\\Icons\\Trade_Engineering"},
-}
+} do
+	local ag = traitGroups[2]
+	ag.affinities, ag.icon = true, "Interface\\Icons\\PetBattle_Health"
+end
 local function syncTotals()
 	local finfo, cinfo, tinfo, i = G.GetFollowerInfo(), G.GetCounterInfo(), G.GetFollowerTraits(), 1
 	for k=1,10 do
@@ -217,14 +221,21 @@ UpgradesFrame:SetBackdrop({edgeFile="Interface/Tooltips/UI-Tooltip-Border", bgFi
 UpgradesFrame:SetBackdropBorderColor(0.15, 1, 0.25)
 UpgradesFrame:Hide()
 UpgradesFrame:SetScript("OnHide", function(self)
+	local so = self.owner
 	self:Hide()
-	if self.owner and not self.owner:IsMouseOver() and self.owner.UpgradeIcon then
-		self.owner.UpgradeIcon:SetAlpha(0.6)
-	end
 	self.owner, self.followerID = nil
+	if so and so.Sync then
+		so:Sync()
+	end
 end)
 UpgradesFrame:SetScript("OnUpdate", function(self, elapsed)
 	local isOver = self.owner:IsMouseOver(4,-4,-4,4) or self:IsMouseOver(4,-4,-4,4)
+	if not isOver and (self.insetTop or 0) > 0 then
+		isOver = self:IsMouseOver(self.insetTop+4,-4,-4,4)
+	else
+		self.insetTop = 0
+	end
+	
 	if isOver then
 		self.elapsed = 0
 	else
@@ -234,16 +245,16 @@ UpgradesFrame:SetScript("OnUpdate", function(self, elapsed)
 		end
 	end
 end)
-T.Evie.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+function EV:PLAYER_REGEN_DISABLED()
 	UpgradesFrame:Hide()
 	UpgradesFrame:SetParent(nil)
 	UpgradesFrame:ClearAllPoints()
-end)
-T.Evie.RegisterEvent("BAG_UPDATE_DELAYED", function()
+end
+function EV:BAG_UPDATE_DELAYED()
 	if UpgradesFrame:IsVisible() then
-		UpgradesFrame:Update()
+		UpgradesFrame:Update(true)
 	end
-end)
+end
 
 local function UpgradeItem_SetItem(self, id)
 	self.itemID = id
@@ -305,23 +316,37 @@ local upgradeItems = setmetatable({}, {__index=function(self, i)
 	self[i] = b
 	return b
 end})
-function UpgradesFrame:Update()
-	local up = {G.GetUpgradeItems(self.itemLevel, self.isWeapon)}
-	if #up == 0 then return self:Hide() end
-	self:SetHeight(8+46*#up)
-	for i=1,#up do
-		UpgradeItem_SetItem(upgradeItems[i], up[i])
+local function setUpgradeItems(i, a, ...)
+	if a then
+		UpgradeItem_SetItem(upgradeItems[i], a)
+		return setUpgradeItems(i+1, ...)
 	end
-	for i=#up+1,#upgradeItems do
+	return i-1
+end
+function UpgradesFrame:Update(liveUpdate)
+	local c = setUpgradeItems(1, G.GetUpgradeItems(self.itemLevel, self.isWeapon))
+	if c == 0 then
+		return self:Hide()
+	end
+	for i=c+1,#upgradeItems do
 		upgradeItems[i]:Hide()
 	end
+	local oh, nh = liveUpdate and self:GetHeight(), 8+46*c
+	self:SetHeight(nh)
+	self.insetTop = oh and max(0, oh-nh, self.insetTop or 0) or 0
 end
 function UpgradesFrame:DisplayFor(owner, itemLevel, isWeapon, followerID)
 	self:SetParent(owner)
-	self.owner, self.itemLevel, self.isWeapon, self.followerID = owner, itemLevel, isWeapon, followerID
+	self.owner, self.itemLevel, self.isWeapon, self.followerID, self.insetTop = owner, itemLevel, isWeapon, followerID, 0
 	self:SetPoint("BOTTOM", owner, "TOP", owner.MPUpgradeOffsetX or 0, owner.MPUpgradeOffsetY or 0)
 	self:Show()
-	UpgradesFrame:Update()
+	UpgradesFrame:Update(false)
+end
+function UpgradesFrame:CheckUpdate(id, wil, ail)
+	if self:IsShown() and self.followerID == id then
+		self.itemLevel = self.isWeapon and wil or ail
+		self:Update(true)
+	end
 end
 
 
@@ -623,7 +648,7 @@ GarrisonMissionFrameFollowers.SearchBox:SetMaxLetters(0)
 GarrisonLandingPage.FollowerList.SearchBox:SetMaxLetters(0)
 
 do -- Weapon/Armor upgrades and rerolls
-	GarrisonMissionFrame.FollowerTab.MPItemsOffsetY = 102
+	GarrisonMissionFrame.FollowerTab.MPItemsOffsetY = 82
 	GarrisonMissionFrame.FollowerTab.MPSideItemsOffsetY = -18
 	GarrisonLandingPage.FollowerTab.MPItemsOffsetY = 62
 	GarrisonLandingPage.FollowerTab.MPSideItemsOffsetY = -8
@@ -682,6 +707,25 @@ do -- Weapon/Armor upgrades and rerolls
 			items.armor:GetNormalTexture():SetPoint("LEFT")
 			items.weapon:GetFontString():SetPoint("RIGHT", -28, 0)
 			items.armor:GetFontString():SetPoint("LEFT", 28, 0)
+			function gear:Sync()
+				local id = items.followerID
+				local wid, wil, aid, ail = C_Garrison.GetFollowerItems(id)
+				local avail = C_Garrison.GetFollowerStatus(id) ~= GARRISON_FOLLOWER_ON_MISSION
+				local canWeapon, canArmor = avail and not not G.GetUpgradeItems(wil, true), avail and not not G.GetUpgradeItems(ail, false)
+				items.weapon.itemLevel, items.armor.itemLevel = wil, ail
+				items.weapon:SetNormalTexture(GetItemIcon(wid))
+				items.armor:SetNormalTexture(GetItemIcon(aid))
+				items.weapon:SetText(wil)
+				items.armor:SetText(ail)
+				items.weapon:SetEnabled(canWeapon)
+				items.armor:SetEnabled(canArmor)
+				items.averageGearLevel:SetFormattedText(GARRISON_FOLLOWER_ITEM_LEVEL, (wil+ail)/2)
+				if UpgradesFrame.followerID == id then
+					UpgradesFrame:CheckUpdate(id, wil, ail)
+				else
+					UpgradesFrame:Hide()
+				end
+			end
 		end
 		reroll = CreateFrame("Frame", nil, items) do
 			reroll:SetPoint("TOP", items, "BOTTOM", 0, -2)
@@ -723,28 +767,15 @@ do -- Weapon/Armor upgrades and rerolls
 			return
 		end
 		items.followerID = id
-		local avail = C_Garrison.GetFollowerStatus(id) ~= GARRISON_FOLLOWER_ON_MISSION
 		if C_Garrison.GetFollowerLevel(id) < 100 then
 			gear:Hide()
 			UpgradesFrame:Hide()
 		else
+			gear:Sync()
 			gear:Show()
-			local wid, wil, aid, ail = C_Garrison.GetFollowerItems(id)
-			local canWeapon, canArmor = avail and not not G.GetUpgradeItems(wil, true), avail and not not G.GetUpgradeItems(ail, false)
-			items.weapon.itemLevel, items.armor.itemLevel = wil, ail
-			items.weapon:SetNormalTexture(GetItemIcon(wid))
-			items.armor:SetNormalTexture(GetItemIcon(aid))
-			items.weapon:SetText(wil)
-			items.armor:SetText(ail)
-			items.weapon:SetEnabled(canWeapon)
-			items.armor:SetEnabled(canArmor)
-			items.averageGearLevel:SetFormattedText(GARRISON_FOLLOWER_ITEM_LEVEL, (wil+ail)/2)
-			if UpgradesFrame:IsShown() and (UpgradesFrame.followerID ~= id or not (canWeapon or canArmor)) then
-				UpgradesFrame:Hide()
-			end
 		end
 		reroll:SetPoint("TOP", items, "BOTTOM", 0, self.MPSideItemsOffsetY or -2)
-		reroll:Sync(avail)
+		reroll:Sync()
 		items:SetParent(self)
 		items:SetPoint("BOTTOM", self, "BOTTOMLEFT", 156, self.MPItemsOffsetY)
 		items:Show()

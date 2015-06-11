@@ -4,7 +4,7 @@
 ## LoadOnDemand: 1
 ## LoadWith: Blizzard_GarrisonUI
 ## RequiredDeps: Blizzard_GarrisonUI, MasterPlanA
-## Version: 0.48
+## Version: 0.50
 ## Author: foxlit
 ## X-Website: http://www.townlong-yak.com/master-plan/
 ## SavedVariablesPerCharacter: MasterPlanPC
@@ -12,7 +12,7 @@
 Libs/Evie.lua
 Libs/Reframe.lua
 Locale.lua
-Mark-40.lua
+Mark-50.lua
 GarrisonAPI-Data.lua
 GarrisonAPI.lua
 MasterPlan.lua
@@ -20,3 +20,4 @@ MissionsUI.lua
 GarrisonMissions.lua
 GarrisonFollowers.lua
 GarrisonLanding.lua
+FollowerSummary.lua

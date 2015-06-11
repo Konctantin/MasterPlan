@@ -1,6 +1,6 @@
 local addonName, T = ...
-if T.Mark ~= 40 then
-	local m = "You must restart World of Warcraft after installing this update."
+if T.Mark ~= 50 then
+	local m = T.Mark == nil and "You must restart World of Warcraft after installing this update." or ADDON_INCOMPATIBLE
 	if type(T.L) == "table" and type(T.L[m]) == "string" then m = T.L[m] end
 	return print("|cffffffff[Master Plan]: |cffff8000" .. m)
 end
@@ -29,6 +29,7 @@ local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	timeHorizonMin=300,
 	crateLevelGrace=25,
 	interestMask=0,
+	moC=0, moE=0, moV=0, moN=0, goldCollected=0,
 	ignore={},
 	complete={},
 }})
@@ -90,88 +91,12 @@ function api:SetTimeHorizon(sec)
 	EV("MP_SETTINGS_CHANGED", "timeHorizon")
 end
 
-local parties, tentativeState = {}, {}
-T.tentativeState, T.tentativeParties = tentativeState, parties
-local function dissolve(mid, doNotUpdate)
-	local p = parties[mid]
-	if p then
-		local f1, f2, f3 = p[1], p[2], p[3]
-		parties[mid], tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = nil
-		if not doNotUpdate then
-			EV("MP_TENTATIVE_PARTY_UPDATE")
-		end
-		return f1, f2, f3
-	end
-end
-local function tentativeFullNext(self, mid)
-	local mid, p = next(parties, mid)
-	if mid then
-		if #p == C_Garrison.GetMissionMaxFollowers(mid) then
-			return mid, p[1], p[2], p[3]
-		end
-		return tentativeFullNext(self, mid)
-	end
-end
-function api:GetMissionParty(mid, quiet)
-	return dissolve(mid, quiet)
-end
-function api:SaveMissionParty(mid, f1, f2, f3)
-	dissolve(mid, true)
-	dissolve(tentativeState[f1], true)
-	dissolve(tentativeState[f2], true)
-	dissolve(tentativeState[f3], true)
-	if not f1 then f1, f2, f3 = f2, f3 end
-	parties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
-	tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
-	EV("MP_TENTATIVE_PARTY_UPDATE")
-end
-function api:HasTentativeParty(mid)
-	local p = parties[mid]
-	return p and #p or 0
-end
-function api:HasFullTentativeParties()
-	for k,v in pairs(parties) do
-		if #v == C_Garrison.GetMissionMaxFollowers(k) then
-			return true
-		end
-	end
-end
-function api:GetFullTentativeParties()
-	return tentativeFullNext
-end
-function api:GetFollowerTentativeMission(fid)
-	return tentativeState[fid]
-end
-function api:DissolveMissionByFollower(fid)
-	dissolve(tentativeState[fid])
-end
-function api:DissolveAllMissions()
-	if next(parties) or next(tentativeState) then
-		wipe(parties)
-		wipe(tentativeState)
-		EV("MP_TENTATIVE_PARTY_UPDATE")
-	end
-end
-function EV:MP_MISSION_START(mid, f1, f2, f3)
-	dissolve(mid, true)
-	dissolve(tentativeState[f1], true)
-	dissolve(tentativeState[f2], true)
-	dissolve(tentativeState[f3], true)
-	EV("MP_TENTATIVE_PARTY_UPDATE")
-end
-function EV:GARRISON_MISSION_STARTED(id)
-	dissolve(id)
-end
-
 function api:IsFollowerIgnored(fid)
 	return not not conf.ignore[fid]
 end
 function api:SetFollowerIgnored(fid, ignore)
 	assert(type(fid) == "string", 'Syntax: MasterPlan:SetFollowerIgnored("followerID", ignore)')
 	conf.ignore[fid] = ignore and 1 or nil
-end
-function api:FireRelease()
-	EV("MP_RELEASE_CACHES")
 end
 
 MasterPlan = api

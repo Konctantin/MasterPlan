@@ -1,5 +1,5 @@
 local _, T = ...
-if T.Mark ~= 40 then return end
+if T.Mark ~= 50 then return end
 
 T.Affinities = {} do
 	local ht, hp = [[ì:¾'00Ç¸jášĞ­C1 ç±G9uïÂ‚®°&|c{ÖÙ†Ü•wÌĞ°ÛÄÅ{O`=ç\1é‚Ş›?g«Úø«-sDê$sJ¶çşè¥>aOwÊ_Uw ár=ÀsÕíMêÌ2s½#H4\?Ñ7búËöt‚Ó]g…p¨JtWcP€ôUR%:¡÷Rî4kí9ˆ°(Î+^% F»ç:ÿÉÿjæt¯é"ÙOü“Éó¥‘'ÒŸ¡Î,ˆÓ­HOá@‘y å­é#¥tLæE!ÿ#¦šE­$\·Î/BØBûcÿı\Ñ'Ê_ûÙ#ÿK¡éJÆP§y)ôM…rNO¦nzSùPŸ?â¶8ñd‘5sŠã;ì;¡5ıÄ"è™ é\fÏ¡k"ÑõÑrgÑDîc’‚%‡_Èú}‰Dã é|–!¯…"ß£éü_5‘‰"hüƒš‰²+š^ˆEÑ$¾×ÇœœÂ/ì"6A”Ğs©¤"sÍ<š‚EçIÖgÌîAG$OÕ¥;Ï‘%>†?óû¢˜‹JÓ%°ëd^é’GBt¹­M>Ç/ìwİù.dVsüXµĞMöQsGŞê1ĞüsÈ‰úh˜Eò$	ùŒsQÅ’D“ÿZ!óœrüÏO¦Oz%A1„`Çµ‘¡VE½sdcÉË[šy“åY·Åçù%$qrI/‘ğtå’o'ş‡$„ÎÂHæ1¹—ì‘‡èOÙóRƒçC¥Ñƒáù'ëÿÿÿÿç]], [[((­h®¯inp(qj¬krgolms]]
@@ -24,6 +24,8 @@ T.Affinities = {} do
 		return t[k]
 	end})
 end
+
+T.UsableAffinities = UnitFactionGroup('player') == 'Horde' and {70,71,72,73,74,75,69,252,253,254,255} or {63,64,65,66,67,68,69,252,253,254,255}
 
 T.MissionExpire = {} do
 	local expire = T.MissionExpire

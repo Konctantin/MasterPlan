@@ -1,9 +1,96 @@
 local api, _, T = {}, ...
-if T.Mark ~= 40 then return end
+if T.Mark ~= 50 then return end
 local EV, L = T.Evie, newproxy(true)
 getmetatable(L).__call = function(_,k) if T.L then L = T.L return L(k) end return k end
-local FOLLOWER_ITEM_LEVEL_CAP, MENTOR_FOLLOWER = T.FOLLOWER_ITEM_LEVEL_CAP, T.MENTOR_FOLLOWER
+local FOLLOWER_ITEM_LEVEL_CAP, MENTOR_FOLLOWER, INF = T.FOLLOWER_ITEM_LEVEL_CAP, T.MENTOR_FOLLOWER, math.huge
 local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INACTIVE]=1}
+
+local tentativeState, tentativeParties = {}, {} do
+	T.tentativeState = tentativeState
+	local notifyChange do
+		local pending = false
+		local function doNotify()
+			pending = false
+			EV("MP_TENTATIVE_PARTY_UPDATE")
+		end
+		function notifyChange()
+			if not pending then
+				pending = true
+				C_Timer.After(0, doNotify)
+			end
+		end
+	end
+	local function dissolve(mid, doNotUpdate)
+		local p = tentativeParties[mid]
+		if p then
+			local f1, f2, f3 = p[1], p[2], p[3]
+			tentativeParties[mid], tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = nil
+			if not doNotUpdate then
+				notifyChange()
+			end
+			return f1, f2, f3
+		end
+	end
+	local function tentativeFullNext(self, mid)
+		local mid, p = next(tentativeParties, mid)
+		if mid then
+			if #p == C_Garrison.GetMissionMaxFollowers(mid) then
+				return mid, p[1], p[2], p[3]
+			end
+			return tentativeFullNext(self, mid)
+		end
+	end
+	function api.GetMissionParty(mid, quiet)
+		return dissolve(mid, quiet)
+	end
+	function api.SaveMissionParty(mid, f1, f2, f3)
+		dissolve(mid, true)
+		dissolve(tentativeState[f1], true)
+		dissolve(tentativeState[f2], true)
+		dissolve(tentativeState[f3], true)
+		if not f1 then f1, f2, f3 = f2, f3 end
+		tentativeParties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
+		tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
+		notifyChange()
+	end
+	function api.HasTentativeParty(mid)
+		local p = tentativeParties[mid]
+		return p and #p or 0
+	end
+	function api.HasReadyTentativeParties()
+		for k,v in pairs(tentativeParties) do
+			if #v == C_Garrison.GetMissionMaxFollowers(k) then
+				return true
+			end
+		end
+	end
+	function api.GetReadyTentativeParties()
+		return tentativeFullNext
+	end
+	function api.GetFollowerTentativeMission(fid)
+		return tentativeState[fid]
+	end
+	function api.DissolveMissionByFollower(fid)
+		dissolve(tentativeState[fid])
+	end
+	function api.DissolveAllTentativeParties()
+		if next(tentativeParties) or next(tentativeState) then
+			wipe(tentativeParties)
+			wipe(tentativeState)
+			notifyChange()
+		end
+	end
+	function EV:MP_MISSION_START(mid, f1, f2, f3)
+		dissolve(mid, true)
+		dissolve(tentativeState[f1], true)
+		dissolve(tentativeState[f2], true)
+		dissolve(tentativeState[f3], true)
+		notifyChange()
+	end
+	function EV:GARRISON_MISSION_STARTED(id)
+		dissolve(id)
+	end
+end
 
 local f, data = CreateFrame("Frame"), {}
 f:SetScript("OnUpdate", function(self) wipe(data) self:Hide() end)
@@ -73,7 +160,7 @@ local parseTime = {} do
 	end
 	setmetatable(parseTime, {__index=function(self, k)
 		if k == nil then return 0 end
-		local ret = math.huge
+		local ret = INF
 		for i=1,#captures, 3 do
 			local a, b = k:match(captures[i])
 			if a then
@@ -164,7 +251,7 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 				f1, f2, f3 = f2, f3, f1
 			end
 			if toTentative then
-				MasterPlan:SaveMissionParty(mid, f1, f2, f3)
+				api.SaveMissionParty(mid, f1, f2, f3)
 			end
 		end
 	end
@@ -253,47 +340,49 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 	end
 end
 
-local function AddCounterMechanic(fit, fabid)
-	if fabid and fabid > 0 then
-		if C_Garrison.GetFollowerAbilityIsTrait(fabid) then
-			fit.traits[fabid] = fabid
-		else
-			local mid, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(fabid)
-			if tex then
-				fit.counters[fabid] = mid
+local SetFollowerInfo do
+	local function AddCounterMechanic(fit, fabid)
+		if fabid and fabid > 0 then
+			if C_Garrison.GetFollowerAbilityIsTrait(fabid) then
+				fit.traits[fabid] = fabid
+			else
+				local mid, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(fabid)
+				if tex then
+					fit.counters[fabid] = mid
+				end
 			end
 		end
+	end
+	function SetFollowerInfo(t)
+		local ft, now, um = {}, time(), 0
+		for i=1,#t do
+			local v = t[i]
+			if v.isCollected then
+				local fid = v.followerID
+				v.counters, v.traits, v.isCombat = {}, {}, v.isCollected and not unfreeStatusOrder[v.status] or false
+				for i=1,2 do
+					AddCounterMechanic(v, C_Garrison.GetFollowerAbilityAtIndex(fid, i))
+					AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, i))
+				end
+				AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, 3))
+				local tls = C_Garrison.GetFollowerMissionTimeLeftSeconds(fid)
+				if v.quality >= 4 and v.level == 100 then um = um + 1 end
+				ft[fid], v.missionEndTime, v.affinity = v, tls and (now + tls) or nil, T.Affinities[v.garrFollowerID or v.followerID]
+			end
+		end
+		if um > 11 then T.config.goldRewardThreshold = 0 end
+		for k,v in pairs(dropFollowers) do
+			local f = ft[k]
+			if not f.missionEndTime then
+				f.status, f.missionEndTime = GARRISON_FOLLOWER_ON_MISSION, missionEndTime[v]
+			end
+		end
+		data.followers = ft
+		f:Show()
 	end
 end
 local function followerIDcmp(a, b)
 	return a.followerID < b.followerID
-end
-local function SetFollowerInfo(t)
-	local ft, now, um = {}, time(), 0
-	for i=1,#t do
-		local v = t[i]
-		if v.isCollected then
-			local fid = v.followerID
-			v.counters, v.traits, v.isCombat = {}, {}, v.isCollected and not unfreeStatusOrder[v.status] or false
-			for i=1,2 do
-				AddCounterMechanic(v, C_Garrison.GetFollowerAbilityAtIndex(fid, i))
-				AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, i))
-			end
-			AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, 3))
-			local tls = C_Garrison.GetFollowerMissionTimeLeftSeconds(fid)
-			if v.quality >= 4 and v.level == 100 then um = um + 1 end
-			ft[fid], v.missionEndTime, v.affinity = v, tls and (now + tls) or nil, T.Affinities[v.garrFollowerID or v.followerID]
-		end
-	end
-	if um > 11 then T.config.goldRewardThreshold = 0 end
-	for k,v in pairs(dropFollowers) do
-		local f = ft[k]
-		if not f.missionEndTime then
-			f.status, f.missionEndTime = GARRISON_FOLLOWER_ON_MISSION, missionEndTime[v]
-		end
-	end
-	data.followers = ft
-	f:Show()
 end
 function api.GetFollowerInfo(refresh)
 	if not data.followers or refresh then
@@ -310,7 +399,7 @@ function api.GetFollowerIdentity(includeInactive, includeStatus)
 		end
 	end
 	table.sort(f, followerIDcmp)
-	local ignore, tentativeState, sig = T.config.ignore, T.tentativeState, ""
+	local ignore, sig = T.config.ignore, ""
 	for i=1,#f do
 		local v = f[i]
 		if includeInactive or v.status ~= GARRISON_FOLLOWER_INACTIVE then
@@ -497,7 +586,7 @@ function api.GetFollowerLevelDescription(fid, mlvl, fi, mentor, mid, gi)
 		away = YELLOW_FONT_COLOR_CODE .. " (" .. GARRISON_FOLLOWER_WORKING .. ")"
 	elseif away then
 		away = "|cffa0a0a0 (" .. api.GetTimeStringFromSeconds(away-time()) .. ")"
-	elseif mid and (MasterPlan:GetFollowerTentativeMission(fi.followerID) or mid) ~= mid then
+	elseif mid and (api.GetFollowerTentativeMission(fi.followerID) or mid) ~= mid then
 		away = "|cffa0a0a0 (" .. L"In Tentative Party" .. ")"
 	elseif T.config.ignore[fid] then
 		away = RED_FONT_COLOR_CODE .. " (" .. L"Ignored" .. ")"
@@ -605,7 +694,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			mi.skipped = nil
 			for k,v in pairs(mi.rewards) do
 				if v.currencyID and v.currencyID > 0 then
-					local rew = v.quantity * (v.currencyID == GARRISON_CURRENCY and select(8, C_Garrison.GetPartyMissionInfo(mi.missionID)) or mi.materialMultiplier or 1)
+					local rew = v.quantity * (v.currencyID == GARRISON_CURRENCY and (select(8, C_Garrison.GetPartyMissionInfo(mi.missionID)) or mi.materialMultiplier) or 1)
 					local _, cur, _, _, _, tmax = GetCurrencyInfo(v.currencyID)
 					if tmax > 0 and (cur+rew-tmax) > rew * T.config.currencyWasteThreshold then
 						mi.skipped, curState, curIndex = true, "NEXT", curIndex + 1
@@ -653,6 +742,11 @@ do -- CompleteMissions/AbortCompleteMissions
 					mi.failed, curState, curIndex = cc and true or nil, "NEXT", curIndex + 1
 				end
 				if cc then
+					local msc = mi.successChance
+					if msc and (0 < msc or ok) and (msc < 100 or not ok) then
+						local sp, conf = msc / 100, T.config
+						conf.moC, conf.moE, conf.moV, conf.moN = conf.moC + (ok and 1 or 0), conf.moE + sp, conf.moV + sp*(1-sp), conf.moN + 1
+					end
 					securecall(curCallback, "STEP", curStack, curRewards, curFollowers, ok and "COMPLETE" or "FAIL", mi.missionID)
 				end
 				if ok then
@@ -675,6 +769,7 @@ do -- CompleteMissions/AbortCompleteMissions
 								q = floor(q*(mi.materialMultiplier or 1))
 							elseif r.currencyID == 0 then
 								q = floor(q*(mi.goldMultiplier or 1))
+								T.config.goldCollected = T.config.goldCollected + q
 							end
 							curRewards[ik] = curRewards[ik] or {quantity=0, currencyID=r.currencyID}
 							curRewards[ik].quantity = curRewards[ik].quantity + q
@@ -714,30 +809,29 @@ do -- GetMissionSeen
 	local lastOffer
 	local expire = T.MissionExpire
 	function api.ObserveMissions(missions)
-		local missions, dnow, tp = lastOffer and (missions or C_Garrison.GetAvailableMissions()), stime() - GetTime(), T.tentativeParties
+		local missions, dnow = lastOffer and (missions or C_Garrison.GetAvailableMissions()), stime() - GetTime()
 		for i=1,missions and #missions or 0 do
 			local mi = missions[i]
 			local ex, oet = expire[mi.missionID], mi.offerEndTime
 			if oet and ex and ex > 0 then
 				lastOffer[mi.missionID] = floor(dnow + oet - ex * 3600)
 			end
-			local p = tp and tp[mi.missionID]
+			local p = tentativeParties[mi.missionID]
 			if p then
 				p.tag = true
 			end
 		end
-		if tp then
-			local d = false
-			for k,v in pairs(tp) do
-				if not v.tag then
-					MasterPlan:GetMissionParty(k, true)
-					d = true
-				end
-				v.tag = nil
+
+		local d = false
+		for k,v in pairs(tentativeParties) do
+			if not v.tag then
+				api.GetMissionParty(k, true)
+				d = true
 			end
-			if d then
-				EV("MP_TENTATIVE_PARTY_UPDATE")
-			end
+			v.tag = nil
+		end
+		if d then
+			EV("MP_TENTATIVE_PARTY_UPDATE")
 		end
 	end
 	local shortHourFormat = GARRISON_DURATION_HOURS:gsub("%%[%d$]*d", "%%s")
@@ -1022,7 +1116,7 @@ local risk = {} do
 	end
 end
 local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotations do -- +api.GetSuggestedMissionGroups
-	local max, min, inf, weakKeys = math.max, math.min, math.huge, {__mode="k"}
+	local max, min, weakKeys = math.max, math.min, {__mode="k"}
 	local equivXP, expectedXP, edtime = setmetatable({}, weakKeys), setmetatable({}, weakKeys), setmetatable({}, weakKeys)
 	function computeEquivXP(g, finfo, minfo, force)
 		local ret1, ret2
@@ -1067,16 +1161,16 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 				local tl = f.status == GARRISON_FOLLOWER_ON_MISSION and f.missionEndTime
 				if not tl then
 					local drop = dropFollowers[f.followerID]
-					tl = drop and (missionEndTime[drop] or inf)
+					tl = drop and (missionEndTime[drop] or INF)
 				end
-				if not tl and (MasterPlan:GetFollowerTentativeMission(f.followerID) or mid) ~= mid then
+				if not tl and (api.GetFollowerTentativeMission(f.followerID) or mid) ~= mid then
 					tl = now
 				end
 				if tl and (depart or tl) <= tl then
 					depart = tl
 				end
 			end
-			depart = depart == inf and (now + 35999) or depart or false
+			depart = depart == INF and (now + 35999) or depart or false
 			edtime[g] = depart
 		end
 		if (timeHorizon or 0) > 0 then
@@ -1147,11 +1241,10 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 		end
 		wipe(edtime)
 		
-		local ts = T.tentativeState
 		for id,v in pairs(finfo) do
 			local st, ic = v.status, v.isCollected
 			v.valid = ic and not T.config.ignore[id] and (st == nil or st == GARRISON_FOLLOWER_IN_PARTY or st == GARRISON_FOLLOWER_ON_MISSION)
-			v.away = (ic and st == GARRISON_FOLLOWER_ON_MISSION or dropFollowers[id]) or ts[id]
+			v.away = (ic and st == GARRISON_FOLLOWER_ON_MISSION or dropFollowers[id]) or tentativeState[id]
 		end
 		
 		local rank2, now, defValid = api.GroupRank.threats2, time(), not (f1 or f2 or f3)
@@ -1328,23 +1421,11 @@ function api.GroupFilter.IDLE(res, finfo, minfo)
 	local mid = minfo.missionID
 	for i=5,4+minfo.numFollowers do
 		local fi = finfo[res[i]]
-		if not (fi and (fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY) and not T.config.ignore[fi.followerID] and not dropFollowers[fi.followerID] and (MasterPlan:GetFollowerTentativeMission(fi.followerID) or mid) == mid) then
+		if not (fi and (fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY) and not T.config.ignore[fi.followerID] and not dropFollowers[fi.followerID] and (api.GetFollowerTentativeMission(fi.followerID) or mid) == mid) then
 			return false
 		end
 	end
 	return true
-end
-function api.GroupFilter.AWAY(res, finfo, minfo)
-	local r = false
-	for i=5,4+minfo.numFollowers do
-		local fi = finfo[res[i]]
-		local st, id = fi and fi.status, fi and fi.followerID
-		if not fi or T.config.ignore[id] or not (st == nil or st == GARRISON_FOLLOWER_IN_PARTY or st == GARRISON_FOLLOWER_ON_MISSION) then
-			return false
-		end
-		r = r or st == GARRISON_FOLLOWER_ON_MISSION or dropFollowers[id]
-	end
-	return r
 end
 function api.GroupFilter.ACTIVE(res, finfo, minfo)
 	for i=5,4+minfo.numFollowers do
@@ -1472,7 +1553,7 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 			for i=5,fin do
 				local fid = g[i]
 				local fi = finfo[fid]
-				if not (fi and (fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY) and not T.config.ignore[fid] and not dropFollowers[fid] and (MasterPlan:GetFollowerTentativeMission(fid) or mid) == mid) then
+				if not (fi and (fi.status == nil or fi.status == GARRISON_FOLLOWER_IN_PARTY) and not T.config.ignore[fid] and not dropFollowers[fid] and (api.GetFollowerTentativeMission(fid) or mid) == mid) then
 					ok = false
 					break
 				end
@@ -2366,7 +2447,90 @@ function api.SetDoubleCountersTooltip(tip, ci)
 		tip:AddLine(L"You have no followers with duplicate counter combinations.", 1,1,1, 1)
 	end
 end
+function api.SetCounterComboTip(tip, id1, id2)
+	local finfo = api.GetFollowerInfo()
+	local id1, name1, ico1, _desc1 = api.GetMechanicInfo(id1)
+	local id2, name2, ico2, _desc2 = api.GetMechanicInfo(id2)
+	
+	tip:SetText("|T" .. ico1 .. ":0:0:0:0:64:64:4:60:4:60|t " .. name1 .. " |cffffffff+|r |T" .. ico2 .. ":0:0:0:0:64:64:4:60:4:60|t " .. name2)
+	local info, hasLines = api.GetCounterInfo()[id1], false
+	if info then
+		api.sortByFollowerLevels(info, finfo)
+		for i=1,#info do
+			local fi = finfo[info[i]]
+			local a1, a2 = C_Garrison.GetFollowerAbilityAtIndex(fi.followerID, 1), C_Garrison.GetFollowerAbilityAtIndex(fi.followerID, 2)
+			if (a1 or 0)*(a2 or 0) > 0 then
+				a1, a2 = C_Garrison.GetFollowerAbilityCounterMechanicInfo(a1), C_Garrison.GetFollowerAbilityCounterMechanicInfo(a2)
+			else
+				a1, a2 = nil
+			end
+			if (a1 == id1 and a2 == id2) or (a1 == id2 and a2 == id1) then
+				if not hasLines then
+					tip:AddLine(L"Can be countered by:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+					hasLines = true
+				end
+				local p = select(4, api.CountUniqueRerolls(T.SpecCounters[fi.classSpec], info[i]))
+				p = p and p .. " " or ""
+				tip:AddDoubleLine(api.GetFollowerLevelDescription(info[i], nil, finfo[info[i]]), p, 1,1,1)
+			end
+		end
+	end
 
+	if not hasLines then
+		local di = api.GetDoubleCounters()[id1 <= id2 and -(id1*100 + id2) or -(id2*100 + id1)]
+		if di and #di > 0 then
+			tip:AddLine(L"Could be countered by re-rolling:", 1,0.50,0, 1)
+			addFollowerList(tip, di, finfo, nil, true)
+		else
+			tip:AddLine(L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
+		end
+	end
+end
+function api.SetCounterTraitTip(tip, cid, tid)
+	local finfo = api.GetFollowerInfo()
+	local _, name1, ico1, _desc1 = api.GetMechanicInfo(cid)
+	local name2, ico2 = C_Garrison.GetFollowerAbilityName(tid), C_Garrison.GetFollowerAbilityIcon(tid)
+	tip:SetText("|T" .. ico1 .. ":0:0:0:0:64:64:4:60:4:60|t " .. name1 .. " |cffffffff+|r |T" .. ico2 .. ":0:0:0:0:64:64:4:60:4:60|t " .. name2)
+	local info, hasLines = api.GetCounterInfo()[cid], false
+	if info then
+		api.sortByFollowerLevels(info, finfo)
+		for i=1,#info do
+			local fi = finfo[info[i]]
+			if fi.traits[tid] then
+				if not hasLines then
+					tip:AddLine(L"Can be countered by:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+					hasLines = true
+				end
+				local p = select(4, api.CountUniqueRerolls(T.SpecCounters[fi.classSpec], info[i]))
+				tip:AddDoubleLine(api.GetFollowerLevelDescription(info[i], nil, fi), p or "", 1,1,1)
+			end
+		end
+	end
+
+	if not hasLines then
+		local info = api.GetFollowerTraits()[tid]
+		for i=1,info and #info or 0 do
+			local fi = finfo[info[i]]
+			local hasCounter, sc = false, T.SpecCounters[fi.classSpec]
+			for i=1,sc and #sc or 0 do
+				if sc[i] == cid then
+					hasCounter = true
+					break
+				end
+			end
+			if hasCounter then
+				if not hasLines then
+					tip:AddLine(L"Could be countered by re-rolling:", 1,0.50,0, 1)
+					hasLines = true
+				end
+				tip:AddDoubleLine(api.GetFollowerLevelDescription(info[i], nil, fi), api.GetOtherCounterIcons(fi), 1,1,1)
+			end
+		end
+		if not hasLines then
+			tip:AddLine(L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
+		end
+	end
+end
 
 do -- api.GetResourceCacheInfo
 	local STEP_INTERVAL, STEP_SIZE, STORE_CEIL, STORE_FLOOR = 600, 1, 500, 10

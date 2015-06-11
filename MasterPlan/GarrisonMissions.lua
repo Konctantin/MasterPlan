@@ -1,5 +1,5 @@
 local _, T = ...
-if T.Mark ~= 40 then return end
+if T.Mark ~= 50 then return end
 local EV, G, L = T.Evie, T.Garrison, T.L
 
 local roamingParty, easyDrop = T.MissionsUI.roamingParty, T.MissionsUI.easyDrop
@@ -62,7 +62,7 @@ do -- GarrisonFollowerList_SortFollowers
 	   local followerCounters = GarrisonMissionFrame.followerCounters
 	   local followerTraits = GarrisonMissionFrame.followerTraits
 		for k,v in pairs(self.followers) do
-			local tmid = MasterPlan:GetFollowerTentativeMission(v.followerID)
+			local tmid = G.GetFollowerTentativeMission(v.followerID)
 			if tmid and (v.status or "") == "" then
 				v.status = GARRISON_FOLLOWER_IN_PARTY
 			elseif (v.status or "") == "" and T.config.ignore[v.followerID] then
@@ -220,11 +220,12 @@ local function GetRewardsDesc(mid)
 	return r
 end
 local function FollowerButton_OnEnter(self)
-	if self and self.id and T.tentativeState[self.id] then
+	local tmid = self and self.id and G.GetFollowerTentativeMission(self.id)
+	if tmid then
 		GameTooltip:SetOwner(self, "ANCHOR_NONE")
 		GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 4, 4)
 		GameTooltip:SetText(L"In Tentative Party")
-		GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(T.tentativeState[self.id]), GetRewardsDesc(T.tentativeState[self.id]), 1,1,1)
+		GameTooltip:AddDoubleLine(C_Garrison.GetMissionName(tmid), GetRewardsDesc(tmid), 1,1,1)
 		if GarrisonMissionFrame.MissionTab.MissionPage:IsVisible() then
 			GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. GARRISON_MISSION_ADD_FOLLOWER, 0.5, 0.8, 1)
 		end
@@ -245,7 +246,7 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	for i=1, #buttons do
 		local fi = fl[buttons[i].id]
 		if fi then
-			local tmid = MasterPlan:GetFollowerTentativeMission(fi.followerID)
+			local tmid = G.GetFollowerTentativeMission(fi.followerID)
 			local status = buttons[i].info.status or ""
 			if tmid then
 				status = tmid == mid and GARRISON_FOLLOWER_IN_PARTY or L"In Tentative Party"
@@ -439,7 +440,7 @@ do -- Minimize mission
 				C_Garrison.RemoveFollowerFromMission(mid, f1)
 			end
 		end
-		MasterPlan:SaveMissionParty(mi.missionID, f1, f2, f3)
+		G.SaveMissionParty(mi.missionID, f1, f2, f3)
 		roamingParty:DropFollowers(f1, f2, f3)
 		GarrisonMissionFrame.MissionTab.MissionPage.CloseButton:Click()
 	end)
@@ -453,7 +454,7 @@ do -- Minimize mission
 	
 	hooksecurefunc("GarrisonMissionPage_SetFollower", function(_, info)
 		if info and info.followerID then
-			MasterPlan:DissolveMissionByFollower(info.followerID)
+			G.DissolveMissionByFollower(info.followerID)
 		end
 		G.PushFollowerPartyStatus(info.followerID)
 	end)
@@ -495,6 +496,7 @@ do -- Counter-follower lists
 		itip:SetScript("OnHide", function(self)
 			self:Hide()
 			self:SetParent(nil)
+			self:ClearAllPoints()
 		end)
 		local function adjustTipSize(atip, itip)
 			local il, al, at, iw = itip:GetLeft(), atip:GetLeft(), atip:GetTop(), itip:GetWidth()
