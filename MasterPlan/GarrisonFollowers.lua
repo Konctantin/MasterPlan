@@ -338,7 +338,7 @@ end
 function UpgradesFrame:DisplayFor(owner, itemLevel, isWeapon, followerID)
 	self:SetParent(owner)
 	self.owner, self.itemLevel, self.isWeapon, self.followerID, self.insetTop = owner, itemLevel, isWeapon, followerID, 0
-	self:SetPoint("BOTTOM", owner, "TOP", owner.MPUpgradeOffsetX or 0, owner.MPUpgradeOffsetY or 0)
+	self:SetPoint("BOTTOM", owner, "TOP", 0, 0)
 	self:Show()
 	UpgradesFrame:Update(false)
 end
@@ -650,6 +650,7 @@ GarrisonLandingPage.FollowerList.SearchBox:SetMaxLetters(0)
 do -- Weapon/Armor upgrades and rerolls
 	GarrisonMissionFrame.FollowerTab.MPItemsOffsetY = 82
 	GarrisonMissionFrame.FollowerTab.MPSideItemsOffsetY = -18
+	GarrisonLandingPage.FollowerTab.MPItemsOffsetX = -4
 	GarrisonLandingPage.FollowerTab.MPItemsOffsetY = 62
 	GarrisonLandingPage.FollowerTab.MPSideItemsOffsetY = -8
 	GarrisonLandingPage.FollowerTab.Model.UpgradeFrame:ClearAllPoints()
@@ -661,7 +662,6 @@ do -- Weapon/Armor upgrades and rerolls
 			gear:SetSize(218, 24)
 			items.averageGearLevel = gear:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 			items.averageGearLevel:SetPoint("CENTER")
-			gear.MPUpgradeOffsetX = -8
 			local function OnClick(self)
 				local isWeapon = self == items.weapon
 				if UpgradesFrame:IsShown() and UpgradesFrame.owner == gear and UpgradesFrame.isWeapon == isWeapon then
@@ -777,7 +777,7 @@ do -- Weapon/Armor upgrades and rerolls
 		reroll:SetPoint("TOP", items, "BOTTOM", 0, self.MPSideItemsOffsetY or -2)
 		reroll:Sync()
 		items:SetParent(self)
-		items:SetPoint("BOTTOM", self, "BOTTOMLEFT", 156, self.MPItemsOffsetY)
+		items:SetPoint("BOTTOM", self, "BOTTOMLEFT", 156 + (self.MPItemsOffsetX or 0), self.MPItemsOffsetY)
 		items:Show()
 	end
 	local function tabOnShow(self)

@@ -342,8 +342,8 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		local mt = "???"
 		if T.config.moV > 0 and T.config.moN > 9 then
 			mt = math.floor(1000 + 250*(T.config.moC - T.config.moE)/T.config.moV^0.5 + 0.5)
-			local qi = math.min(math.floor(mt/250-3), 5)
-			mt = (qi > 1 and ITEM_QUALITY_COLORS[qi] or "") .. mt
+			local qi = math.min(math.floor(mt/250-2), 5)
+			mt = (qi > 0 and ITEM_QUALITY_COLORS[qi].hex or "") .. mt
 		end
 		rows[3].Text:SetText(mt)
 	end

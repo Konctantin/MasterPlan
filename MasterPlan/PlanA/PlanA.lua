@@ -23,8 +23,8 @@ local CheckCacheWarning do
 	local SCALE_MAX, SCALE_MIN = 1.1, 0.9
 	local a = ag:CreateAnimation("Scale")
 	a:SetToScale(SCALE_MAX, SCALE_MAX)
-	a:SetStartDelay(3)
-	a:SetDuration(1.25)
+	a:SetStartDelay(5)
+	a:SetDuration(1)
 	a:SetOrder(1)
 	a:SetChildKey("MPWarningTexture")
 	a = ag:CreateAnimation("Scale")
@@ -33,10 +33,10 @@ local CheckCacheWarning do
 	a:SetDuration(1)
 	a:SetChildKey("MPWarningTexture")
 	a = ag:CreateAnimation("Alpha")
-	a:SetDuration(1.25)
+	a:SetDuration(1)
 	a:SetFromAlpha(0)
 	a:SetToAlpha(1)
-	a:SetStartDelay(3)
+	a:SetStartDelay(5)
 	a:SetOrder(1)
 	a:SetChildKey("MPWarningTexture")
 	a = ag:CreateAnimation("Alpha")
@@ -48,17 +48,22 @@ local CheckCacheWarning do
 	ag:SetScript("OnStop", function()
 		tex:SetAlpha(0)
 	end)
-	local WARN_TIME, CAP_TIME = 25600, 30000000
+	local WARN_TIME, CAP_TIME, mute = 256000, 300000, false
+	GarrisonLandingPageMinimapButton:HookScript("OnClick", function()
+		mute = true
+		ag:Stop()
+	end)
 	function CheckCacheWarning()
 		local lct = C_Garrison.IsOnGarrisonMap() and cdata and cdata.lastCacheTime
 		local td = lct and (time()-lct) or 0
 		if td >= WARN_TIME then
 			tex:SetVertexColor(1, td >= CAP_TIME and 0 or 0.35, 0)
-			if not ag:IsPlaying() then
+			if not (mute or ag:IsPlaying()) then
 				ag:Play()
 			end
 		else
 			ag:Stop()
+			mute = false
 		end
 	end
 end
