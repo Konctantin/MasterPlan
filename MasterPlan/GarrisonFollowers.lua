@@ -46,7 +46,7 @@ local CreateMechanicButton, Mechanic_SetTrait do
 				nt = "+" .. nt
 			end
 			if IsShiftKeyDown() then
-				local ot = (sb:GetText() or ""):match("[^;]*$")
+				local ot = sb:GetText()
 				if ot and ot ~= "" then
 					nt = ot .. ";" .. nt
 				end
@@ -787,4 +787,64 @@ do -- Weapon/Armor upgrades and rerolls
 	GarrisonMissionFrame.FollowerTab:HookScript("OnShow", tabOnShow)
 	
 	hooksecurefunc("GarrisonFollowerPage_ShowFollower", updateTabView)
+end
+
+do -- XP Projections for follower summaries
+	local function updateBar(bar)
+		local tab, baseBar, bonusBar = bar:GetParent(), bar.XPBaseReward, bar.XPBonusReward
+		local fid = tab.followerID
+		if fid and type(fid) == "string" and C_Garrison.GetFollowerStatus(fid) == GARRISON_FOLLOWER_ON_MISSION then
+			for k,v in pairs(C_Garrison.GetInProgressMissions()) do
+				local ft = v.followers
+				if ft[1] == fid or ft[2] == fid or ft[3] == fid then
+					local fi = G.GetFollowerInfo()[fid]
+					local bmul, base, extraXP, bonus, mentor = G.ExtendMissionInfoWithXPRewardData(v)
+					local base, bonus = G.GetFollowerXPGain(fi, G.GetFMLevel(v), extraXP + base, bonus * bmul, mentor)
+					local toLevel, wmul = fi.levelXP - fi.xp, bar.length/fi.levelXP
+					if v.state ~= -1 then
+						base, bonus = bonus, 0
+					elseif v.successChance == 100 then
+						base, bonus = base + bonus, 0
+					end
+		
+					local baseWidth = min(toLevel, base)*wmul
+					local bonusWidth = min(toLevel-base, bonus)*wmul
+					baseBar:SetPoint("LEFT", fi.xp * wmul, 0)
+					bonusBar:SetPoint("LEFT", (fi.xp + base) * wmul, 0)
+					baseBar:SetWidth(max(0.01, baseWidth))
+					bonusBar:SetWidth(max(0.01, bonusWidth))
+					baseBar:SetShown(baseWidth > 0)
+					bonusBar:SetShown(bonusWidth > 0)
+		
+					if not tab.XPText then
+					elseif base >= toLevel then
+						tab.XPText:SetTextColor(0.6, 1, 0)
+					elseif (base + bonus) >= toLevel then
+						tab.XPText:SetTextColor(0, 0.75, 1)
+					else
+						tab.XPText:SetTextColor(1,1,1)
+					end
+					break
+				end
+			end
+		else
+			baseBar:Hide()
+			bonusBar:Hide()
+		end
+	end
+	for i=1,2 do
+		local bar = (i == 1 and GarrisonMissionFrame or GarrisonLandingPage).FollowerTab.XPBar
+		local baseBar, curBar = bar:CreateTexture(nil, "BACKGROUND", nil, 1), bar:GetStatusBarTexture()
+		baseBar:SetTexture(curBar:GetTexture())
+		baseBar:SetHeight(curBar:GetHeight())
+		baseBar:SetWidth(50)
+		baseBar:SetVertexColor(0.6, 1, 0)
+		local bonusBar = bar:CreateTexture(nil, "BACKGROUND", nil, 1)
+		bonusBar:SetTexture(curBar:GetTexture())
+		bonusBar:SetHeight(curBar:GetHeight())
+		bonusBar:SetWidth(100)
+		bonusBar:SetVertexColor(0, 0.75, 1)
+		bar.XPBaseReward, bar.XPBonusReward = baseBar, bonusBar
+		hooksecurefunc(bar, "SetValue", updateBar)
+	end
 end

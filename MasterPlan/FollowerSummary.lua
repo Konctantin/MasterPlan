@@ -14,6 +14,9 @@ local summaryTab = CreateFrame("Frame", nil, GarrisonMissionFrame, "GarrisonMiss
 	t:SetPoint("TOPLEFT", 16, -21)
 	t:SetText(L"Follower Summary")
 	summaryTab.NumFollowers = GarrisonMissionFrame.FollowerTab.NumFollowers
+	local function syncState()
+		summaryTab.accessButton:SetChecked(summaryTab:IsShown())
+	end
 	summaryTab:SetScript("OnShow", function(self)
 		self.NumFollowers:SetParent(self)
 		GarrisonMissionFrame.FollowerTab:Hide()
@@ -22,32 +25,16 @@ local summaryTab = CreateFrame("Frame", nil, GarrisonMissionFrame, "GarrisonMiss
 		self.matrix:Sync()
 		self.affin:Sync()
 		self.stats:Sync()
+		C_Timer.After(0, syncState)
 	end)
 	GarrisonMissionFrame.FollowerTab:HookScript("OnShow", function(self)
 		self.NumFollowers:SetParent(self)
 		if summaryTab:IsShown() then
 			summaryTab:Hide()
+			C_Timer.After(0, syncState)
 		end
 	end)
 	GarrisonMissionFrame.SummaryTab = summaryTab
-	
-	GarrisonMissionFrameTab2:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-	GarrisonMissionFrameTab2:SetScript("OnClick", function(self, button)
-		GarrisonMissionFrameTab_OnClick(self)
-		if button == "RightButton" then
-			summaryTab:Show()
-		end
-	end)
-	hooksecurefunc("GarrisonFollowerPage_ShowFollower", function(self)
-		if GarrisonMissionFrame.FollowerTab == self and self.followerID and summaryTab:IsShown() then
-			GarrisonMissionFrame.FollowerTab:Show()
-		end
-	end)
-	function EV:MP_SHOW_MISSION_TAB(tab)
-		if tab ~= 2 then
-			summaryTab:Hide()
-		end
-	end
 end
 local matrix = CreateFrame("Frame", nil, summaryTab) do
 	local rowHeaders, columnHeaders, grid = {}, {}, {}
@@ -340,14 +327,78 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		rows[1].Text:SetFormattedText(L"%d followers recruited", C_Garrison.GetNumFollowers())
 		rows[2].Text:SetText(BreakUpLargeNumbers(floor(T.config.goldCollected/1e4)))
 		local mt = "???"
-		if T.config.moV > 0 and T.config.moN > 9 then
+		if T.config.moV > 1 then
 			mt = math.floor(1000 + 250*(T.config.moC - T.config.moE)/T.config.moV^0.5 + 0.5)
-			local qi = math.min(math.floor(mt/250-2), 5)
-			mt = (qi > 0 and ITEM_QUALITY_COLORS[qi].hex or "") .. mt
+			local qi = math.min(math.floor(mt/250-2.5), 5)
+			mt = (qi > 0 and ITEM_QUALITY_COLORS[qi].hex or "") .. BreakUpLargeNumbers(mt)
 		end
 		rows[3].Text:SetText(mt)
 	end
 	summaryTab.stats = stats
+end
+local accessButton = CreateFrame("CheckButton", nil, GarrisonMissionFrame) do
+	accessButton:SetSize(24, 24)
+	accessButton:SetPushedTexture("Interface/Buttons/UI-QuickSlot-Depress")
+	accessButton:SetHighlightTexture("Interface/Buttons/ButtonHilight-Square")
+	accessButton:SetCheckedTexture("Interface/Buttons/CheckButtonHilight")
+	accessButton:SetChecked(true)
+	accessButton:Hide()
+	local ico = accessButton:CreateTexture(nil, "ARTWORK")
+	ico:SetAllPoints()
+	ico:SetTexture("Interface/Icons/Achievement_Boss_CThun")
+	accessButton:SetPoint("LEFT", GarrisonMissionFrameFollowers.SearchBox, "RIGHT", 15, 2)
+	GarrisonMissionFrameTab2:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	GarrisonMissionFrameTab2:SetScript("OnClick", function(self, button)
+		GarrisonMissionFrameTab_OnClick(self)
+		if button == "RightButton" then
+			summaryTab:Show()
+		end
+	end)
+	hooksecurefunc("GarrisonFollowerPage_ShowFollower", function(self)
+		if GarrisonMissionFrame.FollowerTab == self and self.followerID and summaryTab:IsShown() then
+			local mf = GetMouseFocus()
+			if mf and mf.id and mf.info and mf.GetButtonState and mf:GetButtonState() == "PUSHED" then
+				GarrisonMissionFrame.FollowerTab:Show()
+			end
+		end
+	end)
+	function EV:MP_SHOW_MISSION_TAB(tab)
+		local st = accessButton:GetChecked()
+		accessButton:SetShown(tab == 2)
+		if tab ~= 2 then
+			summaryTab:Hide()
+		elseif st then
+			summaryTab:Show()
+		end
+	end
+	accessButton:SetScript("OnClick", function(self)
+		local nv = self:GetChecked()
+		GarrisonMissionFrame[nv and "SummaryTab" or "FollowerTab"]:Show()
+		self:GetScript("OnLeave")(self)
+		if not nv then
+			GarrisonMissionFrame.selectedFollower = GarrisonMissionFrame.FollowerTab.followerID
+			GarrisonFollowerList_Update(GarrisonMissionFrame)
+		end
+	end)
+	accessButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText(L"Follower Summary")
+		GameTooltip:Show()
+	end)
+	accessButton:SetScript("OnLeave", function(self)
+		if GameTooltip:IsOwned(self) then
+			GameTooltip:Hide()
+		end
+	end)
+	function EV:MP_FORCE_FOLLOWER_TAB(fid)
+		accessButton:SetChecked(false)
+		GarrisonMissionFrame.FollowerTab:Show()
+		if fid and fid ~= GarrisonMissionFrame.selectedFollower then
+			GarrisonMissionFrame.selectedFollower = fid
+			GarrisonFollowerList_Update(GarrisonMissionFrame)
+		end
+	end
+	summaryTab.accessButton = accessButton
 end
 
 GarrisonMissionFrame.SummaryTab:HookScript("OnShow", function(self)

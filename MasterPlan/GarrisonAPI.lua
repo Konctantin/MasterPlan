@@ -340,46 +340,37 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 	end
 end
 
-local SetFollowerInfo do
-	local function AddCounterMechanic(fit, fabid)
-		if fabid and fabid > 0 then
-			if C_Garrison.GetFollowerAbilityIsTrait(fabid) then
-				fit.traits[fabid] = fabid
-			else
-				local mid, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(fabid)
-				if tex then
-					fit.counters[fabid] = mid
+local function SetFollowerInfo(t)
+	local ft, now, um = {}, time(), 0
+	local TC, ET = T.TraitCost, T.EquivTrait
+	for i=1,#t do
+		local v = t[i]
+		if v.isCollected then
+			local fid, tc, counters, traits = v.followerID, 0, {}, {}
+			for i=1,3 do
+				local aid, tid = C_Garrison.GetFollowerAbilityAtIndex(fid, i), C_Garrison.GetFollowerTraitAtIndex(fid, i)
+				if aid and aid > 0 then
+					counters[aid] = C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+				end
+				if tid and tid > 0 then
+					traits[tid], tc = tid, tc + (TC[ET[tid] or tid] or 0)
 				end
 			end
+			v.counters, v.traits, v.traitCost, v.isCombat = counters, traits, tc, v.isCollected and not unfreeStatusOrder[v.status] or false
+			local tls = C_Garrison.GetFollowerMissionTimeLeftSeconds(fid)
+			if v.quality >= 4 and v.level == 100 then um = um + 1 end
+			ft[fid], v.missionEndTime, v.affinity = v, tls and (now + tls) or nil, T.Affinities[v.garrFollowerID or v.followerID]
 		end
 	end
-	function SetFollowerInfo(t)
-		local ft, now, um = {}, time(), 0
-		for i=1,#t do
-			local v = t[i]
-			if v.isCollected then
-				local fid = v.followerID
-				v.counters, v.traits, v.isCombat = {}, {}, v.isCollected and not unfreeStatusOrder[v.status] or false
-				for i=1,2 do
-					AddCounterMechanic(v, C_Garrison.GetFollowerAbilityAtIndex(fid, i))
-					AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, i))
-				end
-				AddCounterMechanic(v, C_Garrison.GetFollowerTraitAtIndex(fid, 3))
-				local tls = C_Garrison.GetFollowerMissionTimeLeftSeconds(fid)
-				if v.quality >= 4 and v.level == 100 then um = um + 1 end
-				ft[fid], v.missionEndTime, v.affinity = v, tls and (now + tls) or nil, T.Affinities[v.garrFollowerID or v.followerID]
-			end
+	if um > 11 then T.config.goldRewardThreshold = 0 end
+	for k,v in pairs(dropFollowers) do
+		local f = ft[k]
+		if not f.missionEndTime then
+			f.status, f.missionEndTime = GARRISON_FOLLOWER_ON_MISSION, missionEndTime[v]
 		end
-		if um > 11 then T.config.goldRewardThreshold = 0 end
-		for k,v in pairs(dropFollowers) do
-			local f = ft[k]
-			if not f.missionEndTime then
-				f.status, f.missionEndTime = GARRISON_FOLLOWER_ON_MISSION, missionEndTime[v]
-			end
-		end
-		data.followers = ft
-		f:Show()
 	end
+	data.followers = ft
+	f:Show()
 end
 local function followerIDcmp(a, b)
 	return a.followerID < b.followerID
@@ -720,13 +711,16 @@ do -- CompleteMissions/AbortCompleteMissions
 		end
 		if (ev == "GARRISON_MISSION_NPC_CLOSED" and mi) or not mi then
 			curState = mi and "ABORT" or "DONE"
-			C_Timer.After(0.5, delayDone)
+			C_Timer.After(... == "IMMEDIATE" and 0 or 0.5, delayDone)
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
 			saveMultipliers(mi)
 			if mi.state == -1 then
 				curState, delayIndex, delayMID = "COMPLETE", curIndex, mi.missionID
 				delayOpen(... ~= "IMMEDIATE" and 0.2)
 			elseif isWastingCurrency(mi) then
+				if ... == "IMMEDIATE" then
+					return completionStep(ev, ...)
+				end
 			else
 				curState, delayIndex, delayMID = "BONUS", curIndex, mi.missionID
 				delayRoll(... ~= "IMMEDIATE" and 0.2)
@@ -1355,6 +1349,12 @@ api.GroupRank, api.GroupFilter = {}, {} do
 		end
 		if (ac == bc) and (not ah) ~= (not bh) then
 			ac, bc = bh and 1 or 0, 0
+		end
+		if ac == bc then
+			ac, bc = 0, 0
+			for i=1,minfo.numFollowers do
+				ac = ac - finfo[a[4+i]].traitCost + finfo[b[4+i]].traitCost
+			end
 		end
 		if ac == bc then
 			ac, bc = a[4], b[4]

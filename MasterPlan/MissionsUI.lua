@@ -430,6 +430,14 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		b:SetPoint("BOTTOM", -64, 5)
 		b:SetText(L"Complete All")
 		b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+		local function DissmissHelp(self)
+			if self.ShowingHelp then
+				HelpPlate_TooltipHide()
+				self.ShowingHelp = nil
+			end
+		end
+		b:SetScript("OnLeave", DissmissHelp)
+		b:SetScript("OnHide", DissmissHelp)
 	end
 	activeUI.orders = T.CreateLazyItemButton(activeUI, 122514) do
 		activeUI.orders:SetSize(28, 28)
@@ -1534,6 +1542,14 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 			activeUI.completionState = state == "DONE" and "DONE" or nil
 			if next(rew) or next(fol) then
 				activeUI:SetCompletionRewards(rew, fol, #stack)
+			elseif state == "DONE" then
+				activeUI.CompleteAll.ShowingHelp = true
+				HelpPlate_TooltipHide()
+				HelpPlateTooltip.ArrowDOWN:Show()
+				HelpPlateTooltip.ArrowGlowDOWN:Show()
+				HelpPlateTooltip:SetPoint("TOP", activeUI.CompleteAll, "BOTTOM", 0, -14)
+				HelpPlateTooltip.Text:SetText((L"No missions could be completed without exceeding currency caps, violating the %s setting."):format("|cffffd100" .. L"Require Currency Award" .. "|r") .. "\n\n" .. L"To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below.")
+				HelpPlateTooltip:Show()
 			end
 		end
 		if (substate == "FAIL" or substate == "COMPLETE") and mid then
@@ -2307,7 +2323,7 @@ do -- availMissionsHandle
 		local mi = core:GetRowData(availMissionsHandle, self:GetParent())
 		local g = mi and mi.groups and mi.groups[self:GetID()]
 		if not g then
-			local ug, ss = mi.upgroup
+			local ug, ss = mi and mi.upgroup
 			if ug then
 				for i=1,mi.numFollowers do
 					ss = (ss and ss .. "/" or "") .. C_Garrison.GetFollowerName(ug[i])
@@ -2319,6 +2335,7 @@ do -- availMissionsHandle
 				GarrisonMissionFrameTab2:Click()
 				GarrisonMissionFrame.selectedFollower = ifid
 				GarrisonFollowerPage_ShowFollower(GarrisonMissionFrame.FollowerTab, ifid)
+				EV("MP_FORCE_FOLLOWER_TAB", ifid)
 			end
 		elseif button == "RightButton" and (select(2,GetCurrencyInfo(824)) or 0) >= (mi.cost or 0) then
 			G.SaveMissionParty(mi.missionID, g[5], g[6], g[7])
