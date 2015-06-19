@@ -60,6 +60,7 @@ L == "deDE" and {
 	["Mission order:"] = "Missionssortierung:",
 	["Missions of Interest"] = "Interessante Missionen",
 	["Mitigated threats"] = "Entschärfte Bedrohungen",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "Keine Missionen konnten ohne Überschreitung des Währunglimits abgeschlossen werden, bei der die %s -Einstellung verstößt.",
 	["Potential counters:"] = "Mögliche Konter:",
 	Races = "Rassen",
 	Ready = "Bereit",
@@ -88,6 +89,7 @@ L == "deDE" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[Wann du das nächste Mal mit den Garnisonsmissionen interagierst.
 
 Diese Einstellung kann die vorgeschlagen Gruppen und Mission-Sortierreihenfolge beeinflussen.]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "Um vorübergehend die verlorene Währung zu übergehen, wurden die Missionen übersprungen, rechts-klick auf diese Schaltfläche oder klicke unten links einzeln die Missionen.",
 	Unignore = "Einbeziehen",
 	["Unique ability rerolls:"] = "Einzigartige Fähigkeit neu würfeln:",
 	["View Rewards"] = "Belohnungen ansehen",
@@ -156,6 +158,7 @@ L == "esES" and {
 	["Mission order:"] = "Orden de misión:",
 	["Missions of Interest"] = "Misiones de Interés ",
 	["Mitigated threats"] = "Amenazas mitigadas",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "Algunas misiones no se podrían completar sin exceder el máximo de monedas, violando el ajuste %s.",
 	["Potential counters:"] = "Podría contrarrestar:",
 	Races = "Razas",
 	Ready = "Listo",
@@ -184,6 +187,7 @@ L == "esES" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[Tiempo hasta la siguiente vez que puedas interactuar con las misiones de la ciudadela.
 
 Esto puede afectar a los grupos sugeridos y el ordenamiento de las misiones.]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "Para ignorar temporalmente las monedas desaprovechadas y completar la misiones omitidas, click derecho en este botón, o click izquierdo en cada misión individualmente.",
 	Unignore = "Quitar Ignorar",
 	["Unique ability rerolls:"] = "Reasignación de habilidades únicas:",
 	["View Rewards"] = "Mostrar Recompensas",
@@ -252,6 +256,7 @@ L == "esMX" and {
 	["Mission order:"] = "Orden de misión:",
 	["Missions of Interest"] = "Misiones de interés ",
 	["Mitigated threats"] = "Amenazas mitigadas",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "Ninguna misión podrá ser completada sin exceder el máximo de monedas, violando el ajuste %s.",
 	["Potential counters:"] = "Podría contrarrestar:",
 	Races = "Razas",
 	Ready = "Listo",
@@ -281,6 +286,7 @@ This may affect suggested groups and mission sorting order.]=] ] = [=[Cantidad d
 
 Esto puede afectar las sugerencias de grupos y el ordenamiento de las misiones.
 ]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "Para ignorar temporalmente las monedas desaprovechadas y completar la misiones omitidas, haga clic derecho en este botón, o clic izquierdo en cada misión individualmente.",
 	Unignore = "Quitar Ignorar",
 	["Unique ability rerolls:"] = "Probabilidad de combo unico",
 	["View Rewards"] = "Mostrar Recompensas",
@@ -308,17 +314,17 @@ L == "frFR" and {
 	["Complete Missions"] = "Terminer les missions",
 	["Complete party"] = "Groupe complet",
 	["Considering inactive followers"] = "Examiner les sujets inactifs",
-	["Could be countered by re-rolling:"] = "Pourrait être contré en réaffectant:",
+	["Could be countered by re-rolling:"] = "Pourrait être contré en réaffectant :",
 	["Counter and Trait Combinations"] = "Combinaisons des menaces et des techniques",
 	["%d |4party:parties; remaining..."] = "%d |4groupe restant:groupes restants; ...",
-	["%d active"] = "%d actifs",
+	["%d active"] = "%d actif(s) ",
 	["Desirable rewards"] = "Récompense de mission recherchée",
 	["%d followers recruited"] = "%d sujets recrutés",
 	["%dh %dm"] = "%d h %d m ",
 	["+%d Inactive (hold ALT to view)"] = "+%d inactif (maintenez ALT pour afficher)",
 	Done = "Terminé",
 	["%d%% success chance"] = "%d%% chances de succès",
-	["%d total"] = "%d total",
+	["%d total"] = "%d au total",
 	["Duplicate counters"] = "Contre-attaque en double",
 	["Epic Ability"] = "Aptitude épique",
 	["Expires in:"] = "Expire dans :",
@@ -349,13 +355,14 @@ L == "frFR" and {
 	["Mission order:"] = "Missions triées par :",
 	["Missions of Interest"] = "Missions intéressantes",
 	["Mitigated threats"] = "menaces contrées",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "Aucune mission ne pourra être achevée sans dépasser le plafond, violant le réglage de %s.",
 	["Potential counters:"] = "Oppositions potentiels.",
 	Races = "Races",
 	Ready = "Prêt",
 	["Redundant followers:"] = "Sujets en surnombre :",
 	["Require Currency Reward"] = "Récompense requise en monnaie",
 	["Reward: %s XP"] = "Récompense : %s d'EXP",
-	["Reward type"] = "Type de récompense",
+	["Reward type"] = "type de récompense",
 	["Select a follower to focus on"] = "Choisissez un sujet sur lequel se concentrer.",
 	["Send Tentative Parties"] = "Envoyer les groupes provisoires",
 	["Set tentative party"] = "Ensemble de groupes provisoires",
@@ -377,6 +384,7 @@ L == "frFR" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[Temps restant supposé avant de pouvoir interagir avec les missions du fief.
 
 Peut affecter la suggestion de groupes et l'ordre de tri des missions.]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "Pour ignorer temporairement la perte de monnaies et terminer les missions sautées, clic-droit sur ce bouton, ou clic-gauche sur les missions individuellement ci-dessous.",
 	Unignore = "Ne pas ignorer",
 	["Unique ability rerolls:"] = "Relance des capacités spéciales :",
 	["View Rewards"] = "Voir les récompenses",
@@ -523,6 +531,7 @@ L == "koKR" and {
 	["Mission order:"] = "임무 정렬:",
 	["Missions of Interest"] = "주요 고소득 임무",
 	["Mitigated threats"] = "제거된 위협 요소 갯수",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "화폐 보유 상한선을 초과하거나 %s 설정과 맞지 않아 임무가 완료되지 못했습니다.",
 	["Potential counters:"] = "붙을 수 있는 위협 요소 제거 능력:",
 	Races = "종족",
 	Ready = "준비 완료",
@@ -551,6 +560,7 @@ L == "koKR" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[주둔지 임무 수행이 가능하리라 예상되는 다음 시점입니다.
 
 이 기능은 추천 그룹과 임무 정렬 순서에 적용됩니다.]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "화폐가 남는걸 무시하고 완료 대기중인 임무들을 완료하려면 이 버튼을 우클릭하거나 아래의 임무 목록을 하나씩 클릭하세요.",
 	Unignore = "무시 취소",
 	["Unique ability rerolls:"] = "고유 능력 재부여:",
 	["View Rewards"] = "보상 보기",
@@ -619,6 +629,7 @@ L == "ruRU" and {
 	["Mission order:"] = "Сортировка заданий:",
 	["Missions of Interest"] = "Важные задания",
 	["Mitigated threats"] = "Нейтрализованные угрозы",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "Миссии не могут быть завершены, так как полученная валютная награда будет превышать максимум.",
 	["Potential counters:"] = "Возможно нейтрализовать:",
 	Races = "Расы",
 	Ready = "Готово",
@@ -647,6 +658,7 @@ L == "ruRU" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[Время, на протяжении которого вы не можете управлять миссиями в гарнизоне.
 
 Это может повлиять на предлагаемые группы и порядок сортировки миссий.]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "Чтобы завершить пропущенные миссии и игнорировать полученную валюту, щелкните правой кнопкой мыши на эту кнопку, или щелкните левой кнопкой мыши по отдельным миссиям ниже.",
 	Unignore = "Не игнорировать",
 	["Unique ability rerolls:"] = "Изменений уникальных спсобностей:",
 	["View Rewards"] = "Посмотреть награды",
@@ -715,6 +727,7 @@ L == "zhCN" and {
 	["Mission order:"] = "任务排序：",
 	["Missions of Interest"] = "值得关注任务",
 	["Mitigated threats"] = "减少威胁",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "没有已完成任务可超过超过货币上限，与%s设置冲突。",
 	["Potential counters:"] = "潜在应对能力：",
 	Races = "种族",
 	Ready = "就绪",
@@ -743,6 +756,7 @@ L == "zhCN" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[距离下次希望能够与要塞任务进行交互的时间。
 
 这可能会影响建议的队伍和任务排序顺序。]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "临时忽略浪费货币和跳过完成任务，右击按钮，或点击以下单独任务按钮。",
 	Unignore = "取消忽略",
 	["Unique ability rerolls:"] = "重选独特技能：",
 	["View Rewards"] = "查看奖励",
@@ -811,6 +825,7 @@ L == "zhTW" and {
 	["Mission order:"] = "任務排序:",
 	["Missions of Interest"] = "重點任務",
 	["Mitigated threats"] = "反制威脅",
+	["No missions could be completed without exceeding currency caps, violating the %s setting."] = "沒有不超過貨幣上限的任務可完成，違反 %s 的設置。",
 	["Potential counters:"] = "可能反制：",
 	Races = "種族",
 	Ready = "完成",
@@ -839,6 +854,7 @@ L == "zhTW" and {
 This may affect suggested groups and mission sorting order.]=] ] = [=[距離你下次能回來與指派要塞任務的時間。
 
 這可能會改變建議的隊伍和任務排序。]=],
+	["To temporarily ignore wasted currency and complete the skipped missions, right-click this button, or left-click individual missions below."] = "若要暫時忽略浪費的貨幣並完成略過的任務，用滑鼠右鍵點擊此按鈕，或左鍵點擊以下個別的任務。",
 	Unignore = "解除忽略",
 	["Unique ability rerolls:"] = "非重複組合機會:",
 	["View Rewards"] = "檢視獎勵",

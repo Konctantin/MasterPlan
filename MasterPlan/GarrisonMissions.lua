@@ -220,6 +220,25 @@ local function GetRewardsDesc(mid)
 	return r
 end
 local function FollowerButton_OnEnter(self)
+	if (not GarrisonMissionFrame.MissionTab.MissionPage:IsVisible() and IsAddOnLoaded("SmartFollowerManager")) then
+		local info, id = self.info
+		local GetAbility = C_Garrison[info.garrFollowerID and "GetFollowerAbilityAtIndex" or "GetFollowerAbilityAtIndexByID"]
+		local GetTrait = C_Garrison[info.garrFollowerID and "GetFollowerTraitAtIndex" or "GetFollowerTraitAtIndexByID"]
+
+		GarrisonFollowerTooltip_Owner, id = self, info.followerID
+		GarrisonFollowerTooltip:ClearAllPoints()
+		GarrisonFollowerTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 0, 4)
+		GarrisonFollowerTooltip_Show(info.garrFollowerID or info.followerID,
+			not not info.isCollected, info.quality, info.level,
+			info.xp, info.levelXP, info.iLevel,
+			GetAbility(id, 1), GetAbility(id, 2), GetAbility(id, 3), GetAbility(id, 4),
+			GetTrait(id, 1), GetTrait(id, 2), GetTrait(id, 3), GetTrait(id, 4),
+			false
+		)
+		
+		return
+	end
+	
 	local tmid = self and self.id and G.GetFollowerTentativeMission(self.id)
 	if tmid then
 		GameTooltip:SetOwner(self, "ANCHOR_NONE")
@@ -235,6 +254,10 @@ local function FollowerButton_OnEnter(self)
 	end
 end
 local function FollowerButton_OnLeave(self)
+	if GarrisonFollowerTooltip_Owner == self then
+		GarrisonFollowerTooltip:Hide()
+		GarrisonFollowerTooltip_Owner = nil
+	end
 	if GameTooltip:IsOwned(self) then
 		GameTooltip:Hide()
 	end

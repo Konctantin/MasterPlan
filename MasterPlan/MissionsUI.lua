@@ -1715,7 +1715,7 @@ local core = {} do
 				f:Show()
 			end
 		end
-		local mf = GetMouseFocus()
+		local mf = T.GetMouseFocus()
 		local oe = mf and mf:GetScript("OnEnter")
 		if mf and oe and mf.IsEnabled and mf:IsEnabled() then
 			oe(mf)
@@ -2786,6 +2786,7 @@ do -- interestMissionsHandle
 			GarrisonMissionFrame.selectedFollower = fid
 			GarrisonFollowerPage_ShowFollower(GarrisonMissionFrame.FollowerTab, fid)
 			GarrisonMissionFrameTab2:Click()
+			EV("MP_FORCE_FOLLOWER_TAB", fid)
 			local fl, idx, btn = GarrisonMissionFrameFollowers.followers do
 				for i=1,#fl do
 					if fl[i].followerID == fid then

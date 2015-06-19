@@ -356,7 +356,7 @@ local accessButton = CreateFrame("CheckButton", nil, GarrisonMissionFrame) do
 	end)
 	hooksecurefunc("GarrisonFollowerPage_ShowFollower", function(self)
 		if GarrisonMissionFrame.FollowerTab == self and self.followerID and summaryTab:IsShown() then
-			local mf = GetMouseFocus()
+			local mf = T.GetMouseFocus()
 			if mf and mf.id and mf.info and mf.GetButtonState and mf:GetButtonState() == "PUSHED" then
 				GarrisonMissionFrame.FollowerTab:Show()
 			end
