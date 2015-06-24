@@ -74,11 +74,11 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 	PlaySound("UI_Garrison_CommandTable_SelectMission")
 	GarrisonMissionFrame.MissionTab.MissionList:Hide()
 	GarrisonMissionFrame.MissionTab.MissionPage:Show()
-	GarrisonMissionPage_ShowMission(mi)
+	GarrisonMissionFrame:ShowMission(mi)
 	GarrisonMissionFrame.followerCounters = C_Garrison.GetBuffedFollowersForMission(mi.missionID)
 	GarrisonMissionFrame.followerTraits = C_Garrison.GetFollowersTraitsForMission(mi.missionID)
 	
-	GarrisonMissionPage_ClearParty()
+	GarrisonMissionFrame:ClearParty()
 	if C_Garrison.GetNumFollowersOnMission(mi.missionID) > 0 then
 		local ft = C_Garrison.GetBasicMissionInfo(mi.missionID).followers
 		for i=1,#ft do
@@ -87,7 +87,7 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 	end
 	for i=1, mi.numFollowers do
 		if f1 then
-			GarrisonMissionPage_SetFollower(mp.Followers[i], C_Garrison.GetFollowerInfo(f1))
+			GarrisonMissionFrame:AssignFollowerToMission(mp.Followers[i], C_Garrison.GetFollowerInfo(f1))
 		end
 		f1, f2, f3 = f2, f3, f1
 	end
@@ -101,10 +101,13 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 				mech.Anim:Stop()
 			end
 		end
+		MISSION_PAGE_FRAME.RewardsFrame.currentChance = nil
+		GarrisonMissionPageRewardsFrame_StopUpdate(MISSION_PAGE_FRAME.RewardsFrame)
+		GarrisonMissionFrame:UpdateMissionData(MISSION_PAGE_FRAME)
 		GarrisonMissionFrame.MissionTab.MissionPage.RewardsFrame.ChanceGlowAnim:Stop()
 		MISSION_PAGE_FRAME.Stage.MissionEnvIcon.Anim:Stop()
 	end
-	GarrisonMissionPage_UpdateMissionForParty()
+	GarrisonMissionFrame:UpdateMissionParty(GarrisonMissionFrame.MissionTab.MissionPage.Followers)
 	GarrisonFollowerList_UpdateFollowers(GarrisonMissionFrame.FollowerList)
 	for i=1,6 do
 		s1, s2, s3, s4, s5, s6 = s2, s3, s4, s5, s6, s1 and StopSound(s1)
@@ -139,7 +142,7 @@ GarrisonMissionFrame.MissionTab.MissionPage.StartMissionButton:SetScript("OnClic
 	local f1, f2, f3 = G.StartMission(MISSION_PAGE_FRAME.missionInfo.missionID)
 	api.roamingParty:DropFollowers(f1, f2, f3)
 	PlaySound("UI_Garrison_CommandTable_MissionStart")
-	GarrisonMissionPage_Close()
+	GarrisonMissionFrame:CloseMission()
 	RefreshAvailMissionsView(true)
 	if (not GetCVarBitfield("closedInfoFrames", LE_FRAME_TUTORIAL_GARRISON_LANDING)) then
 		GarrisonLandingPageTutorialBox:Show()
@@ -631,7 +634,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		t:SetTexCoord(1,0, 1,0)
 		local function close(self)
 			lootFrame:Hide()
-			GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
+			GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions(1)
 			GarrisonMissionList_UpdateMissions() -- TODO
 			RefreshActiveMissionsView(self == lootFrame.Dismiss)
 		end
@@ -1131,7 +1134,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				self:GetScript("OnEnter")(self)
 			else
 				PlaySound("UChatScrollButton")
-				local mn, f2, slot, cur = {}, C_Garrison.GetFollowers(), self:GetID(), self.followerID
+				local mn, f2, slot, cur = {}, C_Garrison.GetFollowers(1), self:GetID(), self.followerID
 				local a1, a2, a3 = roamingParty:GetFollowers()
 				table.sort(f2, cmp)
 				for i=1,#f2 do
@@ -1177,7 +1180,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			if G.GetNumPendingMissionStarts() > 0 or not G.HasReadyTentativeParties() then return end
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 			GameTooltip:SetText(L"Start Missions")
-			if C_Garrison.IsAboveFollowerSoftCap() then
+			if C_Garrison.IsAboveFollowerSoftCap(1) then
 				GameTooltip:AddLine(GARRISON_MAX_FOLLOWERS_MISSION_TOOLTIP, 1, 0, 0, 1)
 			else
 				for mid, f1, f2, f3 in G.GetReadyTentativeParties() do
@@ -1203,7 +1206,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			elseif button == "RightButton" or not G.HasReadyTentativeParties() then
 				G.DissolveAllTentativeParties()
 				PlaySound("UChatScrollButton")
-			elseif not C_Garrison.IsAboveFollowerSoftCap() then
+			elseif not C_Garrison.IsAboveFollowerSoftCap(1) then
 				for mid, p1, p2, p3 in G.GetReadyTentativeParties() do
 					G.StartMissionQueue(mid, p1, p2, p3)
 				end
@@ -1318,6 +1321,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				{arg1=994},
 				{arg1=823},
 				{arg1=824},
+				{arg1=1101},
 				{arg1=0, text="|TInterface\\Icons\\INV_Misc_Coin_02:16:16:0:0:64:64:4:60:4:60|t " .. BONUS_ROLL_REWARD_MONEY},
 				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC}
 			}
@@ -1340,7 +1344,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 					local mi = m[i]
 					if (not mi.text or mi.placeholder) then
 						local key, name, ico, _ = mi.arg1
-						if key > 1e3 then
+						if key > 2e3 then
 							name, ico = GetItemInfo(key), GetItemIcon(key)
 						else
 							name, _, ico = GetCurrencyInfo(key)
@@ -1443,7 +1447,7 @@ do -- tabs
 		SetTabState(followerTab, GarrisonMissionFrame.selectedTab == 2)
 		api.roamingParty:Update()
 		api:SetMissionsUI(GarrisonMissionFrame.selectedTab)
-		if GarrisonMissionFrame.selectedTab == 3 or #C_Garrison.GetCompleteMissions() == 0 then
+		if GarrisonMissionFrame.selectedTab == 3 or #C_Garrison.GetCompleteMissions(1) == 0 then
 			activeTab.Pulse:Stop()
 		else
 			activeTab.Pulse:Play()
@@ -1468,7 +1472,7 @@ do -- tabs
 		if not missionList:IsShown() then
 			GarrisonMissionList_SetTab(GarrisonMissionFrameMissionsTab2)
 		end
-		GarrisonMissionFrame_CheckCompleteMissions()
+		GarrisonMissionFrame:CheckCompleteMissions()
 	end)
 	availTab:SetScript("OnClick", function()
 		PlaySound("UI_Garrison_Nav_Tabs")
@@ -1515,7 +1519,7 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 			rt[rn], rn, mark[completionMissions[i].missionID or 0] = completionMissions[i], rn + 1, 1
 		end
 		for j=1,2 do
-			local t = C_Garrison[j == 1 and "GetCompleteMissions" or "GetInProgressMissions"]()
+			local t = C_Garrison[j == 1 and "GetCompleteMissions" or "GetInProgressMissions"](1)
 			for i=1,#t do
 				local v = t[i]
 				if not mark[v.missionID] then
@@ -1573,7 +1577,7 @@ local GetActiveMissions, StartCompleteAll, CompleteMission, ClearCompletionState
 		GarrisonMissionFrame.MissionCompleteBackground:Show();
 		GarrisonMissionFrame.MissionComplete.currentIndex = 1
 		GarrisonMissionFrame.MissionComplete.completeMissions = {mi}
-		GarrisonMissionComplete_Initialize(GarrisonMissionFrame.MissionComplete.completeMissions, 1)
+		GarrisonMissionFrame:MissionCompleteInitialize(GarrisonMissionFrame.MissionComplete.completeMissions, 1)
 		GarrisonMissionFrame.MissionComplete.NextMissionButton.returnToActiveList = true
 	end
 	function ClearCompletionState()
@@ -1591,7 +1595,7 @@ activeUI.CompleteAll:SetScript("OnClick", function(_, button)
 	if button ~= "RightButton" then
 		StartCompleteAll()
 	else
-		GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
+		GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions(1)
 		GarrisonMissionFrameMissions.CompleteDialog.BorderFrame.ViewButton:Click()
 	end
 end)
@@ -2178,13 +2182,13 @@ do -- activeMissionsHandle
 				r.itemID, r.tooltipTitle, r.tooltipText, r.currencyID = v.itemID, v.title, v.tooltip, v.currencyID
 				if v.followerXP then
 					quant = abridge(v.followerXP)
-				elseif v.currencyID == 0 then
-					d.goldMultiplier = d.goldMultiplier or select(9, C_Garrison.GetPartyMissionInfo(mid)) or 1
-					quant = v.quantity*d.goldMultiplier
-					quant, r.tooltipText = abridge(quant/10000), GetMoneyString(quant)
-				elseif v.currencyID == GARRISON_CURRENCY then
-					d.materialMultiplier = d.materialMultiplier or select(8, C_Garrison.GetPartyMissionInfo(mid)) or 1
-					quant = abridge(v.quantity * d.materialMultiplier)
+				elseif v.currencyID then
+					quant = v.quantity * G.GetRewardMultiplier(d, v.currencyID)
+					if v.currencyID == 0 then
+						quant, r.tooltipText = abridge(quant/10000), GetMoneyString(quant)
+					else
+						quant = abridge(quant)
+					end
 				elseif v.itemID then
 					local _, _, q, l, _, _, _, _, _, tex = GetItemInfo(v.itemID)
 					l, icon = T.CrateLevels[v.itemID] or l, tex or GetItemIcon(v.itemID)
@@ -2559,11 +2563,13 @@ do -- availMissionsHandle
 		for i=1,#sg do
 			local b, g, text = self.groups[i], sg[i]
 			local sc, sp = "|cffffffff" .. g[1] .. "%", g[1]/100
-			local edt, er, eg, isxp, _, exp, tf = G.GetMissionGroupDeparture(g, d), g[3]*sp, g[9]*sp
-			if er >= 1 then
-				text = ("%d |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t"):format(er)
-			elseif eg >= 1e4 and G.HasSignificantRewards(d) == "gold" then
-				text = GetMoneyString(eg - eg % 1e4)
+			local edt, ec, et, isxp, _, exp, tf = G.GetMissionGroupDeparture(g, d), g[3]*sp, g[9]
+			if ec > 0 and et == 824 then
+				text = ("%d |TInterface\\Garrison\\GarrisonCurrencyIcons:0:0:0:0:128:128:12:52:12:52|t"):format(ec)
+			elseif ec > 0 and et == 1101 then
+				text = ("%d|TInterface\\Garrison\\GarrisonCurrencyIcons:0:0:0:2:128:128:70:104:68:104|t"):format(ec)
+			elseif ec >= 1e4 and et == 0 and G.HasSignificantRewards(d) == "gold" then
+				text = GetMoneyString(ec - ec % 1e4)
 			else
 				if p1 and (g[11] and g[11] > 0) then
 					tf, exp = "|cffd0ff73%s|r", g[11]
@@ -2632,7 +2638,7 @@ do -- availMissionsHandle
 			end
 			return ac > bc
 		end
-		local fields, eg, srv = {threats=1}, {0, [3]=0,[4]=0, [9]=0, [11]=0}, {minor=1, gold=2, [true]=3, resource=4}
+		local fields, eg, srv, cw = {threats=1}, {0, [3]=0,[4]=0, [9]=0, [11]=0}, {minor=1, gold=2, [true]=3, resource=4}, {[824]=1e8, [1101]=1e10, [0]=1}
 		local function sortMissions(missions, nf, nr)
 			local order, horizon = T.config.availableMissionSort, T.config.timeHorizon
 			local field = fields[order] or 1
@@ -2652,7 +2658,7 @@ do -- availMissionsHandle
 				local mid, sr = mi.missionID, G.HasSignificantRewards(mi)
 				local sg = groupCache[mid]
 				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or eg
-				mi.ord0, mi.ord1 = 0, max(g[1]*(g[3]*1e8 + g[9]), sr == true and g[1]*1e8 or 0, srv[sr] or 0)
+				mi.ord0, mi.ord1 = 0, max(g[1]*(g[3]*(cw[g[9]] or 0)), sr == true and g[1]*1e8 or 0, srv[sr] or 0)
 				
 				if order == "duration" then
 					mi.ord = -mi.durationSeconds
@@ -3068,12 +3074,12 @@ do -- interestMissionsHandle
 			r.tooltipTitle, r.tooltipText, r.currencyID, r.itemID = GARRISON_REWARD_MONEY, GetMoneyString(rq), 0
 			r.icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02")
 			r.quantity:SetFormattedText("%d", rq / 1e4)
-		elseif rt < 1000 then
-			local rq = d[3] * (1 + (rt == GARRISON_CURRENCY and best and best[4] or 0))
+		elseif rt < 2e3 then
+			local rq = d[3] * (1 + (best and best[4] or 0))
 			r.currencyID, r.itemID, r.tooltipTitle, r.tooltipText = rt
 			r.quantity:SetText(rq > 1 and rq or "")
 			r.icon:SetTexture((select(3,GetCurrencyInfo(rt))))
-		elseif rt > 1000 then
+		else
 			r.itemID, r.currencyID, r.tooltipTitle, r.tooltipText = rt
 			r.quantity:SetText(d[3] > 1 and d[3] or "")
 			r.icon:SetTexture(select(10, GetItemInfo(r.itemID)) or GetItemIcon(r.itemID) or "Interface/Icons/Temp")
@@ -3093,7 +3099,7 @@ do -- interestMissionsHandle
 			local finfo = G.GetFollowerInfo()
 			local uf, ua, hasUE, hasInactive = {}, unusedEntry.unused, missions[1] == unusedEntry
 			for k, v in pairs(finfo) do
-				if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] then
+				if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] and v.followerTypeID == 1 then
 					uf[k] = true
 				end
 			end
@@ -3232,24 +3238,24 @@ function EV:GARRISON_MISSION_FINISHED()
 		RefreshActiveMissionsView(false)
 	end
 end
-hooksecurefunc("GarrisonMissionFrame_HideCompleteMissions", function(onClose)
+hooksecurefunc(GarrisonMissionFrame, "HideCompleteMissions", function(_, onClose)
 	if not onClose and core:IsOwned(activeMissionsHandle) then
 		RefreshActiveMissionsView(true)
 	end
 end)
 
-local oldComplete = GarrisonMissionFrame_CheckCompleteMissions
-function GarrisonMissionFrame_CheckCompleteMissions(onShow, ...)
+local oldComplete = GarrisonMissionFrame.CheckCompleteMissions
+function GarrisonMissionFrame:CheckCompleteMissions(onShow, ...)
 	if not missionList:IsShown() then
-		return oldComplete(onShow, ...)
+		return oldComplete(self, onShow, ...)
 	end
 	if not GarrisonMissionFrame.MissionComplete:IsShown() then
-		GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions()
+		GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions(1)
 		if #GarrisonMissionFrame.MissionComplete.completeMissions > 0 then
 			T.UpdateMissionTabs()
 		end
 	end
-	if onShow and not activeUI:IsVisible() and #C_Garrison.GetCompleteMissions() > 0 then
+	if onShow and not activeUI:IsVisible() and #C_Garrison.GetCompleteMissions(1) > 0 then
 		missionList.activeTab:Click()
 	end
 end
@@ -3259,7 +3265,7 @@ do -- periodic comleted missions check
 		if GarrisonMissionFrame:IsShown() then
 			local cm = GarrisonMissionFrame.MissionComplete.completeMissions
 			if (cm and #cm or 0) == 0 then
-				GarrisonMissionFrame_CheckCompleteMissions()
+				GarrisonMissionFrame:CheckCompleteMissions()
 			end
 			C_Timer.After(15, timer)
 			isTimerRunning = true
@@ -3290,7 +3296,7 @@ function api:SetMissionsUI(tab)
 		end
 		activeUI.completionState = nil
 		if GarrisonMissionFrame.MissionComplete:IsShown() then
-			GarrisonMissionFrame_HideCompleteMissions(true)
+			GarrisonMissionFrame:HideCompleteMissions(true)
 		end
 	end
 	EV("MP_SHOW_MISSION_TAB", tab)

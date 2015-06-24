@@ -489,7 +489,7 @@ hooksecurefunc("GarrisonMissionFrame_SetFollowerPortrait", function(port, fi)
 						other = nil
 					elseif not at.counters[c[i]] then
 						local _, name, icon, desc = G.GetMechanicInfo(c[i])
-						at.counters[c[i]] = {icon=icon, name=name, description=desc}
+						at.counters[c[i]] = {icon=icon, name=name, description=desc, factor=300}
 					end
 				end
 				table.insert(fi.abilities, (oi or 0) + 1, at)
@@ -794,7 +794,7 @@ do -- XP Projections for follower summaries
 		local tab, baseBar, bonusBar = bar:GetParent(), bar.XPBaseReward, bar.XPBonusReward
 		local fid = tab.followerID
 		if fid and type(fid) == "string" and C_Garrison.GetFollowerStatus(fid) == GARRISON_FOLLOWER_ON_MISSION then
-			for k,v in pairs(C_Garrison.GetInProgressMissions()) do
+			for k,v in pairs(C_Garrison.GetInProgressMissions(C_Garrison.GetFollowerTypeByID(fid))) do
 				local ft = v.followers
 				if ft[1] == fid or ft[2] == fid or ft[3] == fid then
 					local fi = G.GetFollowerInfo()[fid]
@@ -832,8 +832,8 @@ do -- XP Projections for follower summaries
 			bonusBar:Hide()
 		end
 	end
-	for i=1,2 do
-		local bar = (i == 1 and GarrisonMissionFrame or GarrisonLandingPage).FollowerTab.XPBar
+	for i=1,4 do
+		local bar = i == 4 and GarrisonLandingPage.ShipFollowerTab.XPBar or (i == 1 and GarrisonMissionFrame or i == 2 and GarrisonLandingPage or GarrisonShipyardFrame).FollowerTab.XPBar
 		local baseBar, curBar = bar:CreateTexture(nil, "BACKGROUND", nil, 1), bar:GetStatusBarTexture()
 		baseBar:SetTexture(curBar:GetTexture())
 		baseBar:SetHeight(curBar:GetHeight())
