@@ -590,7 +590,7 @@ L == "ruRU" and {
 	["Considering inactive followers"] = "Учитывать неактивных соратников",
 	["Could be countered by re-rolling:"] = "Может быть получено при изменении способностей:",
 	["Counter and Trait Combinations"] = "Комбинации способностей и особенностей",
-	["%d |4party:parties; remaining..."] = "Осталось %d |4party:parties; ...",
+	["%d |4party:parties; remaining..."] = "Осталось %d |4группа:групп; ...",
 	["%d active"] = "%d активных",
 	["Desirable rewards"] = "Предпочтительные награды",
 	["%d followers recruited"] = "%d нанятых соратников",
