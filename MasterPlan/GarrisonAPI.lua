@@ -199,7 +199,7 @@ end
 local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 	local complete, startQueue, startQueueSize, it = {}, {}, 0, 1
 	function api.GetAvailableMissions()
-		local t = C_Garrison.GetAvailableMissions()
+		local t = C_Garrison.GetAvailableMissions(1)
 		securecall(api.ObserveMissions, t)
 		local i, n, nit, dropCost = 1, #t, it % 2 + 1, 0
 		while i <= n do
@@ -346,14 +346,35 @@ local function SetFollowerInfo(t)
 	for i=1,#t do
 		local v = t[i]
 		if v.isCollected then
-			local fid, tc, counters, traits = v.followerID, 0, {}, {}
-			for i=1,3 do
-				local aid, tid = C_Garrison.GetFollowerAbilityAtIndex(fid, i), C_Garrison.GetFollowerTraitAtIndex(fid, i)
-				if aid and aid > 0 then
-					counters[aid] = C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+			local fid, tc, counters, traits, ship = v.followerID, 0, {}, {}, v.followerTypeID == 2
+			if v.followerTypeID == 2 then
+				for j=1,2 do
+					local q = j == 1 and C_Garrison.GetFollowerAbilityAtIndex or C_Garrison.GetFollowerTraitAtIndex
+					for i=1,2 do
+						local aid = q(fid, i)
+						if aid > 0 then
+							traits[aid], counters[aid] = aid, C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+						end
+					end
 				end
-				if tid and tid > 0 then
-					traits[tid], tc = tid, tc + (TC[ET[tid] or tid] or 0)
+			else
+				for i=1,3 do
+					local aid, tid = C_Garrison.GetFollowerAbilityAtIndex(fid, i), C_Garrison.GetFollowerTraitAtIndex(fid, i)
+					if ship then
+						if tid > 0 then
+							counters[tid] = C_Garrison.GetFollowerAbilityCounterMechanicInfo(tid)
+						end
+						if aid > 0 then
+							traits[aid] = aid
+						end
+					else
+						if aid > 0 then
+							counters[aid] = C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+						end
+						if tid > 0 then
+							traits[tid], tc = tid, tc + (TC[ET[tid] or tid] or 0)
+						end
+					end
 				end
 			end
 			v.counters, v.traits, v.traitCost, v.isCombat = counters, traits, tc, v.isCollected and not unfreeStatusOrder[v.status] or false
@@ -489,6 +510,13 @@ function api.GetFollowerTraits()
 end
 do -- api.GetMechanicInfo(mid/tex)
 	local counter, desc = {}, {}
+	local function addCounter(k, tid)
+		local id, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(tid)
+		if id then
+			local lc = tex:lower()
+			counter[k], counter[id], counter[lc], counter[lc:gsub("%.blp$","")] = tid, tid, tid, tid
+		end
+	end
 	local function populate()
 		for _, fid in pairs({6, 118, 127, 131, 138, 140, 144}) do
 			for _, a in pairs(C_Garrison.GetFollowerAbilities(fid)) do
@@ -499,11 +527,10 @@ do -- api.GetMechanicInfo(mid/tex)
 			end
 		end
 		for k, v in pairs(T.EnvironmentCounters) do
-			local id, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(v)
-			if id then
-				local lc = tex:lower()
-				counter[k], counter[id], counter[lc], counter[lc:gsub("%.blp$","")] = v,v,v,v
-			end
+			addCounter(k, v)
+		end
+		for k, v in pairs(T.EquipmentCounters) do
+			addCounter(k, v)
 		end
 	end
 	function api.GetMechanicInfo(mid)
@@ -685,7 +712,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			mi.skipped = nil
 			for k,v in pairs(mi.rewards) do
 				if v.currencyID and v.currencyID > 0 then
-					local rew = v.quantity * (v.currencyID == GARRISON_CURRENCY and (select(8, C_Garrison.GetPartyMissionInfo(mi.missionID)) or mi.materialMultiplier) or 1)
+					local rew = v.quantity * api.GetRewardMultiplier(mi, v.currencyID)
 					local _, cur, _, _, _, tmax = GetCurrencyInfo(v.currencyID)
 					if tmax > 0 and (cur+rew-tmax) > rew * T.config.currencyWasteThreshold then
 						mi.skipped, curState, curIndex = true, "NEXT", curIndex + 1
@@ -698,9 +725,13 @@ do -- CompleteMissions/AbortCompleteMissions
 	end
 
 	local function saveMultipliers(mi)
-		if not (mi.materialMultiplier and mi.goldMultiplier) then
-			local mm, gm = select(8, C_Garrison.GetPartyMissionInfo(mi.missionID))
-			mi.materialMultiplier, mi.goldMultiplier = mi.materialMultiplier or mm, mi.goldMultiplier or gm
+		if not mi.rewardMultiplier and mi.rewards then
+			for k,v in pairs(mi.rewards) do
+				if v.currencyID then
+					api.GetRewardMultiplier(mi, v.currencyID)
+					return
+				end
+			end
 		end
 	end
 	function completionStep(ev, ...)
@@ -759,10 +790,8 @@ do -- CompleteMissions/AbortCompleteMissions
 					for k,r in pairs(mi.rewards) do
 						if r.currencyID and r.quantity then
 							local ik, q = "cur:" .. r.currencyID, r.quantity
-							if r.currencyID == GARRISON_CURRENCY then
-								q = floor(q*(mi.materialMultiplier or 1))
-							elseif r.currencyID == 0 then
-								q = floor(q*(mi.goldMultiplier or 1))
+							q = floor(r.quantity * api.GetRewardMultiplier(mi, r.currencyID))
+							if r.currencyID == 0 then
 								T.config.goldCollected = T.config.goldCollected + q
 							end
 							curRewards[ik] = curRewards[ik] or {quantity=0, currencyID=r.currencyID}
@@ -901,8 +930,8 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 		local a, b = finfo[a], finfo[b]
 		return (a.level + a.iLevel) > (b.level + b.iLevel)
 	end
-	function api.PrepareAllMissionGroups()
-		mmi = C_Garrison.GetAvailableMissions(mmi)
+	function api.PrepareAllMissionGroups(mtype)
+		mmi = C_Garrison.GetAvailableMissions(mmi, mtype or 1)
 		suppressFollowerEvents()
 		securecall(function()
 			for i=1,#mmi do
@@ -914,10 +943,11 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 	end
 	function api.GetMissionGroups(mid, trustValid)
 		if not trustValid or not msi[1] then
+			local mt = C_Garrison.GetFollowerTypeByMissionID(mid)
 			finfo, msiMentorIndex, mentorLevel = api.GetFollowerInfo()
 			local valid, fn = true, 1
 			for k,v in pairs(finfo) do
-				if v.isCollected and v.status ~= GARRISON_FOLLOWER_INACTIVE then
+				if v.isCollected and v.status ~= GARRISON_FOLLOWER_INACTIVE  and v.followerTypeID == mt then
 					local key = v.level .. "#" .. v.iLevel
 					for i=1,4 do
 						key = key .. "#" .. (C_Garrison.GetFollowerAbilityAtIndex(k, i) or 0) .. "#" .. (C_Garrison.GetFollowerTraitAtIndex(k, i) or 0)
@@ -953,12 +983,10 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			end
 			if not mi then return false end
 			if mi.numFollowers > #msi then msd[mid] = {} return {} end
-			local chestResources, chestXP, chestGold, _, baseXP  = 0, 0, 0, C_Garrison.GetMissionInfo(mid)
+			local baseCurrency, curID, chestXP, _, baseXP = 0, -1, 0, C_Garrison.GetMissionInfo(mid)
 			for k,r in pairs(mi.rewards) do
-				if r.currencyID == GARRISON_CURRENCY then
-					chestResources = chestResources + r.quantity
-				elseif r.currencyID == 0 then
-					chestGold = chestGold + r.quantity
+				if r.currencyID then
+					baseCurrency, curID = r.quantity, r.currencyID
 				elseif r.followerXP then
 					chestXP = chestXP + r.followerXP
 				end
@@ -999,7 +1027,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 					end
 				end
 				local _totalTimeString, totalTimeSeconds, _isMissionTimeImproved, successChance, partyBuffs, _isEnvMechanicCountered, xpBonus, materialMultiplier, goldMultiplier = GetPartyMissionInfo(mid)
-				m[mn], mn = {successChance, baseXP+xpBonus, chestResources*materialMultiplier, totalTimeSeconds, msi[t[i1]], msi[t[i2]], msi[t[i3]], chestXP * (partyBuffs and getXPMul(partyBuffs) or 1), chestGold * (goldMultiplier or 1), mentorSlot and mentorLevel}, mn + 1
+				m[mn], mn = {successChance, baseXP+xpBonus, baseCurrency*(curID == 0 and (goldMultiplier or 1) or (materialMultiplier and materialMultiplier[curID] or 1)), totalTimeSeconds, msi[t[i1]], msi[t[i2]], msi[t[i3]], chestXP * (partyBuffs and getXPMul(partyBuffs) or 1), curID, mentorSlot and mentorLevel}, mn + 1
 			until t[1] == fm[1] and t[2] == fm[2] and t[3] == fm[3]
 			
 			for i=1,nf do
@@ -1335,9 +1363,6 @@ api.GroupRank, api.GroupFilter = {}, {} do
 			ac, bc = a[3] * risk[a[1]], b[3] * risk[b[1]]
 		end
 		if ac == bc then
-			ac, bc = a[9] * risk[a[1]], b[9] * risk[b[1]]
-		end
-		if ac == bc then
 			bc, ah = computeEarliestCompletion(a, finfo, minfo, false, now)
 			ac, bh = computeEarliestCompletion(b, finfo, minfo, false, now)
 		end
@@ -1387,9 +1412,6 @@ api.GroupRank, api.GroupFilter = {}, {} do
 		local ac, bc = a[1], b[1]
 		if ac == bc then
 			ac, bc = a[3] * risk[a[1]], b[3] * risk[b[1]]
-		end
-		if ac == bc then
-			ac, bc = a[9] * risk[a[1]], b[9] * risk[b[1]]
 		end
 		if ac == bc then
 			return xp(a, b, ...)
@@ -1477,7 +1499,7 @@ do -- HasSignificantRewards(minfo)
 							allXP = false
 						end
 					end
-					if r.currencyID ~= GARRISON_CURRENCY then
+					if r.currencyID ~= 824 and r.currencyID ~= 1101 then
 						allGR = false
 					end
 				end
@@ -1495,10 +1517,14 @@ do -- HasSignificantRewards(minfo)
 end
 do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 	local function SetGroup(_, group)
-		local mi = GarrisonMissionFrame.MissionTab.MissionPage.missionInfo
-		GarrisonMissionPage_ClearParty()
+		local CURRENT_FRAME = (GarrisonMissionFrame:IsVisible() and GarrisonMissionFrame or GarrisonShipyardFrame)
+		local CURRENT_PAGE = CURRENT_FRAME.MissionTab.MissionPage
+		local rf = CURRENT_PAGE.RewardsFrame
+		local mi, oc = CURRENT_PAGE.missionInfo, rf.currentChance
+		CURRENT_FRAME:ClearParty()
 		for i=1,mi.numFollowers do
-			GarrisonMissionPage_AddFollower(group[4+i])
+			rf.currentChance = oc
+			CURRENT_FRAME:AssignFollowerToMission(CURRENT_PAGE.Followers[i], C_Garrison.GetFollowerInfo(group[4+i]))
 		end
 	end
 	local function SecondsToShortTime(sec)
@@ -1516,16 +1542,16 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 	local function addToMenu(mm, groups, mi, primary)
 		for i=1,#groups do
 			local g = groups[i]
-			local sc, xp, res, text = g[1] .. "%"
+			local sc, rq, rt, xp, res, text = g[1] .. "%", g[3] or 0, g[9]
 			local _, expectedXP = api.GetMissionGroupXP(g, mi)
 			if (expectedXP or 0) >= 1 then
 				xp = (L"%s XP"):format(BreakUpLargeNumbers(floor(expectedXP)))
 			end
 			if g[1] <= 0 then
-			elseif (g[3] or 0) > 0 then
-				res = floor(g[1]*g[3]/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:20:20:0:-2:128:128:12:52:12:52|t"
-			elseif (g[9] or 0) > 0 then
-				local r = g[1]*g[9]/100
+			elseif rt == 824 and rq > 0 then
+				res = floor(g[1]*rq/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:20:20:0:-2:128:128:12:52:12:52|t"
+			elseif rt == 0 and rq > 0 then
+				local r = g[1]*rq/100
 				res = GetMoneyString(r - r % 1e4)
 			end
 			if (primary == "xp" and xp) or (primary == "resources"  and res) then
@@ -1539,7 +1565,7 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 		end
 	end
 	local function dominating(a,b)
-		return a[1] >= b[1] and a[3] >= b[3] and a[9] >= b[9] and a[4] <= b[4] and (a[1] > b[1] or a[3] > b[3] or a[9] > b[9])
+		return a[1] >= b[1] and a[3] >= b[3] and a[4] <= b[4] and (a[1] > b[1] or a[3] > b[3])
 	end
 	function api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 		local finfo, nf, mid, now = api.GetFollowerInfo(), mi.numFollowers, mi.missionID, time()
@@ -1675,8 +1701,8 @@ function api.ExtendMissionInfoWithXPRewardData(mi, force)
 	return bmul, base, extra, bonus, mentor
 end
 function api.ExtendFollowerTooltipProjectedRewardXP(mi, fi)
-	local tip = GarrisonFollowerTooltip
-	if mi and fi and tip:IsShown() and tip.XPBarBackground:IsShown() then
+	local tip = fi and (fi.followerTypeID == 1 and GarrisonFollowerTooltip or GarrisonShipyardFollowerTooltip)
+	if mi and fi and tip and tip:IsShown() and tip.XPBarBackground:IsShown() then
 		local bmul, base, extraXP, bonus, mentor = api.ExtendMissionInfoWithXPRewardData(mi)
 		if base and extraXP and bmul and fi.levelXP then
 			local base, bonus = api.GetFollowerXPGain(fi, api.GetFMLevel(mi), extraXP + base, bonus * bmul, mentor)
@@ -1847,7 +1873,7 @@ local function EvaluateGroup(mi, counters, traits, fa, fb, fc, scratch)
 	return rp, amlvl, bmlvl, cmlvl
 end
 function api.UpdateGroupEstimates(missions, useInactive, yield)
-	local ft, nf, f, et = {}, 0, C_Garrison.GetFollowers(), T.EquivTrait
+	local ft, nf, f, et = {}, 0, C_Garrison.GetFollowers(1), T.EquivTrait
 	for i=1,#f do
 		local fi = f[i]
 		if fi.isCollected and (useInactive or fi.status ~= GARRISON_FOLLOWER_INACTIVE) and not T.config.ignore[fi.followerID] then
@@ -2068,9 +2094,9 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 		if rt == "resources" and mi.rewards then
 			for k,v in pairs(mi.rewards) do
 				local cid = v.currencyID
-				if cid == 0 or cid == 824 then
-					cs, cval = cid == 0 and 9 or 3, v.quantity
-					cmax = cval * (mi.numFollowers + 1)
+				if cid then
+					cs, cval = cid, v.quantity
+					cmax = cval * ((T.TraitStack[cid] and mi.numFollowers or 0) + 1)
 					break
 				end
 			end
@@ -2092,10 +2118,7 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 			upgroups[j[1]] = false
 			if j.best then
 				local b, mi = j.best, j[2]
-				gt[1], gt[3], gt[4], gt[5], gt[6], gt[7], gt[9] = b[5], 0, b.time, b[1], b[2], b[3], 0
-				if j[3] then
-					gt[j[3]] = j[4]*(1 + (b[4] or 0))
-				end
+				gt[1], gt[3], gt[4], gt[5], gt[6], gt[7], gt[9] = b[5], j[4]*(1 + (b[4] or 0)), b.time, b[1], b[2], b[3], j[3]
 				flushGroupAnnotations(gt)
 				local og, rank = mi.groups, mi.groups and mi.groups.rankFunc
 				if not (rank and ((og[1] and not rank(gt, og[1], finfo, mi, now)) or (#og > 1 and not rank(gt, og[#og], finfo, mi, now)))) then
@@ -2117,11 +2140,11 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 			local mi, rt, mid = missions[i]
 			rt, mid, mi.upgroup = noRoamers and mi.level == 100 and mi.numFollowers > 1 and mi.groups and mi.groups.rankType, mi.missionID
 			if rt == "threats" or rt == "resources" then
-				local hasMaxed, curSlot, baseValue = hasMaxedGroup(mi, rt)
+				local hasMaxed, curID, baseValue = hasMaxedGroup(mi, rt)
 				if hasMaxed then
 				elseif upgroups[mid] == nil then
 					job = job or {}
-					job[#job + 1] = {mid, mi, curSlot, baseValue, s=api.GetMissionSummary(mi)}
+					job[#job + 1] = {mid, mi, curID or -1, baseValue or 0, s=api.GetMissionSummary(mi)}
 				else
 					mi.upgroup = upgroups[mid]
 				end
@@ -2133,6 +2156,19 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 			return cw
 		end
 	end
+end
+function api.GetRewardMultiplier(minfo, curID)
+	local ret = minfo.rewardMultiplier
+	if not ret and curID then
+		local mm, gm = select(8, C_Garrison.GetPartyMissionInfo(minfo.missionID))
+		if curID == 0 then
+			ret = gm or 1
+		else
+			ret = mm and mm[curID] or 1
+		end
+		minfo.rewardMultiplier = ret
+	end
+	return ret or 1
 end
 
 local setModifierSensitiveTip do
@@ -2377,9 +2413,14 @@ function api.SetCurrencyTraitTip(tip, id)
 end
 function api.SetGroupTooltip(tip, g, mi)
 	tip:ClearLines()
-	local rl = g[3] and g[3] > 0 and (g[3] .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:14:14:0:0:128:128:12:52:12:52|t")
-	        or g[9] and g[9] > 0 and (GetMoneyString(g[9] - g[9] % 1e4))
-	tip:AddDoubleLine(g[1] .. "% |cffc0c0c0(" .. SecondsToTime(g[4]) .. ")", rl or "")
+	local rq, rt, rl = g[3], g[9], ""
+	if rq <= 0 then
+	elseif rt == 0 then
+		rl = GetMoneyString(rq - rq % 1e4)
+	elseif rt > 0 then
+		rl = rq .. " |T" .. (select(3,GetCurrencyInfo(rt)) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
+	end
+	tip:AddDoubleLine(g[1] .. "% |cffc0c0c0(" .. SecondsToTime(g[4]) .. ")", rl)
 	local finfo, ml = api.GetFollowerInfo(), api.GetFMLevel(mi)
 	for i=1,mi.numFollowers do
 		tip:AddLine(api.GetFollowerLevelDescription(g[4+i], ml, finfo[g[4+i]], g[10], mi.missionID, g))
@@ -2391,7 +2432,31 @@ function api.SetGroupTooltip(tip, g, mi)
 	end
 end
 function api.SetUpGroupTooltip(tip, g, mi)
-	tip:SetText(g[5] .. "% |cffc0c0c0(" .. SecondsToTime(g.time) .. ")")
+	local cid, cq
+	if mi.rewards then
+		for k,v in pairs(mi.rewards) do
+			if v.currencyID then
+				cid, cq = v.currencyID, v.quantity
+				break
+			end
+		end
+	end
+	if cid then
+		cq = cq * (1 + (g[4] or 0))
+		if cid == 0 then
+			cq = GetMoneyString(cq - cq % 1e4)
+		elseif cid > 0 then
+			cq = cq .. " |T" .. (select(3,GetCurrencyInfo(cid)) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
+		else
+			cid = nil
+		end
+	end
+	if cid then
+		tip:ClearLines()
+		tip:AddDoubleLine(g[5] .. "% |cffc0c0c0(" .. SecondsToTime(g.time) .. ")", cq)
+	else
+		tip:SetText(g[5] .. "% |cffc0c0c0(" .. SecondsToTime(g.time) .. ")")
+	end
 	local finfo, mlvl = api.GetFollowerInfo(), api.GetFMLevel(mi)
 	local blvl, mentor = g[6], g.mentorLevel or 0
 	for i=1,mi.numFollowers do

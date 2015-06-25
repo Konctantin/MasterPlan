@@ -38,8 +38,8 @@ local summaryTab = CreateFrame("Frame", nil, GarrisonMissionFrame, "GarrisonMiss
 end
 local matrix = CreateFrame("Frame", nil, summaryTab) do
 	local rowHeaders, columnHeaders, grid = {}, {}, {}
-	matrix:SetSize(350, 418)
-	matrix:SetPoint("TOPLEFT", 16, -100)
+	matrix:SetSize(350, 452)
+	matrix:SetPoint("TOPLEFT", 16, -80)
 	matrix:SetBackdrop({edgeFile="Interface/Tooltips/UI-Tooltip-Border", bgFile="Interface/DialogFrame/UI-DialogBox-Background-Dark", tile=true, edgeSize=16, tileSize=16, insets={left=3,right=3,bottom=3,top=3}})
 	matrix:SetBackdropBorderColor(1, 0.75, 0.25)
 	local title = matrix:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
@@ -126,7 +126,7 @@ local matrix = CreateFrame("Frame", nil, summaryTab) do
 			end
 		end)
 	end
-	local traits = {79, 256}
+	local traits = {79, 256, 314}
 	for k=1,9+#traits do
 		local name, ico, id, isTrait
 		if k > 9 then
@@ -349,13 +349,13 @@ local accessButton = CreateFrame("CheckButton", nil, GarrisonMissionFrame) do
 	accessButton:SetPoint("LEFT", GarrisonMissionFrameFollowers.SearchBox, "RIGHT", 15, 2)
 	GarrisonMissionFrameTab2:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	GarrisonMissionFrameTab2:SetScript("OnClick", function(self, button)
-		GarrisonMissionFrameTab_OnClick(self)
+		GarrisonMissionController_OnClickTab(self)
 		if button == "RightButton" then
 			summaryTab:Show()
 		end
 	end)
-	hooksecurefunc("GarrisonFollowerPage_ShowFollower", function(self)
-		if GarrisonMissionFrame.FollowerTab == self and self.followerID and summaryTab:IsShown() then
+	hooksecurefunc(GarrisonMissionFrameFollowers, "ShowFollower", function()
+		if GarrisonMissionFrame.selectedFollower and summaryTab:IsShown() then
 			local mf = T.GetMouseFocus()
 			if mf and mf.id and mf.info and mf.GetButtonState and mf:GetButtonState() == "PUSHED" then
 				GarrisonMissionFrame.FollowerTab:Show()
