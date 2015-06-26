@@ -48,6 +48,7 @@ local tentativeState, tentativeParties = {}, {} do
 		dissolve(tentativeState[f1], true)
 		dissolve(tentativeState[f2], true)
 		dissolve(tentativeState[f3], true)
+		if not f2 then f2, f3 = f3 end
 		if not f1 then f1, f2, f3 = f2, f3 end
 		tentativeParties[mid] = (f1 or f2 or f3) and {f1, f2, f3} or nil
 		tentativeState[f1 or 0], tentativeState[f2 or 0], tentativeState[f3 or 0] = mid, mid, mid
@@ -454,7 +455,7 @@ function api.GetDoubleCounters(skipInactive)
 		local rt, aai, cai = {}, C_Garrison.GetFollowerAbilityAtIndex, C_Garrison.GetFollowerAbilityCounterMechanicInfo
 		local keepInactive = not skipInactive
 		for fid, fi in pairs(api.GetFollowerInfo()) do
-			if not T.config.ignore[fid] and (keepInactive or fi.status ~= GARRISON_FOLLOWER_INACTIVE) then
+			if not T.config.ignore[fid] and (keepInactive or fi.status ~= GARRISON_FOLLOWER_INACTIVE) and fi.followerTypeID == 1 then
 				if fi.quality >= 4 then
 					local c1, c2 = cai(aai(fid, 1)), cai(aai(fid, 2))
 					local k = c1 <= c2 and (c1*100 + c2) or (c2*100 + c1)
@@ -880,7 +881,7 @@ do -- GetMissionSeen
 end
 
 do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
-	local msf, msi, msd, mmi, finfo, msiMentorIndex, mentorLevel = {}, {}, {}
+	local msf, msi, msd, finfo, msiMentorIndex, mentorLevel = {}, {}, {}
 	local suppressFollowerEvents, releaseFollowerEvents do
 		local level, frames, followers = 0
 		local function failsafe()
@@ -931,7 +932,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 		return (a.level + a.iLevel) > (b.level + b.iLevel)
 	end
 	function api.PrepareAllMissionGroups(mtype)
-		mmi = C_Garrison.GetAvailableMissions(mmi, mtype or 1)
+		local mmi = C_Garrison.GetAvailableMissions(mtype or 1)
 		suppressFollowerEvents()
 		securecall(function()
 			for i=1,#mmi do
@@ -939,7 +940,6 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			end
 		end)
 		releaseFollowerEvents()
-		mmi = nil
 	end
 	function api.GetMissionGroups(mid, trustValid)
 		if not trustValid or not msi[1] then
@@ -974,13 +974,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			finfo = nil
 		end
 		if not msd[mid] then
-			local mmi, mi = mmi or C_Garrison.GetAvailableMissions()
-			for i=1,#mmi do
-				if mmi[i].missionID == mid then
-					mi = mmi[i]
-					break
-				end
-			end
+			local mi = C_Garrison.GetBasicMissionInfo(mid)
 			if not mi then return false end
 			if mi.numFollowers > #msi then msd[mid] = {} return {} end
 			local baseCurrency, curID, chestXP, _, baseXP = 0, -1, 0, C_Garrison.GetMissionInfo(mid)
@@ -2310,7 +2304,12 @@ function api.SetTraitTooltip(tip, id, info, showInactive, skipDescription)
 		tip:AddLine(nl .. L"Followers with this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
 		addFollowerList(tip, info, finfo, nil, showInactive)
 	else
-		tip:AddLine(nl .. L"You have no followers with this trait.", 1,0.50,0, 1)
+		local eq = T.EquipmentTraitQuests[id]
+		if eq and not IsQuestFlaggedCompleted(eq) then
+			tip:AddLine(nl .. L"Required ship equipment is not yet unlocked.", 1,0.25,0, 1)
+		else
+			tip:AddLine(nl .. L"You have no followers with this trait.", 1,0.50,0, 1)
+		end
 	end
 	info = info and info.affine
 	if not info then
@@ -2336,7 +2335,14 @@ function api.SetThreatTooltip(tip, id, info, missionLevel, showInactive, skipDes
 		tip:AddLine((skipDescription and "" or "|n") .. L"Can be countered by:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
 		addFollowerList(tip, info, finfo, missionLevel, showInactive, id)
 	else
-		tip:AddLine((skipDescription and "" or "|n") .. L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
+		local eq = T.EquipmentTraitQuests[T.EquipmentCounters[id]]
+		if eq and not IsQuestFlaggedCompleted(eq) then
+			tip:AddLine((skipDescription and "" or "|n") .. L"Required ship equipment is not yet unlocked.", 1,0.25,0, 1)
+		elseif eq then
+			tip:AddLine((skipDescription and "" or "|n") .. L"No ships are equipped to handle this mechanic.", 1,0.50,0, 1)
+		else
+			tip:AddLine((skipDescription and "" or "|n") .. L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
+		end
 	end
 end
 function api.SetFollowerListTooltip(tip, header, list, showInactive, finfo)

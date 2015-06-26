@@ -848,3 +848,63 @@ do -- XP Projections for follower summaries
 		hooksecurefunc(bar, "SetValue", updateBar)
 	end
 end
+
+do -- Ship equipment
+	local EQUIPMENT_ARRAY = GarrisonShipyardFrame.FollowerTab.EquipmentFrame.Equipment
+	local function CP_PreClick(self)
+		local ct, cid, clink = GetCursorInfo()
+		if ct == "item" and cid and clink then
+			local owner = self:GetParent()
+			local followerID = owner:GetParent():GetParent().followerID
+			if ItemCanTargetGarrisonFollowerAbility(followerID, owner.abilityID) then
+				ClearCursor()
+				self:SetAttribute("macrotext", SLASH_STOPSPELLTARGET1 .. "\n" .. SLASH_USE1 .. " item:" .. cid)
+			end
+		end
+	end
+	local function CP_PostClick(self)
+		self:SetAttribute("macrotext", nil)
+		self:GetParent():Click()
+	end
+	local function CP_Attach(self)
+		self.proxy:SetParent(self)
+		self.proxy:SetAllPoints()
+		self.proxy:Show()
+	end
+	local function CP_OnEnter(self, ...)
+		local p = self:GetParent()
+		local h = p and p:GetScript("OnEnter")
+		if h and p then h(p, ...) end
+	end
+	local function CP_OnLeave(self, ...)
+		local p = self:GetParent()
+		local h = p and p:GetScript("OnLeave")
+		if h and p then h(p, ...) end
+	end
+	local function CP_Detach(self)
+		if self:IsMouseOver() then
+			securecall(CP_OnLeave, self)
+		end
+		self:SetParent(nil)
+		self:ClearAllPoints()
+		self:Hide()
+	end
+	for i=1,#EQUIPMENT_ARRAY do
+		local pf, ef = CreateFrame("Button", nil, nil, "SecureActionButtonTemplate"), EQUIPMENT_ARRAY[i]
+		pf:Hide()
+		pf:SetScript("PreClick", CP_PreClick)
+		pf:SetScript("PostClick", CP_PostClick)
+		pf:SetScript("OnHide", CP_Detach)
+		pf:SetScript("OnEnter", CP_OnEnter)
+		pf:SetScript("OnLeave", CP_OnLeave)
+		ef:HookScript("OnShow", CP_Attach)
+		ef:SetScript("OnReceiveDrag", nil)
+		pf:SetAttribute("type", "macro")
+		ef.proxy = pf
+	end
+	function EV:PLAYER_REGEN_DISABLED()
+		for i=1,#EQUIPMENT_ARRAY do
+			EQUIPMENT_ARRAY[i].proxy:Hide()
+		end
+	end
+end

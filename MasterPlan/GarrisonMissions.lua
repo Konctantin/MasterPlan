@@ -720,7 +720,7 @@ do -- Follower headcounts
 	local function sync()
 		ni, nw, nx, nm = 0, 0, 0, 0
 		for k, v in pairs(G.GetFollowerInfo()) do
-			if not v.isCollected or T.config.ignore[k] then
+			if not v.isCollected or T.config.ignore[k] or v.followerTypeID ~= 1 then
 			elseif v.status == GARRISON_FOLLOWER_WORKING then
 				nw = nw + 1
 			elseif v.status == GARRISON_FOLLOWER_ON_MISSION then
