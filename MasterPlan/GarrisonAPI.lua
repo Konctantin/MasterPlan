@@ -1662,8 +1662,8 @@ end
 do -- api.GetUpgradeItems(ilevel, isArmor)
 	local cap = FOLLOWER_ITEM_LEVEL_CAP
 	local upgrades = {
-		WEAPON={114128, cap, 114129, cap-3, 114131, cap-6, 114616, 615, 114081, 630, 114622, 645, 128308, 645},
-		ARMOR={114745, cap, 114808, cap-3, 114822, cap-6, 114807, 615, 114806, 630, 114746, 645, 128307, 645}
+		WEAPON={114128, cap, 114129, cap-3, 114131, cap-6, 114616, 615, 114081, 630, 114622, 645, 128307, 645},
+		ARMOR={114745, cap, 114808, cap-3, 114822, cap-6, 114807, 615, 114806, 630, 114746, 645, 128308, 645}
 	}
 	local function walk(ilvl, t, pos)
 		for i=pos,#t,2 do

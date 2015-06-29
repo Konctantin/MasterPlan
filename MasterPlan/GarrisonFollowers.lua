@@ -908,4 +908,37 @@ do -- Ship equipment
 			EQUIPMENT_ARRAY[i].proxy:Hide()
 		end
 	end
+	local reroll = CreateFrame("Frame", "MPShipEquipmentContainer", GarrisonShipyardFrame.FollowerTab) do
+		reroll:SetPoint("TOPRIGHT", -14, -98)
+		reroll:SetHeight(24)
+		local buttons = {}
+		for k,v in pairs(T.EquipmentTraitItems) do
+			local b = T.CreateLazyItemButton(reroll, v)
+			b:SetSize(24, 24)
+			buttons[#buttons+1] = b
+		end
+		table.sort(buttons, function(a,b)
+			return a.itemID < b.itemID
+		end)
+		function reroll:Sync()
+			local x = 0
+			for i=1,#buttons do
+				local b = buttons[i]
+				if GetItemCount(b.itemID) > 0 then
+					b:SetPoint("LEFT", x, 0)
+					b:Show()
+					x = x + 28
+				else
+					b:Hide()
+				end
+			end
+			self:SetWidth(x > 0 and x - 4 or 0)
+		end
+		reroll:SetScript("OnShow", reroll.Sync)
+		hooksecurefunc("GarrisonFollowerPage_ShowFollower", function()
+			if reroll:IsVisible() then
+				reroll:Sync()
+			end
+		end)
+	end
 end

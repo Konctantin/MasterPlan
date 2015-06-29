@@ -7,7 +7,6 @@ local function Ship_OnEnter(self, ...)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:AddLine(GARRISON_CACHE)
 		local cv, mv, st, md = G.GetResourceCacheInfo()
-		GameTooltip:AddLine(" ")
 		local tl = st+md-time()
 		if tl > 5400 then
 			tl = SPELL_TIME_REMAINING_HOURS:format((tl+3599)/3600)
@@ -21,12 +20,13 @@ local function Ship_OnEnter(self, ...)
 		if tl then
 			GameTooltip:AddLine(tl, 0.25,1,0.15)
 		end
+		GameTooltip:AddLine(" ")
 		if cv > 0 then
 			local cc = cv == mv and 0.1 or 1
 			GameTooltip:AddLine(GARRISON_LANDING_COMPLETED:format(cv, mv), cc,1,cc)
-			local name, cur, _, _, _, tmax = GetCurrencyInfo(824)
+			local _, cur, _, _, _, tmax = GetCurrencyInfo(824)
 			if cur and tmax and tmax > 0 then
-				GameTooltip:AddLine(name .. ": " .. (cur == tmax and "|cffff0000" or (cur + cc > tmax) and "|cffffe000" or "") .. cur .. "/" .. max, 1,1,1)
+				GameTooltip:AddLine("|n" .. CURRENCY_TOTAL_CAP:format(cur == tmax and "|cffff0000" or (cur + cc > tmax) and "|cffffe000" or "|cffffffff", cur, tmax))
 			end
 		end
 		self.UpdateTooltip = Ship_OnEnter

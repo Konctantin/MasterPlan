@@ -181,6 +181,31 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 		end
 	end
 end)
+local function FollowerList_UpdateShip(self)
+	local buttons = self.listScroll.buttons
+	for i=1, #buttons do
+		local btn = buttons[i]
+		if btn:IsShown() then
+			local follower, st = btn.info, btn.XPBar.statusText
+			if not st then
+				st = btn:CreateFontString(nil, "ARTWORK", "TextStatusBarText")
+				st:SetTextColor(0.7, 0.6, 0.85)
+				st:SetPoint("BOTTOMLEFT", 25, 5)
+				btn.XPBar.statusText = st
+			end
+			if not follower.isCollected or follower.status == GARRISON_FOLLOWER_INACTIVE or follower.levelXP == 0 then
+				st:SetText("")
+			else
+				st:SetFormattedText(L"%s XP", BreakUpLargeNumbers(follower.levelXP - follower.xp))
+			end
+			if follower.status == GARRISON_FOLLOWER_ON_MISSION then
+				btn.Status:SetText(C_Garrison.GetFollowerMissionTimeLeft(follower.followerID))
+			end
+		end
+	end
+end
+hooksecurefunc(GarrisonShipyardFrame.FollowerList, "UpdateData", FollowerList_UpdateShip)
+hooksecurefunc(GarrisonLandingPage.ShipFollowerList, "UpdateData", FollowerList_UpdateShip)
 do -- Follower counter button tooltips
 	local fake, old = {}
 	local function OnEnter(self, ...)
