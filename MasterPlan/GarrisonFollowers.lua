@@ -336,6 +336,7 @@ function UpgradesFrame:Update(liveUpdate)
 	self.insetTop = oh and max(0, oh-nh, self.insetTop or 0) or 0
 end
 function UpgradesFrame:DisplayFor(owner, itemLevel, isWeapon, followerID)
+	if InCombatLockdown() then return end
 	self:SetParent(owner)
 	self.owner, self.itemLevel, self.isWeapon, self.followerID, self.insetTop = owner, itemLevel, isWeapon, followerID, 0
 	self:SetPoint("BOTTOM", owner, "TOP", 0, 0)
@@ -722,7 +723,7 @@ do -- Weapon/Armor upgrades and rerolls
 				items.averageGearLevel:SetFormattedText(GARRISON_FOLLOWER_ITEM_LEVEL, (wil+ail)/2)
 				if UpgradesFrame.followerID == id then
 					UpgradesFrame:CheckUpdate(id, wil, ail)
-				else
+				elseif UpgradesFrame:IsShown() then
 					UpgradesFrame:Hide()
 				end
 			end

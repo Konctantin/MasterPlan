@@ -528,8 +528,10 @@ end
 do -- Projected XP rewards
 	local function MissionFollower_OnEnter(self)
 		local mf = MISSION_PAGE_FRAME:IsVisible() and MISSION_PAGE_FRAME or SHIP_MISSION_PAGE
-		G.ExtendMissionInfoWithXPRewardData(mf.missionInfo, true)
-		G.ExtendFollowerTooltipProjectedRewardXP(mf.missionInfo, self.info)
+		if self.info and mf.missionInfo then
+			G.ExtendMissionInfoWithXPRewardData(mf.missionInfo, true)
+			G.ExtendFollowerTooltipProjectedRewardXP(mf.missionInfo, self.info)
+		end
 	end
 	for i=1,3 do
 		MISSION_PAGE_FRAME.Followers[i]:HookScript("OnEnter", MissionFollower_OnEnter)
@@ -594,11 +596,14 @@ do -- Counter-follower lists
 		self.CounterIcon:SetMask("")
 		self.CounterIcon:SetTexCoord(4/64,60/64,4/64,60/64)
 		if self.Details:IsShown() then
-			local tid = C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
 			itip:ActivateFor(self, "TOPLEFT", self.CounterIcon, "BOTTOMLEFT", -14, 16)
-			G.SetThreatTooltip(itip, tid, nil, nil, nil, true)
 		else
 			itip:ActivateFor(self, "TOPLEFT", self.Description, "BOTTOMLEFT", -10, 12)
+		end
+		local tid = not C_Garrison.GetFollowerAbilityIsTrait(aid) and C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+		if self.Details:IsShown() and tid then
+			G.SetThreatTooltip(itip, tid, nil, nil, nil, true)
+		else
 			G.SetTraitTooltip(itip, aid, nil, nil, true)
 		end
 		itip:Show()

@@ -1183,6 +1183,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			if C_Garrison.IsAboveFollowerSoftCap(1) then
 				GameTooltip:AddLine(GARRISON_MAX_FOLLOWERS_MISSION_TOOLTIP, 1, 0, 0, 1)
 			else
+				G.SuppressFollowerEvents()
 				for mid, f1, f2, f3 in G.GetReadyTentativeParties() do
 					local p1,p2,p3 = f1,f2,f3
 					while p1 do
@@ -1195,6 +1196,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 						p1,p2,p3 = p2, p3, C_Garrison.RemoveFollowerFromMission(mid, p1) and nil
 					end
 				end
+				G.ReleaseFollowerEvents()
 			end
 			GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. L"Clear all tentative parties.", 0.5, 0.8, 1)
 			GameTooltip:Show()
@@ -1207,9 +1209,11 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				G.DissolveAllTentativeParties()
 				PlaySound("UChatScrollButton")
 			elseif not C_Garrison.IsAboveFollowerSoftCap(1) then
+				G.SuppressFollowerEvents()
 				for mid, p1, p2, p3 in G.GetReadyTentativeParties() do
 					G.StartMissionQueue(mid, p1, p2, p3)
 				end
+				G.ReleaseFollowerEvents()
 				PlaySound("UI_Garrison_CommandTable_MissionStart")
 			end
 		end)
@@ -1720,7 +1724,7 @@ local core = {} do
 			end
 		end
 		local mf = T.GetMouseFocus()
-		local oe = mf and mf:GetScript("OnEnter")
+		local oe = mf and T.IsDescendantOf(mf, sc) and mf:GetScript("OnEnter")
 		if mf and oe and mf.IsEnabled and mf:IsEnabled() then
 			oe(mf)
 		end
