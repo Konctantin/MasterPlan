@@ -300,15 +300,15 @@ local affin = CreateFrame("Frame", nil, summaryTab) do
 end
 local stats = CreateFrame("Frame", nil, summaryTab) do
 	local rows = {}
-	stats:SetSize(192, 91)
+	stats:SetSize(192, 117)
 	stats:SetPoint("BOTTOMLEFT", summaryTab.matrix, "BOTTOMRIGHT", 6, 0)
 	stats:SetBackdrop({edgeFile="Interface/Tooltips/UI-Tooltip-Border", bgFile="Interface/DialogFrame/UI-DialogBox-Background-Dark", tile=true, edgeSize=16, tileSize=16, insets={left=3,right=3,bottom=3,top=3}})
 	stats:SetBackdropBorderColor(1, 0.75, 0.25)
 	local title = stats:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 	title:SetPoint("BOTTOM", stats, "TOP", 0, 3)
 	title:SetText(L"Statistics")
-	for i=1,3 do
-		local b = CreateFrame("Frame", nil, stats)
+	for i=1,4 do
+		local b = CreateFrame("Button", nil, stats)
 		b:SetSize(180, 24)
 		b:SetPoint("TOPLEFT", 5, 18-i*26)
 		local t = b:CreateTexture()
@@ -320,19 +320,59 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		t:SetPoint("BOTTOMRIGHT", -6, 0)
 		rows[i], b.Text = b, t
 	end
+	local function AddClickTextures(b)
+		b:SetNormalTexture("Interface\\Icons\\Temp")
+		b:GetNormalTexture():SetTexture(0,0,0,0)
+		b:SetPushedTexture("Interface/Buttons/UI-QuickSlot-Depress")
+		b:GetPushedTexture():SetAllPoints(b.Icon)
+		b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+		b:GetHighlightTexture():SetAllPoints(b.Icon)
+	end
+	AddClickTextures(rows[2])
 	rows[1].Icon:SetTexture("Interface\\Icons\\INV_Misc_GroupLooking")
-	rows[2].Icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
-	rows[3].Icon:SetTexture("Interface\\Icons\\INV_Mushroom_11")
+	rows[2].Icon:SetTexture("Interface\\Icons\\Garrison_ArmorUpgrade")
+	rows[3].Icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
+	rows[4].Icon:SetTexture("Interface\\Icons\\INV_Mushroom_11")
+	rows[2]:SetScript("OnClick", function()
+		local sb, q = GarrisonMissionFrameFollowers.SearchBox, L"Upgradable gear"
+		sb:SetText(q)
+		sb.clearText = q
+	end)
+	local function CountUpgradableFollowers()
+		local nuA, nuI, upW, upA = 0,0, G.GetUpgradeRange()
+		for k,v in pairs(G.GetFollowerInfo()) do
+			if v.followerTypeID == 1 and v.level == 100 then
+				local _weaponItemID, weaponItemLevel, _armorItemID, armorItemLevel = C_Garrison.GetFollowerItems(k)
+				if not (weaponItemLevel < upW or armorItemLevel < upA) then
+				elseif v.status == GARRISON_FOLLOWER_INACTIVE then
+					nuI = nuI + 1
+				else
+					nuA = nuA + 1
+				end
+			end
+		end
+		return nuA, nuI
+	end
 	function stats:Sync()
 		rows[1].Text:SetFormattedText(L"%d followers recruited", C_Garrison.GetNumFollowers())
-		rows[2].Text:SetText(BreakUpLargeNumbers(floor(T.config.goldCollected/1e4)))
+		local uptext, nuA, nuI = "", CountUpgradableFollowers()
+		if nuA == 0 then
+			uptext = "|cffccc78f" .. L("%d total"):format(nuI)
+		elseif nuI > 0 then
+			uptext = L("%d active"):format(nuA) .. "; |cffccc78f" .. L("%d total"):format(nuI+nuA)
+		else
+			uptext = L("%d active"):format(nuA)
+		end
+		rows[2].Text:SetText(uptext)
+		rows[3].Text:SetText(BreakUpLargeNumbers(floor(T.config.goldCollected/1e4)))
+		rows[3].Text:SetText(BreakUpLargeNumbers(floor(T.config.goldCollected/1e4)))
 		local mt = "???"
 		if T.config.moV > 1 then
 			mt = math.floor(1000 + 250*(T.config.moC - T.config.moE)/T.config.moV^0.5 + 0.5)
 			local qi = math.min(math.floor(mt/250-2.5), 5)
 			mt = (qi > 0 and ITEM_QUALITY_COLORS[qi].hex or "") .. BreakUpLargeNumbers(mt)
 		end
-		rows[3].Text:SetText(mt)
+		rows[4].Text:SetText(mt)
 	end
 	summaryTab.stats = stats
 end

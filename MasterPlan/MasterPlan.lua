@@ -29,6 +29,7 @@ local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	timeHorizonMin=300,
 	crateLevelGrace=25,
 	interestMask=0,
+	ship1=100, ship2=80, ship3=50,
 	moC=0, moE=0, moV=0, moN=0, goldCollected=0,
 	ignore={},
 	complete={},

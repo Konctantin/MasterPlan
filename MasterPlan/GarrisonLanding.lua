@@ -92,8 +92,9 @@ hooksecurefunc("GarrisonLandingPageReportList_UpdateAvailable", function()
 		local item = buttons[i]:IsShown() and items[buttons[i].id]
 		if item and item.offerTimeRemaining and item.offerEndTime then
 			if item.offerEndTime - 8640000 <= GetTime() then
-				local mt = buttons[i].MissionType
-				mt:SetFormattedText("%s |cffa0a0a0(%s %s)|r", mt:GetText(), L"Expires in:", item.offerTimeRemaining)
+				buttons[i].MissionType:SetFormattedText("%s |cffa0a0a0(%s %s)|r",
+					item.durationSeconds >= GARRISON_LONG_MISSION_TIME and (GARRISON_LONG_MISSION_TIME_FORMAT):format(item.duration) or item.duration,
+					L"Expires in:", item.offerTimeRemaining)
 			end
 		end
 	end
