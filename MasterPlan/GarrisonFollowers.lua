@@ -123,19 +123,16 @@ end)
 
 local icons = setmetatable({}, {__index=function(self, k)
 	local f = CreateMechanicButton(mechanicsFrame)
-	f:SetPoint("LEFT", 23*k-20, 0)
+	f:SetSize(24,24)
+	f:SetPoint("LEFT", 27*k-20, 0)
 	self[k] = f
 	return f
 end})
-local traits, traitGroups = {221, 76, 77, 79, 256}, {
+local traits, traitGroups = {221, 76, 77}, {
 	{80, 236, 29, icon="Interface\\Icons\\XPBonus_Icon"},
-	T.UsableAffinities,
 	{4,36,37,38,39,40,41,42,43, 7,8,9,44,45,46,48,49, icon="Interface\\Icons\\Ability_Hunter_MarkedForDeath"},
 	{52,53,54,55,56,57,58,59,60,61,62,227,231, icon="Interface\\Icons\\Trade_Engineering"},
-} do
-	local ag = traitGroups[2]
-	ag.affinities, ag.icon = true, "Interface\\Icons\\PetBattle_Health"
-end
+}
 local function syncTotals()
 	local finfo, cinfo, tinfo, i = G.GetFollowerInfo(), G.GetCounterInfo(), G.GetFollowerTraits(), 1
 	for k=1,10 do
@@ -866,7 +863,11 @@ do -- XP Projections for follower summaries
 end
 
 do -- Ship equipment
-	local EQUIPMENT_ARRAY = GarrisonShipyardFrame.FollowerTab.EquipmentFrame.Equipment
+	local EQUIPMENT_ARRAY = {}
+	for i=1,2 do
+		table.insert(EQUIPMENT_ARRAY, GarrisonShipyardFrame.FollowerTab.EquipmentFrame.Equipment[i])
+		table.insert(EQUIPMENT_ARRAY, GarrisonLandingPage.ShipFollowerTab.EquipmentFrame.Equipment[i])
+	end
 	local function CP_PreClick(self)
 		local ct, cid, clink = GetCursorInfo()
 		if ct == "item" and cid and clink then

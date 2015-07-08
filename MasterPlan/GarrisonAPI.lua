@@ -356,7 +356,7 @@ local function SetFollowerInfo(t)
 					for i=1,2 do
 						local aid = q(fid, i)
 						if aid > 0 then
-							traits[aid], counters[aid] = aid, C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid)
+							traits[aid], counters[aid], tc = aid, C_Garrison.GetFollowerAbilityCounterMechanicInfo(aid), tc + (TC[ET[aid] or aid] or 0)
 						end
 					end
 				end
@@ -987,7 +987,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			if mi.numFollowers > #msi then msd[mid] = {} return msd[mid] end
 			local baseCurrency, curID, chestXP, _, baseXP = 0, -1, 0, C_Garrison.GetMissionInfo(mid)
 			for k,r in pairs(mi.rewards) do
-				if r.currencyID then
+				if r.currencyID and not T.TraitStack[curID] then
 					baseCurrency, curID = r.quantity, r.currencyID
 				elseif r.followerXP then
 					chestXP = chestXP + r.followerXP
@@ -1281,7 +1281,8 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 		function getSuggestedGroups(mi)
 			local mid, rank, rt = mi.missionID, api.GetMissionDefaultGroupRank(mi, order)
 			local mig, nf, sg, a, a2, b, b2, c = api.GetMissionGroups(mid, true), mi.numFollowers, 0
-			local irank = useFocus and rt == "xp" and setFocusRank(useFocus, mi, rank, order) or rank
+			local irank, rank2 = useFocus and rt == "xp" and setFocusRank(useFocus, mi, rank, order) or rank, rank2
+			if mi.followerTypeID == 2 and rt == "resources" then irank, rank2 = rank2, irank end
 			for i=1,#mig do
 				local g = mig[i]
 				local isValid, isAway = defValid or backfillGroupMatch(g, nf, f1, f2, f3), false
@@ -2212,7 +2213,8 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 	end
 end
 function api.GetRewardMultiplier(minfo, curID)
-	local ret = minfo.rewardMultiplier
+	local k = "rewardMultiplier" .. (curID or "N")
+	local ret = minfo[k]
 	if not ret and curID then
 		local mm, gm = select(8, C_Garrison.GetPartyMissionInfo(minfo.missionID))
 		if curID == 0 then
@@ -2220,7 +2222,7 @@ function api.GetRewardMultiplier(minfo, curID)
 		else
 			ret = mm and mm[curID] or 1
 		end
-		minfo.rewardMultiplier = ret
+		minfo[k] = ret
 	end
 	return ret or 1
 end

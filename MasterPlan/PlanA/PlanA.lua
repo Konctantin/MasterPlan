@@ -89,5 +89,5 @@ E.ZONE_CHANGED = CheckCacheWarning
 MasterPlanA = api
 
 SLASH_MASTERPLAN1, SlashCmdList.MASTERPLAN = "/masterplan", function()
-	print("|cff0080ffMasterPlan|r v" .. GetAddOnMetadata("MasterPlan", "Version"))
+	print("|cff0080ffMasterPlan|r v" .. GetAddOnMetadata("MasterPlan", "Version") .. " " .. (GetAddOnMetadata("MasterPlan", "X-Version-Key") or "-"))
 end

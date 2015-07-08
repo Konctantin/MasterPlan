@@ -3264,19 +3264,49 @@ do -- Ships
 		parent.MPUI = f
 		return f
 	end
+	local function GetViableSuggestedGroup(mi)
+		local sg = G.GetSuggestedGroupsForMission(mi)
+		sg = sg and sg[1]
+		if sg and not G.GetMissionGroupDeparture(sg, mi) then
+			return sg
+		end
+	end
 	local function ShipMission_OnClick(self, button)
 		if IsModifiedClick("CHATLINK") and self.info then
 			ChatEdit_InsertLink(C_Garrison.GetMissionLink(self.info.missionID))
 		elseif self.info.canStart then
 			local f1, f2, f3
 			if button == "RightButton" then
-				local sg = G.GetSuggestedGroupsForMission(self.info)
-				sg = sg and sg[1]
-				if sg and not G.GetMissionGroupDeparture(sg, self.info) then
+				local sg = GetViableSuggestedGroup(self.info)
+				if sg then
 					f1, f2, f3 = sg[5], sg[6], sg[7]
 				end
 			end
 			OpenToMission(self.info, f1, f2, f3)
+		end
+	end
+	local ShipMission_OnEnter do
+		local tipGroup = GarrisonShipyardMapMissionTooltip:CreateFontString(nil, "ARTWORK", "GameFontHighlightLeft")
+		tipGroup:SetTextColor(0.5, 0.8, 1)
+		hooksecurefunc("GarrisonShipyardMapMission_SetTooltip", function() tipGroup:Hide() end)
+		function ShipMission_OnEnter(self, ...)
+			local mi = self.info
+			GarrisonShipyardMapMission_OnEnter(self, ...)
+			if mi and mi.canStart and GarrisonShipyardMapMissionTooltip:IsShown() then
+				local sg, tf = GetViableSuggestedGroup(self.info), GarrisonShipyardMapMissionTooltip
+				if sg then
+					local exp, sp = G.GetMissionGroupXP(sg, mi), sg[1]/100
+					local ex, ce, ct = exp >= 1 and ("; " .. (L"%s XP"):format(BreakUpLargeNumbers(floor(exp)))), sg[3]*sp, sg[9]
+					if ct == 0 and ce > 1e4 then ex = (ex and ex .. "; " or "") .. GetMoneyString(ce - ce % 1e4) end
+					tipGroup:SetFormattedText("|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t %s: |cffffffff%d%%%s", L"Suggested group", sg[1], ex or "")
+					tipGroup:Show()
+					GarrisonShipyardMapMission_AnchorToBottomWidget(tipGroup, 0, -12)
+					GarrisonShipyardMapMission_SetBottomWidget(tipGroup)
+					tipGroup:SetWidth(math.max(180, (tf:GetWidth() or 16) - 12))
+					tf:SetHeight(tf:GetHeight() + tipGroup:GetHeight()+12)
+					return
+				end
+			end
 		end
 	end
 	local function UpdateShipMissionMap()
@@ -3291,7 +3321,7 @@ do -- Ships
 				fg = fg and not G.GetMissionGroupDeparture(fg, mission) and fg
 				lg = lg and lg ~= fg and G.GetMissionGroupDeparture(lg, mission) and lg
 
-				local s, c, nt, r, g, b = fg and fg[1], T.config, G.HasTentativeParty(mission.missionID), 0, 1, 0
+				local s, c, nt, r, g, b = fg and fg[1], T.config, G.HasTentativeParty(mission.missionID), 0.2, 1, 0.2
 				if nt == mission.numFollowers then
 					r,g,b = 1, 0.2, 0.6
 				elseif nt > 0 then
@@ -3299,7 +3329,7 @@ do -- Ships
 				elseif not s then
 					r,g,b = 0.4, 0.4, 0.4
 				elseif c.ship3 > s then
-					r,g,b = 0.8, 0, 0
+					r,g,b = 0.6, 0, 0
 				elseif c.ship2 > s then
 					r,g,b = 1, 0.4, 0
 				elseif c.ship1 > s then
@@ -3312,6 +3342,7 @@ do -- Ships
 			end
 			frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			frame:SetScript("OnClick", ShipMission_OnClick)
+			frame:SetScript("OnEnter", ShipMission_OnEnter)
 		end
 	end
 	do -- update hook

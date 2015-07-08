@@ -245,12 +245,12 @@ do -- Follower counter button tooltips
 		old, fake.info = self, self.info
 		return GarrisonMissionMechanicFollowerCounter_OnEnter(self, ...)
 	end
-	hooksecurefunc("GarrisonFollowerButton_UpdateCounters", function(self)
+	hooksecurefunc("GarrisonFollowerButton_UpdateCounters", function(_, self)
 		if old and (fake.info ~= old.info or not (old:IsShown() and old:IsMouseOver())) then
 			GarrisonMissionMechanicFollowerCounter_OnLeave(fake)
 			old, fake.info = nil
 		end
-		for i=1,self.Counters and #self.Counters or 0 do -- TODO: does this ever exist?
+		for i=1,#self.Counters do
 			local self = self.Counters[i]
 			self:SetScript("OnEnter", OnEnter)
 			if self:IsShown() and self:IsMouseOver() then
