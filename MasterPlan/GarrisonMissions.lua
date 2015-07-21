@@ -66,19 +66,20 @@ do -- GarrisonFollowerList_SortFollowers
 	end
 	local oldSortFollowers = GarrisonFollowerList_SortFollowers
 	function GarrisonFollowerList_SortFollowers(self)
-	   local followerCounters = GarrisonMissionFrame.followerCounters
-	   local followerTraits = GarrisonMissionFrame.followerTraits
+		local checkIgnore = self == GarrisonMissionFrame.FollowerList
+		local followerCounters = GarrisonMissionFrame.followerCounters
+		local followerTraits = GarrisonMissionFrame.followerTraits
 		for k,v in pairs(self.followers) do
 			local tmid = G.GetFollowerTentativeMission(v.followerID)
 			if tmid and (v.status or "") == "" then
 				v.status = GARRISON_FOLLOWER_IN_PARTY
-			elseif (v.status or "") == "" and T.config.ignore[v.followerID] then
+			elseif checkIgnore and (v.status or "") == "" and T.config.ignore[v.followerID] then
 				v.status = GARRISON_FOLLOWER_WORKING
 			end
 		end
 		toggle:SetShown(GarrisonMissionFrame.MissionTab:IsShown())
 		local mi = MISSION_PAGE_FRAME.missionInfo
-	   if followerCounters and followerTraits and GarrisonMissionFrame.MissionTab:IsVisible() and mi and MasterPlan:GetSortFollowers() then
+		if followerCounters and followerTraits and GarrisonMissionFrame.MissionTab:IsVisible() and mi and MasterPlan:GetSortFollowers() then
 			return missionFollowerSort(self.followersList, self.followers, followerCounters, followerTraits, mi.level)
 		end
 		return oldSortFollowers(self)
@@ -325,6 +326,7 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 	local buttons, fl = self.FollowerList.listScroll.buttons, G.GetFollowerInfo()
 	local mi = MISSION_PAGE_FRAME.missionInfo
 	local mid = mi and mi.missionID
+	local upW, upA = G.GetUpgradeRange()
 	for i=1, #buttons do
 		local fi = fl[buttons[i].id]
 		if fi then
@@ -342,11 +344,16 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 			if ns then
 				buttons[i].Status:SetText(ns)
 			end
-			if (ns or status) == "" and fi.level == 100 then
+			if fi.level == 100 then
 				local _weaponItemID, weaponItemLevel, _armorItemID, armorItemLevel = C_Garrison.GetFollowerItems(fi.followerID)
-				if weaponItemLevel ~= armorItemLevel then
-					buttons[i].ILevel:SetText(ITEM_LEVEL_ABBR .. " " .. fi.iLevel .. " (" .. weaponItemLevel .. "/" .. armorItemLevel .. ")")
+				local itext = ITEM_LEVEL_ABBR .. " " .. fi.iLevel
+				if weaponItemLevel < upW or armorItemLevel < upA then
+					itext = itext .. "|cff20e020+|r"
 				end
+				if (ns or status) == "" and weaponItemLevel ~= armorItemLevel then
+					itext = itext .. " (" .. weaponItemLevel .. "/" .. armorItemLevel .. ")"
+				end
+				buttons[i].ILevel:SetText(itext)
 			end
 			if self == GarrisonMissionFrame then
 				buttons[i]:SetScript("OnEnter", FollowerButton_OnEnter)

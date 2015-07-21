@@ -29,7 +29,7 @@ T.UsableAffinities = UnitFactionGroup('player') == 'Horde' and {70,71,72,73,74,7
 
 T.MissionExpire = {} do
 	local expire = T.MissionExpire
-	for n, r in ("000210611621id2e56516c16o17i0:0ga6b:0o2103rz4rz5r86136716e26q37ji9549eja23ai0am1aq4ax0b40cq0dcedx1:102zd3h86vm82maj2ao1av1ay5b51bicc0dczcdr1dz0:1y9a39y3dt3:20050100190cr7:9b8pfb7abv3ceb"):gmatch("(%w%w)(%w+)") do
+	for n, r in ("000210611621id2e56516c16o17i0ed3ei1ho3i31jxnkq1:0ga6b:0me10ea2:0o2103rz4rz5r86136716e26q37ji9549eja23ai0am1aq4ax0b40cq0dcedx1kp0:102zd3h86vm82maj2ao1av1ay5b51bicc0dczcdr1dz0ife:1ch51h82kv0:1y9a39y3dt3:20050100190cr7:4oiu9:7pe40:9b8pfb7abv3ceb:e0ek5etzftzgtbh70hbbhs4hz0i11i59j4bjhfkl1ku0kw0"):gmatch("(%w%w)(%w+)") do
 		local n = tonumber(n, 36)
 		for s, l in r:gmatch("(%w%w)(%w)") do
 			local s = tonumber(s, 36)
@@ -168,6 +168,7 @@ T.MissionCoalescing = {
 }
 
 T.TraitStack = {[0]=256, [824]=79, [1101]=314, [823]=326}
+T.UniqueTraits = {[326]=1}
 
 T.TokenSlots = {} do
 	local b, s, m, d = 114e3, 1, T.TokenSlots, "62:56424e:553f644b::533a46:65:63:543b6047:52395e45:3561:34::57446950:::706e6d6c"
