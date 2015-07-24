@@ -692,7 +692,7 @@ L == "ruRU" and {
 	Statistics = "Статистика",
 	Success = "Успешно",
 	["Success chance"] = "Вероятность успеха",
-	["Suggested group"] = "Похожие группы",
+	["Suggested group"] = "Предлагаемая группа",
 	["Suggested groups"] = "Предлагаемые группы",
 	["%s XP"] = "%s XP",
 	["%s XP gained"] = "%s XP получено",

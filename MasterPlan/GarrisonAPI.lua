@@ -1524,7 +1524,7 @@ do -- HasSignificantRewards(minfo)
 		local mid = mi.missionID
 		local ret = cache[mid]
 		if ret ~= nil then
-		elseif mi.type == "Ship-Legendary" then
+		elseif mi.type == "Ship-Legendary" or mi.offeredGarrMissionTextureID ~= 0 then
 			ret = true
 		elseif mi.rewards then
 			local allGR, allXP, over, hasMinor, gold = true, true, T.XPMissions[mid], false

@@ -2880,6 +2880,11 @@ do -- interestMissionsHandle
 			end
 			wipe(usefulTraits)
 			usefulTraits[T.EnvironmentCounters[s[5]] or 0] = 1
+			for k,v in pairs(T.EnvironmentBonus) do
+				if v[s[5]] then
+					usefulTraits[k] = 1
+				end
+			end
 			usefulTraits[best.ttrait or 0] = 1
 			usefulTraits[T.TraitStack[s[4]] or 0] = 1
 			usefulTraits[232] = best.dtrait

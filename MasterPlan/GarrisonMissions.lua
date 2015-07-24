@@ -959,9 +959,10 @@ do -- Ship re-fitting
 			for i=1,6 do
 				local b = CreateFrame("Button", nil, sContainer, "SecureActionButtonTemplate", i)
 				b:SetSize(32, 32)
-				local ico = b:CreateTexture()
+				local ico, border = b:CreateTexture(), b:CreateTexture(nil, "OVERLAY")
+				b.icon, b.border = ico, border
 				ico:SetAllPoints()
-				b.icon = ico
+				border:SetAllPoints()
 				ico:SetTexture("Interface/Icons/Temp")
 				b:SetNormalTexture("Interface/Icons/Temp")
 				b:GetNormalTexture():SetTexture(0,0,0,0)
@@ -983,6 +984,27 @@ do -- Ship re-fitting
 			b.icon:SetTexture(GetItemIcon(id))
 			b.icon:SetDesaturated(GetItemCount(id) == 0)
 			b:Show()
+		end
+		local function countTraitThreats(nf, tid)
+			local n, t = 0, 0
+			for i=1,nf do
+				local fi = SHIP_MISSION_PAGE.Followers[i].info
+				for j=1,2 do
+					if fi and C_Garrison.GetFollowerAbilityAtIndex(fi.followerID, j) == tid then
+						n = n + 1
+					end
+				end
+			end
+			for i=1,#SHIP_MISSION_PAGE.Enemies do
+				local e = SHIP_MISSION_PAGE.Enemies[i]
+				for j=1,e:IsShown() and #e.Mechanics or 0 do
+					local m = e.Mechanics[j]
+					if m:IsShown() and T.EquipmentCounters[m.mechanicID] == tid then
+						t = t + 1
+					end
+				end
+			end
+			return n, t
 		end
 		function refit.Sync()
 			if InCombatLockdown() then return end
@@ -1023,12 +1045,20 @@ do -- Ship re-fitting
 						hasEquipmentSlots = true
 						s.traitID = a
 						s.icon:SetTexture(C_Garrison.GetFollowerAbilityIcon(a))
+						local nc, nt = countTraitThreats(mi and mi.numFollowers or 0, a)
+						if nt > 0 then
+							s.border:SetAtlas(nc <= nt and "bags-glow-green" or "bags-glow-heirloom")
+							s.border:Show()
+						else
+							s.border:Hide()
+						end
 						s:Show()
 					else
 						s:Hide()
 					end
 				end
 			end
+			
 			eq[1]:GetParent():SetWidth(math.max(1,ns*28-4))
 			slots[1]:GetParent():SetWidth((mi and mi.numFollowers or 1)*78-10)
 			refit:SyncButtonState()
