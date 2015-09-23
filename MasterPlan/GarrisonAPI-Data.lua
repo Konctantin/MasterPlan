@@ -64,6 +64,7 @@ T.ItemLevelUpgrades = {
 	ARMOR={114745, 675, 114808, 672, 114822, 669, 114807, 615, 114806, 630, 114746, 645, 128308, 645}
 }
 T.MENTOR_FOLLOWER = ("0x%016X"):format(465)
+T.MinorRewards = {[114128]=1, [114129]=1, [114131]=1, [114616]=1, [114081]=1, [114622]=1, [128307]=1, [120301]=1, [120302]=1, [114745]=1, [114808]=1, [114822]=1, [114807]=1, [114806]=1, [114746]=1, [128308]=1}
 
 T.MissionLocationBanners = { [101]="GarrMissionLocation-FrostfireRidge", [102]="GarrMissionLocation-TannanJungle", [103]="GarrMissionLocation-Gorgrond", [104]="GarrMissionLocation-Nagrand", [105]="GarrMissionLocation-Talador", [106]="GarrMissionLocation-ShadowmoonValley", [107]="GarrMissionLocation-SpiresofArak", [164]="_GarrMissionLocation-BlackrockMountain", }
 

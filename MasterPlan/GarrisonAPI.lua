@@ -16,7 +16,7 @@ local tentativeState, tentativeParties = {}, {} do
 		function notifyChange()
 			if not pending then
 				pending = true
-				C_Timer.After(0, doNotify)
+				T.After0(doNotify)
 			end
 		end
 	end
@@ -911,7 +911,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 						followers[v] = mmi[i].missionID
 					end
 				end
-				C_Timer.After(0, failsafe)
+				T.After0(failsafe)
 			end
 			level = level + 1
 		end
@@ -1538,7 +1538,7 @@ do -- HasSignificantRewards(minfo)
 					if r.currencyID == 0 then
 						gold = r.quantity
 					elseif not r.followerXP then
-						if api.IsLevelAppropriateToken(r.itemID) == false then
+						if T.MinorRewards[r.itemID] or api.IsLevelAppropriateToken(r.itemID) == false then
 							hasMinor = "minor"
 						else
 							allXP = false
@@ -2395,12 +2395,7 @@ function api.SetTraitTooltip(tip, id, info, showInactive, skipDescription)
 		tip:AddLine(nl .. L"Followers with this trait:", NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
 		addFollowerList(tip, info, finfo, nil, showInactive)
 	else
-		local eq = T.EquipmentTraitQuests[id]
-		if eq and not IsQuestFlaggedCompleted(eq) then
-			tip:AddLine(nl .. L"Required ship equipment is not yet unlocked.", 1,0.25,0, 1)
-		else
-			tip:AddLine(nl .. L"You have no followers with this trait.", 1,0.50,0, 1)
-		end
+		tip:AddLine(nl .. L"You have no followers with this trait.", 1,0.50,0, 1)
 	end
 	info = info and info.affine
 	if not info then
@@ -2427,9 +2422,7 @@ function api.SetThreatTooltip(tip, id, info, missionLevel, showInactive, skipDes
 		addFollowerList(tip, info, finfo, missionLevel, showInactive, id)
 	else
 		local eq = T.EquipmentTraitQuests[T.EquipmentCounters[id]]
-		if eq and not IsQuestFlaggedCompleted(eq) then
-			tip:AddLine((skipDescription and "" or "|n") .. L"Required ship equipment is not yet unlocked.", 1,0.25,0, 1)
-		elseif eq then
+		if eq then
 			tip:AddLine((skipDescription and "" or "|n") .. L"No ships are equipped to handle this mechanic.", 1,0.50,0, 1)
 		else
 			tip:AddLine((skipDescription and "" or "|n") .. L"You have no followers to counter this mechanic.", 1,0.50,0, 1)
