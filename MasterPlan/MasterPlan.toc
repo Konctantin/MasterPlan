@@ -7,8 +7,8 @@
 ## LoadWith: Blizzard_GarrisonUI
 ## RequiredDeps: Blizzard_GarrisonUI, MasterPlanA
 ## SavedVariablesPerCharacter: MasterPlanPC
-## Version: 0.70
-## X-Version-Key: knight
+## Version: 0.71
+## X-Version-Key: ocelot
 ## Globe-Pre: MasterPlanA
 Libs/Evie.lua
 Libs/Reframe.lua

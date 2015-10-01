@@ -1140,3 +1140,41 @@ do -- Ship re-fitting
 	
 	hooksecurefunc(GarrisonShipyardFrame, "UpdateMissionData", refit.SyncLater)
 end
+do
+	local ctlContainer = CreateFrame("Frame", nil, GarrisonShipyardFrame.MissionTab.MissionList) do
+		SHIP_MISSION_PAGE.MPStatContainer = ctlContainer
+		ctlContainer:SetPoint("BOTTOM")
+		ctlContainer:SetSize(108, 43)
+		local t, is, ts = ctlContainer:CreateTexture(nil, "BACKGROUND"), 18, 1/16
+		t:SetAtlas("Garr_Mission_MaterialFrame")
+		t:SetTexCoord(0, ts, 0, 1)
+		t:SetPoint("TOPLEFT")
+		t:SetPoint("BOTTOMRIGHT", ctlContainer, "BOTTOMLEFT", is, 0)
+		t = ctlContainer:CreateTexture(nil, "BACKGROUND")
+		t:SetTexCoord(ts, 1-ts, 0, 1)
+		t:SetAtlas("Garr_Mission_MaterialFrame")
+		t:SetPoint("TOPLEFT", is, 0)
+		t:SetPoint("BOTTOMRIGHT", -is, 0)
+		t = ctlContainer:CreateTexture(nil, "BACKGROUND")
+		t:SetTexCoord(1-ts, 1, 0, 1)
+		t:SetAtlas("Garr_Mission_MaterialFrame")
+		t:SetPoint("TOPRIGHT")
+		t:SetPoint("BOTTOMLEFT", ctlContainer, "BOTTOMRIGHT", -is, 0)
+		t = ctlContainer:CreateTexture(nil, "ARTWORK")
+		t:SetSize(30,30)
+		t:SetPoint("RIGHT", -8, 0)
+		t:SetAtlas("ShipMission_CurrencyIcon-Oil", false)
+		t = ctlContainer:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+		t:SetPoint("RIGHT", -35, 0)
+		t:SetText("44,444")
+		ctlContainer.MaterialCount = t
+	end
+	local function sync()
+		ctlContainer.MaterialCount:SetText(BreakUpLargeNumbers(select(2, GetCurrencyInfo(1101)) or 0))
+		ctlContainer:SetFrameLevel(GarrisonShipyardFrame.BorderFrame:GetFrameLevel()+1)
+		ctlContainer:SetWidth((ctlContainer.MaterialCount:GetStringWidth() or 50) + 52)
+	end
+	ctlContainer:SetScript("OnShow", sync)
+	EV.CURRENCY_DISPLAY_UPDATE = sync
+	
+end
