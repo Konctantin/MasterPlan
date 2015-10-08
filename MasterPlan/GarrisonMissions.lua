@@ -1174,7 +1174,36 @@ do
 		ctlContainer:SetFrameLevel(GarrisonShipyardFrame.BorderFrame:GetFrameLevel()+1)
 		ctlContainer:SetWidth((ctlContainer.MaterialCount:GetStringWidth() or 50) + 52)
 	end
-	ctlContainer:SetScript("OnShow", sync)
 	EV.CURRENCY_DISPLAY_UPDATE = sync
-	
+	ctlContainer:SetScript("OnShow", sync)
+	ctlContainer:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_NONE")
+		GameTooltip:SetPoint("BOTTOM", self, "TOP")
+		GameTooltip:SetText("!")
+		GameTooltipTextLeft1:SetText("")
+		for i=1, 2 do
+			local on, oc, oi = GetCurrencyInfo(i == 1 and 1101 or 824)
+			GameTooltip:AddDoubleLine(("|T%s:0:0:0:0:64:64:6:58:6:58|t %s"):format(oi, on), NORMAL_FONT_COLOR_CODE .. BreakUpLargeNumbers(oc), 1,1,1)
+		end
+		local sid, name = C_Garrison.GetOwnedBuildingInfoAbbrev(98)
+		local ts, _, _, tl = select(5, C_Garrison.GetLandingPageShipmentInfo(sid))
+		local sf, nf = C_Garrison.GetFollowers(2), 0
+		local atCap = (#sf + ts) == C_Garrison.GetFollowerSoftCap(2)
+		for i=1,#sf do
+			if sf[i].status == nil then
+				nf = nf + 1
+			end
+		end
+		if tl then
+		elseif ts == 1 then
+			tl = "|cff20c020" .. L"Ready"
+		else
+			tl = (atCap and "|cffc0c0c0" or "|cffc02020") .. L"Idle"
+		end
+		local outof = atCap and "|cffc0c0c0/" or "|cffc02020/"
+		GameTooltip:AddDoubleLine("|TInterface\\Icons\\INV_Garrison_Cargoship:0:0:0:0:64:64:6:58:6:58|t " .. L"Idle ships", nf .. outof .. #sf, 1,1,1)
+		GameTooltip:AddDoubleLine("|TInterface\\Icons\\Garrison_Build:0:0:0:0:64:64:6:58:6:58|t " .. name, tl, 1,1,1)
+		GameTooltip:Show()
+	end)
+	ctlContainer:SetScript("OnLeave", HideOwnedGameTooltip)
 end

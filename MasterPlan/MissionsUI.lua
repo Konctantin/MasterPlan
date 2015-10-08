@@ -1235,12 +1235,16 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				for mid, f1, f2, f3 in G.GetReadyTentativeParties(1) do
 					local mi = C_Garrison.GetBasicMissionInfo(mid)
 					local g = G.GetBackfillMissionGroups(mi, G.GroupFilter.ACTIVE, G.GroupRank.xp, 1, f1, f2, f3)[1]
-					GameTooltip:AddDoubleLine(HIGHLIGHT_FONT_COLOR_CODE .. mi.name, g[1] .. "%")
-					local sp, ct, cq, _, expectedXP = g[1]/100, g[9] or 0, g[3] or 0, G.GetMissionGroupXP(g, mi)
-					if expectedXP > 0 then
-						rewards.xp = (rewards.xp or 0) + expectedXP
-					elseif g[1] > 0 and cq > 0 then
-						rewards[ct] = (rewards[ct] or 0) + cq*sp
+					if not g then
+						G.GetMissionParty(mid)
+					else
+						GameTooltip:AddDoubleLine(HIGHLIGHT_FONT_COLOR_CODE .. mi.name, g[1] .. "%")
+						local sp, ct, cq, _, expectedXP = g[1]/100, g[9] or 0, g[3] or 0, G.GetMissionGroupXP(g, mi)
+						if expectedXP > 0 then
+							rewards.xp = (rewards.xp or 0) + expectedXP
+						elseif g[1] > 0 and cq > 0 then
+							rewards[ct] = (rewards[ct] or 0) + cq*sp
+						end
 					end
 				end
 				if (rewards.xp or 0) > 0 then

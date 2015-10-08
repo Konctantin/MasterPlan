@@ -461,7 +461,7 @@ function api.GetDoubleCounters(skipInactive)
 				if fi.quality >= 4 then
 					local c1, c2 = cai(aai(fid, 1)), cai(aai(fid, 2))
 					local k, k2 = c1*100 + c2, c2*100 + c1
-					local tk = rt[k] or {}
+					local tk = rt[k] or {key=k}
 					tk[#tk + 1], rt[k], rt[k2] = fi.followerID, tk, tk
 				end
 				local sc = T.SpecCounters[fi.classSpec]
@@ -475,7 +475,7 @@ function api.GetDoubleCounters(skipInactive)
 						for j=i+1,#sc do
 							local c2 = sc[j]
 							local k, k2 = -(c1*100 + c2), -(c2*100 + c1)
-							local tk = rt[k] or {}
+							local tk = rt[k] or {key=k}
 							tk[#tk + 1], rt[k], rt[k2] = fi.followerID, tk, tk
 						end
 						s1 = s1 or (sc[i] == c1)
@@ -2354,11 +2354,11 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 			local rt = pt .. "|T" .. ri .. ":16:16:0:0:64:64:5:59:5:59|t"
 
 			local lct, lpt, rct, rpt = dct[pc*100+lc], dct[-(pc*100+lc)], dct[pc*100+rc], dct[-(pc*100+rc)]
-			local lf, la = api.countFreeFollowers(lct, finfo), lct and #lct or 0
-			local rf, ra = api.countFreeFollowers(rct, finfo), rct and #rct or 0
+			local lf, la, lp = api.countFreeFollowers(lct, finfo), lct and #lct or 0, lpt and #lpt or 0
+			local rf, ra, rp = api.countFreeFollowers(rct, finfo), rct and #rct or 0, rpt and #rpt or 0
 			
-			lt = lt .. " " .. (lf == 0 and la == 0 and "0" or "") .. (lf > 0 and "|cff20ff20" .. lf .. "|r" or "") .. (la > lf and (lf > 0 and "+" or "") .. "|cffccc78f" .. (la - lf) .. "|r" or "") .. "|cffa0a0a0/" .. (#lpt or 0)
-			rt = (rf == 0 and ra == 0 and "0" or "") .. (rf > 0 and "|cff20ff20" .. rf .. "|r" or "") .. (ra > rf and (rf > 0 and "+" or "") .. "|cffccc78f" .. (ra - rf) .. "|r" or "") .. "|cffa0a0a0/" .. (#rpt or 0) .. " " .. rt
+			lt = lt .. " " .. (lf == 0 and la == 0 and "0" or "") .. (lf > 0 and "|cff20ff20" .. lf .. "|r" or "") .. (la > lf and (lf > 0 and "+" or "") .. "|cffccc78f" .. (la - lf) .. "|r" or "") .. "|cffa0a0a0/" .. lp
+			rt = (rf == 0 and ra == 0 and "0" or "") .. (rf > 0 and "|cff20ff20" .. rf .. "|r" or "") .. (ra > rf and (rf > 0 and "+" or "") .. "|cffccc78f" .. (ra - rf) .. "|r" or "") .. "|cffa0a0a0/" .. rp .. " " .. rt
 			
 			self:AddDoubleLine(lt, rt, 1,1,1, 1,1,1)
 		end
@@ -2655,7 +2655,7 @@ function api.SetCounterComboTip(tip, id1, id2)
 	end
 
 	if not hasLines then
-		local di = api.GetDoubleCounters()[id1 <= id2 and -(id1*100 + id2) or -(id2*100 + id1)]
+		local di = api.GetDoubleCounters()[-id1*100 - id2]
 		if di and #di > 0 then
 			tip:AddLine(L"Could be countered by re-rolling:", 1,0.50,0, 1)
 			addFollowerList(tip, di, finfo, nil, true)
