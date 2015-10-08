@@ -1173,6 +1173,9 @@ do
 		ctlContainer.MaterialCount:SetText(BreakUpLargeNumbers(select(2, GetCurrencyInfo(1101)) or 0))
 		ctlContainer:SetFrameLevel(GarrisonShipyardFrame.BorderFrame:GetFrameLevel()+1)
 		ctlContainer:SetWidth((ctlContainer.MaterialCount:GetStringWidth() or 50) + 52)
+		if ctlContainer:IsVisible() then
+			C_Garrison.RequestShipmentInfo()
+		end
 	end
 	EV.CURRENCY_DISPLAY_UPDATE = sync
 	ctlContainer:SetScript("OnShow", sync)
@@ -1188,7 +1191,7 @@ do
 		local sid, name = C_Garrison.GetOwnedBuildingInfoAbbrev(98)
 		local ts, _, _, tl = select(5, C_Garrison.GetLandingPageShipmentInfo(sid))
 		local sf, nf = C_Garrison.GetFollowers(2), 0
-		local atCap = (#sf + ts) == C_Garrison.GetFollowerSoftCap(2)
+		local atCap = (#sf + (ts or 0)) == C_Garrison.GetFollowerSoftCap(2)
 		for i=1,#sf do
 			if sf[i].status == nil then
 				nf = nf + 1
