@@ -15,7 +15,6 @@ local function SetMissionsFrameTab(id)
 	mainFrame:SelectTab(id);
 end
 
-
 local function abridge(n)
 	if n < 1e3 then
 		return ("%d"):format(n)
@@ -192,9 +191,9 @@ MISSION_PAGE_FRAME.StartMissionButton:SetScript("OnClick", function()
 	end
 end)
 
-local CreateLoader do -- (parent, W, G, H)
+do -- CreateLoader(parent, W, G, H)
 	local N, c = 9, "16FF1F1DEDFC9C04F6128CFEE8FF08FD3016FE9B17FF8DD2706F6E"
-	function CreateLoader(parent, W, G, H, tlim, animHide)
+	function api.CreateLoader(parent, W, G, H, tlim, animHide)
 		local WG, tlim, loader = W + G, tlim or 20, CreateFrame("Frame", nil, parent)
 		loader:SetSize(WG*N-G, H)
 		loader:Hide()
@@ -1044,7 +1043,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 				showHint()
 			end)
 		end
-		local loader = CreateLoader(ctl, 10, 4, 10, 10, true) do
+		local loader = api.CreateLoader(ctl, 10, 4, 10, 10, true) do
 			loader:SetPoint("LEFT", horizon, "RIGHT", 8, 0)
 			local baseWidth = ctl:GetWidth()
 			loader:HookScript("OnShow", function()
@@ -1336,7 +1335,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 end
 local interestUI = CreateFrame("Frame", nil, missionList) do
 	interestUI:Hide()
-	interestUI.loader = CreateLoader(interestUI, 20, 30, 20)
+	interestUI.loader = api.CreateLoader(interestUI, 20, 30, 20)
 	interestUI.loader:SetPoint("CENTER", GarrisonMissionFrameMissions)
 	function interestUI.loader.OnFinish(nf)
 		if nf > 2 then
@@ -1679,8 +1678,8 @@ activeUI.CompleteAll:SetScript("OnClick", function(_, button)
 	end
 end)
 
-local core, createScrollList do
-	function createScrollList(parent, w)
+local core do
+	function api.createScrollList(parent, w)
 		local core, int = {}, {view={}}
 		local sf, sc, bar = CreateFrame("ScrollFrame", nil, parent) do
 			sf:SetSize(w, 541)
@@ -1845,9 +1844,9 @@ local core, createScrollList do
 		end
 		return core, sf
 	end
-	core = createScrollList(missionList, 882)
+	core = api.createScrollList(missionList, 882)
 end
-local CreateMissionButton do
+do -- CreateMissionButton
 	local CreateRewards do
 		local function Reward_OnEnter(self)
 			if self.itemID then
@@ -1860,13 +1859,13 @@ local CreateMissionButton do
 				GameTooltip:AddLine(self.tooltipText, 1,1,1,1)
 				GameTooltip:Show()
 				if self.tooltipTitle == GARRISON_REWARD_MONEY then
-					G.SetCurrencyTraitTip(GameTooltip, 0)
+					G.SetCurrencyTraitTip(GameTooltip, 0, self.followerType)
 				end
 			elseif self.currencyID then
 				GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
 				GameTooltip:SetCurrencyByID(self.currencyID)
 				GameTooltip:Show()
-				G.SetCurrencyTraitTip(GameTooltip, self.currencyID)
+				G.SetCurrencyTraitTip(GameTooltip, self.currencyID, self.followerType)
 			elseif self.bonusAbilityID and self.bonusInfo then
 				GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
 				GameTooltip:SetText(self.bonusInfo.name)
@@ -1938,7 +1937,7 @@ local CreateMissionButton do
 	local function RaiseVeil(self)
 		self:SetFrameLevel(self:GetParent():GetFrameLevel()+5)
 	end
-	function CreateMissionButton(h, w)
+	function api.CreateMissionButton(h, w)
 		local b, w = CreateFrame("Button"), w or 845
 		b:SetSize(w, h)
 		
@@ -2054,7 +2053,7 @@ local CreateMissionButton do
 		return b
 	end
 end
-local CreateFollowerPortrait do
+do -- CreateFollowerPortrait
 	local function Follower_OnEnter(self)
 		if self.followerID then
 			if self:GetParent():IsEnabled() then
@@ -2075,7 +2074,7 @@ local CreateFollowerPortrait do
 		GarrisonFollowerTooltip:Hide()
 		self:GetParent():UnlockHighlight()
 	end
-	function CreateFollowerPortrait(parent, size, id)
+	function api.CreateFollowerPortrait(parent, size, id)
 		local x = CreateFrame("Button", nil, parent, nil, id)
 		x:SetSize(size, size)
 		local v = x:CreateTexture(nil, "ARTWORK", nil, 3)
@@ -2273,7 +2272,7 @@ do -- activeMissionsHandle
 		end
 	end
 	local function CreateActiveMission()
-		local b = CreateMissionButton(44)
+		local b = api.CreateMissionButton(44)
 		b:SetScript("OnClick", ActiveMission_OnClick)
 		b:SetScript("OnShow", RefreshTimeOnShow)
 		
@@ -2314,7 +2313,7 @@ do -- activeMissionsHandle
 		
 		b.followers = {}
 		for i=1,3 do
-			t = CreateFollowerPortrait(b, 32, i)
+			t = api.CreateFollowerPortrait(b, 32, i)
 			t:SetPoint("RIGHT", -265-34*i, 1)
 			t.postEnter, b.followers[i] = ActiveFollower_OnEnter, t
 		end
@@ -2551,7 +2550,7 @@ do -- availMissionsHandle
 		end
 	end
 	local function CreateAvailMission()
-		local b = CreateMissionButton(64)
+		local b = api.CreateMissionButton(64)
 		b.title:ClearAllPoints()
 		b.title:SetPoint("TOPLEFT", 68+48, -9)
 		b.level:ClearAllPoints()
@@ -2959,7 +2958,7 @@ do -- interestMissionsHandle
 		end
 	end
 	local function CreateInterestMission()
-		local b = CreateMissionButton(58)
+		local b = api.CreateMissionButton(58)
 		b.title:ClearAllPoints()
 		b.title:SetPoint("TOPLEFT", 68+42-15, -9)
 		b.level:ClearAllPoints()
@@ -3002,7 +3001,7 @@ do -- interestMissionsHandle
 		
 		b.followers = {}
 		for i=1,3 do
-			t = CreateFollowerPortrait(b, 42, i)
+			t = api.CreateFollowerPortrait(b, 42, i)
 			t:SetPoint("RIGHT", -225-44*i, 1)
 			t:SetScript("OnClick", InterestFollower_OnClick)
 			t.showAbilityDescriptions, b.followers[i], t.postEnter = true, t, InterestFollower_OnEnter
@@ -3017,7 +3016,7 @@ do -- interestMissionsHandle
 		t:SetPoint("BOTTOM", unusedFollowers, "TOP", 0, 4)
 		unusedFollowers.ufollowers, unusedFollowers.label = c, t
 		for i=1,21 do
-			t = CreateFollowerPortrait(unusedFollowers, 34, i)
+			t = api.CreateFollowerPortrait(unusedFollowers, 34, i)
 			t:SetPoint("BOTTOMLEFT", 36*i-35, 4)
 			t:SetScript("OnClick", InterestFollower_OnClick)
 			c[i], t.showAbilityDescriptions = t, true

@@ -7,8 +7,8 @@
 ## LoadWith: Blizzard_GarrisonUI
 ## RequiredDeps: Blizzard_GarrisonUI, MasterPlanA
 ## SavedVariablesPerCharacter: MasterPlanPC
-## Version: 0.73
-## X-Version-Key: storm
+## Version: 0.74
+## X-Version-Key: towel
 ## Globe-Pre: MasterPlanA
 Libs/Evie.lua
 Libs/Reframe.lua
@@ -22,3 +22,4 @@ GarrisonMissions.lua
 GarrisonFollowers.lua
 GarrisonLanding.lua
 FollowerSummary.lua
+ShipMoI.lua
