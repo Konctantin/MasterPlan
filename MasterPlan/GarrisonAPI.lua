@@ -2126,7 +2126,7 @@ function ShipEstimator.SaveGroup(best, mi, traits, ts, _na, _nw, _fa, _fb, _fc, 
 end
 function ShipEstimator.GetGroup(best, mi, f, ts, counters, traits, s1)
 	wipe(counters) wipe(traits)
-	local bt = {nil, nil, nil, ts[s[4]] and best[5] or nil, floor(best[1]/s1), nil, 0}
+	local bt = {nil, nil, nil, ts[mi[4]] and best[5] or nil, floor(best[1]/s1), nil, 0}
 	for i=1, mi[2] do
 		local fidx = best[1+i]
 		local fi = f[fidx]
