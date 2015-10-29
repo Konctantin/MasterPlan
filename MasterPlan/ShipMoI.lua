@@ -8,20 +8,21 @@ local function dismissTooltip(self)
 	end
 end
 local function SyncVariants()
-	for i=1,#T.ShipMissionReplacements do
-		local c = T.ShipMissionReplacements[i]
+	local m = T.ShipMissionReplacements
+	T.ShipMissionReplacements, SyncVariants = nil
+	for i=1,#m do
+		local c = m[i]
 		for j=2,#c do
 			local _, _, _, la = G.GetMissionSeen(c[j])
 			if la then
 				for j=2,#c do
 					local e = T.ShipInterestPool[j-1]
-					e[1], e.s[4] = c[i+1], c[1]
+					e[1], e.s[4] = c[j], c[1]
 				end
 				return
 			end
 		end
 	end
-	T.ShipMissionReplacements, SyncVariants = nil
 end
 
 
@@ -216,7 +217,7 @@ local moiHandle do
 		GarrisonShipyardFrame.MissionTab:Hide()
 		GarrisonShipyardFrame.FollowerTab:Hide()
 		GarrisonShipyardFrame.FollowerList:Hide()
-		loader.job = coroutine.wrap(SyncMoI)
+		loader.job = coroutine.create(SyncMoI)
 		loader:Show()
 	end)
 end

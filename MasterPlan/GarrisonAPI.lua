@@ -954,6 +954,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 	function api.PrepareAllMissionGroups(mtype)
 		suppressFollowerEvents()
 		local mmi = C_Garrison.GetAvailableMissions(mtype or 1)
+		securecall(api.ObserveMissions, mmi)
 		securecall(doPrepareMissionGroups, mmi)
 		releaseFollowerEvents()
 		return mmi
@@ -2055,7 +2056,8 @@ function ShipEstimator.GetGroupMembers()
 			local fid, counters, traits = fi.followerID, {}, {}
 			for i=1,2 do
 				local a, t = C_Garrison.GetFollowerAbilityAtIndex(fid, i), C_Garrison.GetFollowerTraitAtIndex(fid, i)
-				if i == 1 and t > 0 then traits[1], fi.affinity = -t, t end
+				local at = i == 1 and T.ShipAffinityMap[t]
+				if at then traits[1], fi.affinity = -at, at end
 				repeat
 					local cid = a > 0 and C_Garrison.GetFollowerAbilityCounterMechanicInfo(a)
 					if cid then
@@ -2354,8 +2356,8 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 			end
 		end
 		if job then
-			local cw = coroutine.wrap(procJobs)
-			cw(job, coroutine.yield)
+			local cw = coroutine.create(procJobs)
+			coroutine.resume(cw, job, coroutine.yield)
 			return cw
 		end
 	end

@@ -193,8 +193,66 @@ end)
 
 do -- CreateLoader(parent, W, G, H)
 	local N, c = 9, "16FF1F1DEDFC9C04F6128CFEE8FF08FD3016FE9B17FF8DD2706F6E"
+	local function Loader_OnUpdate(self)
+		if self.job then
+			local t1, tlim, ok, _, i, x = debugprofilestop(), self.tlim
+			repeat
+				if coroutine.status(self.job) ~= "suspended" then
+					break
+				end
+				ok, _, i, x = coroutine.resume(self.job)
+				local tdiff, stop = debugprofilestop()-t1
+				t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 1.5*tdiff
+			until not (i and x) or stop
+			if not ok then
+				if i then
+					securecall(error, i)
+				end
+				for i=1,#self do
+					self[i]:SetTexture(1, 0.1, 0)
+				end
+				return
+			elseif i and x then
+				local pg = x <= i and 9 or x > 0 and math.floor(i/x*10) or 0
+				if pg ~= self.pg then
+					for i=math.max(1, self.pg or 1), pg do
+						local si = self[i]
+						si:SetTexture(si.r or 0, si.g or 0, si.b or 0)
+					end
+					for i=pg+1, self.pg or 9 do
+						self[i]:SetTexture(0,0,0, 0.25)
+					end
+					self.pg = pg
+				end
+				self.nf = (self.nf or 0) + 1
+				return
+			else
+				if self.OnFinish then
+					securecall(self.OnFinish, self.nf or 0)
+				end
+				self.nf, self.job = 0
+				if self.animHide then
+					self.animHide:Stop()
+				end
+			end
+		end
+		if self.animHide and self:IsVisible() then
+			self.animHide:Play()
+		else
+			self:Hide()
+		end
+	end
+	local function Loader_OnHide(self)
+		if self.animHide then
+			self.animHide:Stop()
+		end
+		self:SetAlpha(1)
+		self.nf, self.job = 0
+		self:Hide()
+	end
 	function api.CreateLoader(parent, W, G, H, tlim, animHide)
-		local WG, tlim, loader = W + G, tlim or 20, CreateFrame("Frame", nil, parent)
+		local WG, loader = W + G, CreateFrame("Frame", nil, parent)
+		loader.tlim = tlim or 20
 		loader:SetSize(WG*N-G, H)
 		loader:Hide()
 		for i=1,N do
@@ -217,54 +275,10 @@ do -- CreateLoader(parent, W, G, H)
 				loader:SetAlpha(1)
 				loader:Hide()
 			end)
-			animHide = ag
+			loader.animHide = ag
 		end
-		loader:SetScript("OnUpdate", function(self)
-			if self.job then
-				local t1, tlim, _, i, x = debugprofilestop(), tlim, 0
-				repeat
-					_, i, x = self.job()
-					local tdiff, stop = debugprofilestop()-t1
-					t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 1.5*tdiff
-				until not (i and x) or stop
-				if i and x then
-					local pg = x <= i and 9 or x > 0 and math.floor(i/x*10) or 0
-					if pg ~= self.pg then
-						for i=math.max(1, self.pg or 1), pg do
-							local si = self[i]
-							si:SetTexture(si.r or 0, si.g or 0, si.b or 0)
-						end
-						for i=pg+1, self.pg or 9 do
-							self[i]:SetTexture(0,0,0, 0.25)
-						end
-						self.pg = pg
-					end
-					self.nf = (self.nf or 0) + 1
-					return
-				else
-					if self.OnFinish then
-						securecall(self.OnFinish, self.nf or 0)
-					end
-					self.nf, self.job = 0
-					if animHide then
-						animHide:Stop()
-					end
-				end
-			end
-			if animHide and self:IsVisible() then
-				animHide:Play()
-			else
-				self:Hide()
-			end
-		end)
-		loader:SetScript("OnHide", function(self)
-			if animHide then
-				animHide:Stop()
-			end
-			loader:SetAlpha(1)
-			self.nf, self.job = 0
-			self:Hide()
-		end)
+		loader:SetScript("OnUpdate", Loader_OnUpdate)
+		loader:SetScript("OnHide", Loader_OnHide)
 		return loader
 	end
 end
@@ -488,6 +502,12 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		end
 		b:SetScript("OnLeave", DissmissHelp)
 		b:SetScript("OnHide", DissmissHelp)
+		b:SetScript("OnKeyDown", function(self, key)
+			self:SetPropagateKeyboardInput(key ~= "SPACE")
+			if key == "SPACE" then
+				self:Click()
+			end
+		end)
 	end
 	activeUI.orders = T.CreateLazyItemButton(activeUI, 122514) do
 		activeUI.orders:SetSize(28, 28)
@@ -688,6 +708,14 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		t = CreateFrame("Button", "MPLootSummaryDone", lootFrame, "UIPanelButtonTemplate")
 		t:SetSize(200, 24) t:SetText(L"Done") t:SetPoint("BOTTOM", 0, 18)
 		t:SetScript("OnClick", close)
+		t:SetScript("OnKeyDown", function(self, key)
+			self:SetPropagateKeyboardInput(key ~= "SPACE" and key ~= "ESCAPE")
+			if key == "SPACE" then
+				self:Click()
+			elseif key == "ESCAPE" then
+				lf.Dismiss2:Click()
+			end
+		end)
 		t, lf.Dismiss = CreateFrame("Button", nil, lootFrame, "UIPanelCloseButtonNoScripts"), t
 		t:SetSize(28, 28)
 		t:SetPoint("TOPRIGHT", 0, -2)
@@ -1241,7 +1269,8 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 						local sp, ct, cq, _, expectedXP = g[1]/100, g[9] or 0, g[3] or 0, G.GetMissionGroupXP(g, mi)
 						if expectedXP > 0 then
 							rewards.xp = (rewards.xp or 0) + expectedXP
-						elseif g[1] > 0 and cq > 0 then
+						end
+						if g[1] > 0 and cq > 0 then
 							rewards[ct] = (rewards[ct] or 0) + cq*sp
 						end
 					end
@@ -3278,8 +3307,8 @@ do -- interestMissionsHandle
 		local id = G.GetFollowerIdentity(includeInactive, false)
 		interestUI.excludeInactive:SetChecked(not includeInactive)
 		if id ~= interestMissionsHandle.ident then
-			local job = coroutine.wrap(loadAndRefresh)
-			interestUI.loader.job = job, job(id, includeInactive)
+			local job = coroutine.create(loadAndRefresh)
+			interestUI.loader.job = job, coroutine.resume(job, id, includeInactive)
 			interestUI.loader:Show()
 			return
 		elseif not core:IsOwned(interestMissionsHandle) then

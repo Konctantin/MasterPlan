@@ -29,7 +29,7 @@ T.UsableAffinities = UnitFactionGroup('player') == 'Horde' and {70,71,72,73,74,7
 
 T.MissionExpire = {} do
 	local expire = T.MissionExpire
-	for n, r in ("000210611621id2e56516c16o17i0ed3ei1ho3i31jxnkq1:0ga6b:0me10ea2:0o2103rz4rz5r86136716e26q37ji9549eja23ai0am1aq4ax0b40cq0dcedx1kp0:102zd3h86vm82maj2ao1av1ay5b51bicc0dczcdr1dz0ife:1ch51h82kv0:1y9a39y3dt3:20050100190cr7:4oiu9:7pe40:9b8pfb7abv3ceb:e0ek5etzftzgtbh70hbbhs4hz0i11i59j4bjhfkl1ku0kw0"):gmatch("(%w%w)(%w+)") do
+	for n, r in ("000210611621id2e56516c16o17i0ed3ei1ho3i31jxnkq1:0ga6b:0me10ea2:0o2103rz4rz5r86136716e26q37ji9549eja23ai0am1aq4ax0b40cq0dcedx1kp0:102zd3h86vm82maj2ao1av1ay5b51bicc0dczcdr1dz0ife:1ch51h82kv0:1y9a39y3dt3:20050100190cr7:4of57iu9:7pe40:9b8pfb7abv3ceb:e0ek5etbfdzgdrh70hbbhs4hz0i11i59j4bjhfkl1ku0kw0"):gmatch("(%w%w)(%w+)") do
 		local n = tonumber(n, 36)
 		for s, l in r:gmatch("(%w%w)(%w)") do
 			local s = tonumber(s, 36)
@@ -164,6 +164,12 @@ T.ShipInterestPool = {
 	{564, 165, 700e4, 40, s={100, 2, 64800, 0, 30, 75, 76, 81, 81, 82, 84, 87}}, -- If a Tree Falls in the Forest
 	{539, 205, 500e4, 40, s={100, 2, 64800, 0, 30, 73, 74, 81, 83, 83}}, -- Glittering Prize
 	{595, 203, 180e4, 40, s={100, 2, 28800, 0, 30, 75, 81, 82, 87}}, -- Come Fel or High Water
+	{650, 165,   1, 40, s={100, 2, 172800, 128173, 30, 73, 76, 80, 82, 84, 88, 88}}, -- The House Always Wins
+	{616, 165,   1, 40, s={100, 2, 172800, 128169, 30, 73, 76, 78, 82, 84, 88, 88}}, -- The Wave Mistress
+	{649, 165,   1, 40, s={100, 2, 172800, 128172, 30, 73, 76, 79, 82, 84, 88, 88}}, -- For Hate's Sake
+	{647, 205,   1, 40, s={100, 2, 64800, 127989, 30, 74, 76, 78, 81, 81, 82, 84}}, -- Black Market Journal
+	{619, 205,   1, 40, s={100, 2, 64800, 127856, 30, 73, 75, 78, 83, 84}}, -- Orphaned Aquatic Animal Rescue
+	{615, 205,   1, 40, s={100, 2, 64800, 116769, 30, 73, 75, 81, 82, 84, 85}}, -- It's a Boat, It's a Plane, It's... Just a Riverbeast.
 }
 
 T.MissionRewardSets = {
@@ -205,5 +211,6 @@ end
 T.CrateLevels = {[118529]=655, [118530]=670, [118531]=685, [122484]=670, [122485]=685, [122486]=700}
 
 T.StrongNavalThreats = {[73]=20, [74]=20, [75]=20, [76]=20, [87]=20}
+T.ShipAffinityMap = {[261]=281, [262]=278, [263]=279, [264]=277, [260]=280, [323]=280}
 
 T.TraitDisplayMap = UnitFactionGroup('player') == 'Horde' and {[283]=286} or nil
