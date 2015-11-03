@@ -190,18 +190,19 @@ function api.GetTimeStringFromSeconds(sec)
 end
 local stime do
 	local t = {}
-	function stime()
+	function api.stime()
 		t.month, t.day, t.year = select(2, CalendarGetDate())
 		t.sec, t.hour, t.min = time()%60, GetGameTime()
 		return time(t)
 	end
+	stime = api.stime
 end
 
 local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 	local complete, startQueue, startQueueSize, it = {}, {}, 0, 1
 	function api.GetAvailableMissions()
 		local t = C_Garrison.GetAvailableMissions(1)
-		securecall(api.ObserveMissions, t)
+		securecall(api.ObserveMissions, t, 1)
 		local i, n, nit, dropCost = 1, #t, it % 2 + 1, 0
 		while i <= n do
 			local mid = t[i].missionID
@@ -238,6 +239,9 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		wipe(data)
 		EV("MP_MISSION_START", id, f1, f2, f3)
 		return f1, f2, f3
+	end
+	function api.IsMissionAvailable(id)
+		return not complete[id] and C_Garrison.GetMissionTimes(id) ~= nil and C_Garrison.GetMissionSuccessChance(id) == nil and C_Garrison.GetBasicMissionInfo(id).state == -2
 	end
 	local function releaseQueued(mid, toTentative)
 		local q = startQueue[mid]
@@ -846,7 +850,7 @@ end
 do -- GetMissionSeen
 	local lastOffer
 	local expire = T.MissionExpire
-	function api.ObserveMissions(missions)
+	function api.ObserveMissions(missions, mtype)
 		local missions, dnow = lastOffer and (missions or C_Garrison.GetAvailableMissions()), stime() - GetTime()
 		for i=1,missions and #missions or 0 do
 			local mi = missions[i]
@@ -862,7 +866,7 @@ do -- GetMissionSeen
 
 		local d = false
 		for k,v in pairs(tentativeParties) do
-			if not v.tag then
+			if C_Garrison.GetFollowerTypeByMissionID(k) == mtype and not v.tag then
 				api.GetMissionParty(k, true)
 				d = true
 			end
@@ -954,7 +958,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 	function api.PrepareAllMissionGroups(mtype)
 		suppressFollowerEvents()
 		local mmi = C_Garrison.GetAvailableMissions(mtype or 1)
-		securecall(api.ObserveMissions, mmi)
+		securecall(api.ObserveMissions, mmi, mtype or 1)
 		securecall(doPrepareMissionGroups, mmi)
 		releaseFollowerEvents()
 		return mmi
@@ -2840,8 +2844,10 @@ do -- api.GetResourceCacheInfo
 	local function getCacheData()
 		return MasterPlanA.data.lastCacheTime, tonumber(MasterPlanA.data.cacheSizeU or MasterPlanA.data.cacheSize) or STORE_CEIL
 	end
-	function api.GetResourceCacheInfo()
-		local lt, sz = securecall(getCacheData)
+	function api.GetResourceCacheInfo(lt, sz)
+		if not lt then
+			lt, sz = securecall(getCacheData)
+		end
 		if lt and lt > 0 then
 			local cur = min(sz, floor((time()-lt)/STEP_INTERVAL)*STEP_SIZE)
 			return cur < STORE_FLOOR and 0 or cur, sz, lt, sz/STEP_SIZE*STEP_INTERVAL

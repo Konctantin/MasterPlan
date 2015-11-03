@@ -1708,10 +1708,10 @@ activeUI.CompleteAll:SetScript("OnClick", function(_, button)
 end)
 
 local core do
-	function api.createScrollList(parent, w)
-		local core, int = {}, {view={}}
+	function api.createScrollList(parent, w, h)
+		local core, int, h = {}, {view={}}, h or 541
 		local sf, sc, bar = CreateFrame("ScrollFrame", nil, parent) do
-			sf:SetSize(w, 541)
+			sf:SetSize(w, h)
 			sf:SetPoint("CENTER")
 			bar = CreateFrame("Slider", nil, sf) do
 				bar:SetWidth(19)
@@ -1764,7 +1764,7 @@ local core do
 				end)
 			end
 			sc = CreateFrame("Frame", nil, sf) do
-				sc:SetSize(w-2, 551)
+				sc:SetSize(w-2, h+10)
 				sf:SetScrollChild(sc)
 			end
 			sf:SetScript("OnShow", function()
@@ -2009,7 +2009,7 @@ do -- CreateMissionButton
 		t:SetPoint("TOPLEFT", -5, 4)
 		t = b:CreateTexture(nil, "BORDER", nil, 1)
 		t:SetAtlas("GarrMission_TopBorderCorner", true)
-		t:SetPoint("TOPRIGHT", 4, 4)
+		t:SetPoint("TOPRIGHT", 6, 4)
 		t:SetTexCoord(1,0, 0,1)
 		t = b:CreateTexture(nil, "BORDER", nil, 1)
 		t:SetAtlas("GarrMission_TopBorderCorner", true)
@@ -2017,7 +2017,7 @@ do -- CreateMissionButton
 		t:SetTexCoord(0,1, 1,0)
 		t = b:CreateTexture(nil, "BORDER", nil, 1)
 		t:SetAtlas("GarrMission_TopBorderCorner", true)
-		t:SetPoint("BOTTOMRIGHT", 4, -4)
+		t:SetPoint("BOTTOMRIGHT", 6, -4)
 		t:SetTexCoord(1,0, 1,0)
 		t = b:CreateTexture(nil, "HIGHLIGHT")
 		t:SetAtlas("_GarrMission_TopBorder-Highlight", true)

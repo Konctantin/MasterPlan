@@ -9,7 +9,7 @@ local function dismissTooltip(self)
 end
 local function SyncVariants()
 	local m = T.ShipMissionReplacements
-	T.ShipMissionReplacements, SyncVariants = nil
+	SyncVariants = nil
 	for i=1,#m do
 		local c = m[i]
 		for j=2,#c do
