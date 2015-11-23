@@ -136,12 +136,7 @@ local moiHandle do
 		for i=0, mc and #mc or 0 do
 			local id = d[1] + (i > 0 and mc[i] or 0)
 			local _, _, _, la = G.GetMissionSeen(id)
-			if not isAvailable and C_Garrison.GetMissionTimes(id) ~= nil and C_Garrison.GetMissionSuccessChance(id) == nil then
-				local bi = C_Garrison.GetBasicMissionInfo(id)
-				if bi.state == -2 then
-					isAvailable = bi
-				end
-			end
+			isAvailable = isAvailable or G.IsMissionAvailable(id)
 			lastAppeared = la and (la <= (lastAppeared or la)) and la or lastAppeared
 		end
 		if (lastAppeared or 0) > 0 and not isAvailable then

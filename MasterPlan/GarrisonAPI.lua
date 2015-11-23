@@ -866,7 +866,7 @@ do -- GetMissionSeen
 
 		local d = false
 		for k,v in pairs(tentativeParties) do
-			if C_Garrison.GetFollowerTypeByMissionID(k) == mtype and not v.tag then
+			if (mtype == "*" or C_Garrison.GetFollowerTypeByMissionID(k) == mtype) and not v.tag then
 				api.GetMissionParty(k, true)
 				d = true
 			end

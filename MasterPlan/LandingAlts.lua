@@ -2,7 +2,7 @@ local _, T = ...
 if T.Mark ~= 50 then return end
 local L, G, E, api = T.L, T.Garrison, T.Evie, T.MissionsUI
 
-local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) do
+local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) do
 	ui:Hide()
 	ui:SetAllPoints()
 	
@@ -60,9 +60,34 @@ local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) 
 	local function Timer_OnDone(self)
 		self:GetParent().AltDone:Show()
 	end
+	local function Char_GetName(d)
+		local name, sum, all = d[1] .. "-" .. d[2], d[3], d[4]
+		if GetRealmName() == d[1] then
+			name = d[2]
+		end
+		return "|c" .. (RAID_CLASS_COLORS[sum.class or all.class].colorStr or "ffffffff") .. name
+	end
+	local dmFrame, dm = CreateFrame("Frame", "MasterPlanLandingDrop", nil, "UIDropDownMenuTemplate"), {
+		{notCheckable=true, isTitle=true},
+		{text=REMOVE,
+			func=function(_, r, a)
+				MasterPlanAG[r][a] = nil
+				E"MP_FORCE_LANDING_ALTS_REFRESH"
+			end,
+			notCheckable=true
+		},
+		{text=CANCEL, notCheckable=true}
+	}
+	local function Char_OnClick(self)
+		local d = core:GetRowData(handle, self)
+		dm[1].text, dm[2].arg1, dm[2].arg2 = Char_GetName(d), d[1], d[2]
+		EasyMenu(dm, dmFrame, "cursor", 0, 0, "MENU", 4)
+	end
 	local function CreateCharEntry()
-		local f = CreateFrame("Frame")
+		local f = CreateFrame("Button")
 		f:SetSize(700, 54)
+		f:SetScript("OnClick", Char_OnClick)
+		f:RegisterForClicks("RightButtonUp")
 		
 		local b, t = f, f:CreateTexture(nil, "BACKGROUND", nil, 0)
 		t:SetAtlas("GarrMission_MissionParchment")
@@ -139,18 +164,14 @@ local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) 
 		return f
 	end
 	local function SetCharEntry(f, d)
-		local name, nt, sum, all = d[1] .. "-" .. d[2], 1, d[3], d[4]
-		if GetRealmName() == d[1] then
-			name = d[2]
-		end
-		name = "|c" .. (RAID_CLASS_COLORS[sum.class or all.class].colorStr or "ffffffff") .. name
-		f.Name:SetText(name)
+		local nt, sum, all = 1, d[3], d[4]
+		f.Name:SetText(Char_GetName(d))
 		if all.lastCacheTime then
 			local t = f.Timers[nt]
 			nt, t.cacheTime, t.cacheSize, t.itemID, t.lastOffer = nt + 1, all.lastCacheTime, all.cacheSizeU or all.cacheSize or 500
 			local cv, mv, st, md = G.GetResourceCacheInfo(t.cacheTime, t.cacheSize)
 			SetPortraitToTexture(t.Icon, "Interface\\Icons\\INV_Garrison_Resource")
-			t.Icon:SetDesaturated(cv ~= mv)
+			t.Icon:SetDesaturated(true)
 			if cv == mv then
 				t.Swipe:SetCooldownUNIX(0, 0)
 			else
@@ -160,6 +181,7 @@ local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) 
 			t:Show()
 		end
 		
+		local now = G.stime()
 		for i=1,#T.TrackedMissionSets do
 			local ls = sum["tt" .. i]
 			if ls then
@@ -168,7 +190,7 @@ local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) 
 				SetPortraitToTexture(t.Icon, GetItemIcon(t.itemID))
 				t.Icon:SetDesaturated(ls ~= true)
 				local endTime = ls ~= true and (ls + 1252800)
-				if endTime > G.stime() then
+				if endTime and endTime > now then
 					t.AltDone:Hide()
 					t.Swipe:SetCooldownUNIX(ls, 1252800)
 				else
@@ -198,6 +220,7 @@ local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) 
 	end
 	
 	local h, data = core:CreateHandle(CreateCharEntry, SetCharEntry, 58)
+	handle = h
 	local function initData()
 		local d, cr, me = {}, GetRealmName(), UnitName("player")
 		for r,c in pairs(MasterPlanAG) do
@@ -214,17 +237,20 @@ local ui, core = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) 
 			end
 			return a[2] < b[2]
 		end)
-		data, initData = d
+		data = d
 		return data
 	end
 	ui:SetScript("OnShow", function()
 		core:SetData(data or initData(), h)
 	end)
+	function E:MP_FORCE_LANDING_ALTS_REFRESH()
+		core:SetData(initData(), h)
+	end
 end
 
-local lastIP = C_Garrison.GetInProgressMissions()
+local lastIP, lastAvail = C_Garrison.GetInProgressMissions(), {}
 function E:PLAYER_LOGOUT()
-	local t = {}
+	local t, now = {}, G.stime()
 	MasterPlanA.data.summary = t
 	
 	for k=1,#T.TrackedMissionSets do
@@ -232,13 +258,14 @@ function E:PLAYER_LOGOUT()
 		for i=1,#m do
 			local last, lastID
 			for j=2,#m[i] do
-				local _, _, _, lastSpawn = G.GetMissionSeen(m[i][j])
+				local id = m[i][j]
+				local _, _, _, lastSpawn = G.GetMissionSeen(id, lastAvail[id])
 				if lastSpawn and (last == nil or last > lastSpawn) then
-					last, lastID = lastSpawn, m[i][j]
+					last, lastID = lastSpawn, id
 				end
 			end
 			if last then
-				t["ti" .. k], t["tt" .. k] = m[i][1], G.IsMissionAvailable(lastID) or (G.stime() - last)
+				t["ti" .. k], t["tt" .. k] = m[i][1], lastAvail[lastID] and true or (now - last)
 				break
 			end
 		end
@@ -262,4 +289,16 @@ local function queueStoreIP()
 		T.After0(storeIP)
 	end
 end
-E.GARRISON_MISSION_STARTED, E.GARRISON_MISSION_COMPLETE_RESPONSE, E.GARRISON_MISSION_BONUS_ROLL_COMPLETE = queueStoreIP, queueStoreIP, queueStoreIP
+local function syncAvailable()
+	local mt = C_Garrison.GetAvailableMissions()
+	G.ObserveMissions(mt, "*")
+	queueStoreIP()
+	wipe(lastAvail)
+	for i=1,#mt do
+		local m = mt[i]
+		lastAvail[m.missionID] = m
+	end
+end
+E.GARRISON_MISSION_COMPLETE_RESPONSE, E.GARRISON_MISSION_BONUS_ROLL_COMPLETE = queueStoreIP, queueStoreIP
+E.GARRISON_SHOW_LANDING_PAGE, E.GARRISON_MISSION_STARTED, E.GARRISON_MISSION_NPC_OPENED, E.GARRISON_SHIPYARD_NPC_OPENED = syncAvailable, syncAvailable, syncAvailable, syncAvailable
+C_Timer.After(2, syncAvailable)
