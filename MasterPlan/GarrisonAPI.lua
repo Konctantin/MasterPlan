@@ -241,7 +241,10 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		return f1, f2, f3
 	end
 	function api.IsMissionAvailable(id)
-		return not complete[id] and C_Garrison.GetMissionTimes(id) ~= nil and C_Garrison.GetMissionSuccessChance(id) == nil and C_Garrison.GetBasicMissionInfo(id).state == -2
+		if not complete[id] and C_Garrison.GetMissionTimes(id) ~= nil and C_Garrison.GetMissionSuccessChance(id) == nil then
+			local mi = C_Garrison.GetBasicMissionInfo(id)
+			return mi and mi.state == -2 and mi or nil
+		end
 	end
 	local function releaseQueued(mid, toTentative)
 		local q = startQueue[mid]
@@ -848,11 +851,13 @@ do -- CompleteMissions/AbortCompleteMissions
 end
 
 do -- GetMissionSeen
-	local lastOffer
-	local expire = T.MissionExpire
+	local lastOffer, expire = {}, T.MissionExpire
 	function api.ObserveMissions(missions, mtype)
-		local missions, dnow = lastOffer and (missions or C_Garrison.GetAvailableMissions()), stime() - GetTime()
-		for i=1,missions and #missions or 0 do
+		local dnow = stime() - GetTime()
+		if not missions then
+			missions, mtype = C_Garrison.GetAvailableMissions(), "*"
+		end
+		for i=1,#missions do
 			local mi = missions[i]
 			local ex, oet = expire[mi.missionID], mi.offerEndTime
 			if oet and ex and ex > 0 then
@@ -878,13 +883,12 @@ do -- GetMissionSeen
 	end
 	local shortHourFormat = GARRISON_DURATION_HOURS:gsub("%%[%d$]*d", "%%s")
 	function api.GetMissionSeen(mid, mi)
-		local mi, lastAppeared, now = mi or C_Garrison.GetBasicMissionInfo(mid), lastOffer and lastOffer[mid], stime()
+		local mi, lastAppeared, now = mi or C_Garrison.GetBasicMissionInfo(mid), lastOffer[mid], stime()
 		local tl = mi and mi.offerEndTime and (mi.offerEndTime - GetTime()) or -1
 		return tl, mi and mi.offerTimeRemaining or tl >= 0 and api.GetTimeStringFromSeconds(tl) or "", tl >= 0 and shortHourFormat:format(math.floor(tl/3600+0.5)) or "", lastAppeared and (now-lastAppeared)
 	end
 	function T._SetMissionSeenTable(seenTable)
 		if type(seenTable) == "table" then
-			lastOffer = {}
 			for k,v in pairs(seenTable) do
 				if type(k) == "number" and type(v) == "number" then
 					lastOffer[k] = v
@@ -893,8 +897,9 @@ do -- GetMissionSeen
 		end
 	end
 	function T._GetMissionSeenTable()
-		securecall(api.ObserveMissions, C_Garrison.GetAvailableMissions())
-		return lastOffer
+		if next(lastOffer) ~= nil then
+			return lastOffer
+		end
 	end
 end
 

@@ -1430,7 +1430,9 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				{arg1=824},
 				{arg1=1101},
 				{arg1=0, text="|TInterface\\Icons\\INV_Misc_Coin_02:16:16:0:0:64:64:4:60:4:60|t " .. BONUS_ROLL_REWARD_MONEY},
-				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC}
+				{arg1=128315},
+				{arg1=128430},
+				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC},
 			}
 			local function toggleInterestBit(_, key)
 				T.config.interestMask = bit.bxor(T.config.interestMask, 2^(T.InterestMask[key]-1))
@@ -1445,7 +1447,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 			end
 			b:SetScript("OnClick", function(self)
 				if m[#m].arg1 == 115280 and T.config.legendStep >= 2 then
-					m[#m] = nil
+					m[#m] = 0
 				end
 				for i=2,#m do
 					local mi = m[i]
@@ -2552,9 +2554,7 @@ do -- availMissionsHandle
 				EV("MP_FORCE_FOLLOWER_TAB", ifid)
 			elseif button == "RightButton" then
 				G.SaveMissionParty(mi.missionID, g[5], g[6], g[7])
-				assert(G.HasTentativeParty(mi.missionID) > 0)
 				api.roamingParty:DropFollowers(g[5], g[6], g[7])
-				assert(G.HasTentativeParty(mi.missionID) > 0)
 			else
 				OpenToMission(mi, g[5], g[6], g[7])
 			end
@@ -3200,6 +3200,16 @@ do -- interestMissionsHandle
 	local emptyTable, missions = {}, {}
 	local updateRedundantFollowers do
 		local unusedEntry = {unused={}}
+		local function mcmp(a, b)
+			local ac, bc = a == unusedEntry, b == unusedEntry
+			if ac == bc then
+				ac, bc = b.redundantIgnored, a.redundantIgnored
+				if ac == bc then
+					ac = a.ord < b.ord
+				end
+			end
+			return ac
+		end
 		function updateRedundantFollowers(missions)
 			local mask, mt = T.config.interestMask, T.InterestMask
 			if missions.imask == mask then
@@ -3217,7 +3227,7 @@ do -- interestMissionsHandle
 				local mi = missions[i]
 				local mb, b = mt[mi[5] or mi.s[4]] or 0, mi.best
 				local keep =  b and (mask % 2^mb < 2^(mb-1))
-				mi.redundantIgnored = not keep
+				mi.redundantIgnored, mi.ord = not keep, mi.ord or i
 				if keep then
 					local muf = b and b.used
 					for j=1, mi.s[2] do
@@ -3228,6 +3238,7 @@ do -- interestMissionsHandle
 					end
 				end
 			end
+			table.sort(missions, mcmp)
 			
 			wipe(ua)
 			if not hasInactive then
