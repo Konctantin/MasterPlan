@@ -2092,7 +2092,7 @@ function ShipEstimator.PrepareCounters()
 end
 function ShipEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, _scratch)
 	local threat = mi[2]*2
-	local score, c = threat + traits[292]*2 + (mi[3] >= 64800 and traits[294] or 0)*3, threat == 4
+	local score, c = threat + traits[292]*3 + (mi[3] >= 43200 and traits[294] or 0)*4, threat == 4
 
 	local lc, cn = mi[6], 1
 	for i=7,#mi+1 do
@@ -2114,9 +2114,9 @@ function ShipEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, _scratch)
 			local nt, nf = traits[ra] or 0, traits[-ra] or 0
 			if nt == 0 or ra == 0 or nf == 0 then
 			elseif nf > 1 then
-				score = score + nt*3
+				score = score + nt*6
 			else
-				score = score + (nt - (sa and 1 or 0))*3
+				score = score + (nt - (sa and 1 or 0))*6
 			end
 			ra, rb, sa, sb, rc = rb, rc, sb, sc
 		until score >= threat or not ra
@@ -2490,10 +2490,14 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 			local lct, lpt, rct, rpt = dct[pc*100+lc], dct[-(pc*100+lc)], dct[pc*100+rc], dct[-(pc*100+rc)]
 			local lf, la, lp = api.countFreeFollowers(lct, finfo), lct and #lct or 0, lpt and #lpt or 0
 			local rf, ra, rp = api.countFreeFollowers(rct, finfo), rct and #rct or 0, rpt and #rpt or 0
-			
+
 			lt = lt .. " " .. (lf == 0 and la == 0 and "0" or "") .. (lf > 0 and "|cff20ff20" .. lf .. "|r" or "") .. (la > lf and (lf > 0 and "+" or "") .. "|cffccc78f" .. (la - lf) .. "|r" or "") .. "|cffa0a0a0/" .. lp
 			rt = (rf == 0 and ra == 0 and "0" or "") .. (rf > 0 and "|cff20ff20" .. rf .. "|r" or "") .. (ra > rf and (rf > 0 and "+" or "") .. "|cffccc78f" .. (ra - rf) .. "|r" or "") .. "|cffa0a0a0/" .. rp .. " " .. rt
-			
+
+			if #c == 4 and i > 2 then
+				rt = ""
+			end
+
 			self:AddDoubleLine(lt, rt, 1,1,1, 1,1,1)
 		end
 	else

@@ -1447,7 +1447,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 			end
 			b:SetScript("OnClick", function(self)
 				if m[#m].arg1 == 115280 and T.config.legendStep >= 2 then
-					m[#m] = 0
+					m[#m] = nil
 				end
 				for i=2,#m do
 					local mi = m[i]
@@ -3423,7 +3423,7 @@ do -- Ships
 				fg = fg and not G.GetMissionGroupDeparture(fg, mission) and fg
 				lg = lg and lg ~= fg and G.GetMissionGroupDeparture(lg, mission) and lg
 
-				local s, c, nt, r, g, b = fg and fg[1], T.config, G.HasTentativeParty(mission.missionID), 0.2, 1, 0.2
+				local s, c, nt, r, g, b = fg and fg[1], T.config, G.HasTentativeParty(mission.missionID), 0.2, 0.7, 1
 				if nt == mission.numFollowers then
 					r,g,b = 1, 0.2, 0.6
 				elseif nt > 0 then
@@ -3432,12 +3432,14 @@ do -- Ships
 					r,g,b = 1/4, 1/4, 1/4
 				elseif not s then
 					r,g,b = 0.4, 0.4, 0.4
-				elseif c.ship3 > s then
+				elseif c.ship4 > s then
 					r,g,b = 0.6, 0, 0
-				elseif c.ship2 > s then
+				elseif c.ship3 > s then
 					r,g,b = 1, 0.4, 0
-				elseif c.ship1 > s then
+				elseif c.ship2 > s then
 					r,g,b = 1, 0.9, 0
+				elseif c.ship1 > s then
+					r,g,b = 0.2, 1, 0.2
 				end
 				ui.inner:SetVertexColor(r,g,b)
 				ui:Show()

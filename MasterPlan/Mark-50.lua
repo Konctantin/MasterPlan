@@ -1,7 +1,8 @@
 select(2, ...).Mark = select(4,GetBuildInfo()) == 60200 and 50
 
 do
-	GarrisonFollowerList_Update = function () end
+	local function noop() end
+	GarrisonFollowerList_Update, GarrisonMissionFrame_SelectTab = noop, noop
 	GarrisonFollowerPage_ShowFollower = GarrisonFollowerList_Update
 	local function OnUpdateData(self)
 		return GarrisonFollowerList_Update(self:GetParent())
