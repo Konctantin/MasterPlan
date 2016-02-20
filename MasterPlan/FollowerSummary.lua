@@ -337,16 +337,29 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		sb:SetText(q)
 		sb.clearText = q
 	end)
+	local function ShowResetTipOnEnter(self)
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+		GameTooltip:SetText("|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. RESET, 0.5, 0.8, 1)
+	end
+	local function HideGameTooltip(self)
+		if GameTooltip:IsOwned(self) then
+			GameTooltip:Hide()
+		end
+	end
 	rows[3]:RegisterForClicks("RightButtonUp")
 	rows[3]:SetScript("OnClick", function(self)
 		T.config.goldCollected = 0
 		self.Text:SetText(0)
 	end)
+	rows[3]:SetScript("OnEnter", ShowResetTipOnEnter)
+	rows[3]:SetScript("OnLeave", HideGameTooltip)
 	rows[4]:RegisterForClicks("RightButtonUp")
 	rows[4]:SetScript("OnClick", function(self)
 		T.config.moC, T.config.moE, T.config.moV, T.config.moN = 0,0,0,0
 		self.Text:SetText("???")
 	end)
+	rows[4]:SetScript("OnEnter", ShowResetTipOnEnter)
+	rows[4]:SetScript("OnLeave", HideGameTooltip)
 	local function CountUpgradableFollowers()
 		local nuA, nuI, upW, upA = 0,0, G.GetUpgradeRange()
 		for k,v in pairs(G.GetFollowerInfo()) do

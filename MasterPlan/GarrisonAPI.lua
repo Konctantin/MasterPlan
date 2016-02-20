@@ -2136,13 +2136,22 @@ function ShipEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, _scratch)
 end
 function ShipEstimator.SaveGroup(best, mi, traits, ts, _na, _nw, _fa, _fb, _fc, sc, _amlvl, _bmlvl, _cmlvl, a, b, c)
 	local v = traits[ts[mi[4]]] or 0
-	if best[1] < sc+v then
-		best[1], best[2], best[3], best[4], best[5] = sc+v, a,b,c, v
+	local cb, f = best[1], sc+v
+	if cb < f then
+		best[1], best[2], best[3], best[4], best[5], best[6], best[7], best[8], best[9] = f, a,b,c, v, c and 3 or b and 2 or 1, a,b,c
+	elseif cb == f and best[6] > 0 then
+		for i=7,9 do
+			local f = best[i]
+			if f and f ~= a and f ~= b and f ~= c then
+				best[6], best[i] = best[6] - 1
+			end
+		end
 	end
 end
 function ShipEstimator.GetGroup(best, mi, f, ts, counters, traits, s1)
 	wipe(counters) wipe(traits)
-	local bt = {nil, nil, nil, ts[mi[4]] and best[5] or nil, floor(best[1]/s1), nil, 0}
+	local bt, uf = {nil, nil, nil, ts[mi[4]] and best[5] or nil, floor(best[1]/s1), nil, 0}, 0
+	local u1, u2, u3 = best[7], best[8], best[9]
 	for i=1, mi[2] do
 		local fidx = best[1+i]
 		local fi = f[fidx]
@@ -2154,7 +2163,12 @@ function ShipEstimator.GetGroup(best, mi, f, ts, counters, traits, s1)
 				t[v] = (t[v] or 0) + 1
 			end
 		end
+		if fidx == u1 or fidx == u2 or fidx == u3 then
+			uf = uf + 2^(i-1)
+		end
 	end
+	bt.used = uf
+	
 	local lc, cn, h
 	for i=6, #mi do
 		local c = mi[i]
@@ -2172,7 +2186,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 	local best, ms, m2, m3 = {}, {} do
 		for i=1,#missions do
 			local mi = missions[i].s
-			if mi then
+			if mi and not missions[i].drop then
 				local sz = mi[2]
 				local t = ms[sz] or {}
 				t[#t+1], ms[sz], best[mi] = mi, t, {-1}
@@ -2256,17 +2270,17 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 		end
 	end
 	
+	local ret = {}
 	for i=1,#missions do
-		local mi = missions[i].s
-		local best = best[mi]
+		local mi = missions[i]
+		local best = best[mi and mi.s]
 		if best and best[1] > 0 then
-			missions[i].best = est.GetGroup(best, mi, f, ts, counters, traits, s1)
-		else
-			missions[i].best = nil
+			local gg = est.GetGroup(best, mi.s, f, ts, counters, traits, s1)
+			ret[mi[1]], gg.mi = gg, mi
 		end
 	end
 	
-	return true
+	return ret
 end
 do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 	local upgroups, summaries, tt, gt = {}, {}, {}, {0,0,0, nil,nil,nil, 0,0,0}
@@ -2330,13 +2344,13 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 	end
 	local function procJobs(jobs, yield)
 		coroutine.yield()
-		api.UpdateGroupEstimates(jobs, true, yield)
+		local best = api.UpdateGroupEstimates(jobs, true, yield)
 		local finfo, now = api.GetFollowerInfo(), time()
 		for i=1,#jobs do
 			local j = jobs[i]
 			upgroups[j[1]] = false
-			if j.best then
-				local b, mi = j.best, j[2]
+			local b, mi = best[j[1]], j[2]
+			if b then
 				gt[1], gt[3], gt[4], gt[5], gt[6], gt[7], gt[9] = b[5], j[4]*(1 + (b[4] or 0)), b.time, b[1], b[2], b[3], j[3]
 				flushGroupAnnotations(gt)
 				local og, rank = mi.groups, mi.groups and mi.groups.rankFunc
@@ -2866,6 +2880,89 @@ do -- api.GetResourceCacheInfo
 			local cur = min(sz, floor((time()-lt)/STEP_INTERVAL)*STEP_SIZE)
 			return cur < STORE_FLOOR and 0 or cur, sz, lt, sz/STEP_SIZE*STEP_INTERVAL
 		end
+	end
+end
+
+function api.GetMissionPoolIdentity(mt)
+	if mt ~= 1 then
+		local m = T.ShipMissionReplacements
+		for i=1,#m do
+			local c = m[i]
+			for j=2,#c do
+				local _, _, _, la = api.GetMissionSeen(c[j])
+				if la then
+					for j=2,#c do
+						local e = T.ShipInterestPool[j-1]
+						e[1], e.s[4] = c[j], c[1]
+					end
+					return ""
+				end
+			end
+		end
+		return ""
+	end
+
+	local ls, mp = T.config.legendStep, T.InterestPool
+	local c2, c3 = ls > 0 or IsQuestFlaggedCompleted(35998), ls > 1 or IsQuestFlaggedCompleted(36013)
+	T.config.legendStep = c3 and 2 or c2 and 1 or nil
+	local ng = not (C_Garrison.GetOwnedBuildingInfoAbbrev(25) == 36 or C_Garrison.GetOwnedBuildingInfoAbbrev(22) == 36)
+	
+	for i=1,#mp do
+		local m = mp[i]
+		local r = m.s[4]
+		m.drop = ((ng and m[4] == 35) or (c2 and r == 115280) or (c3 and r == 115510)) and true or nil
+	end
+	
+	return string.char(65 + (c3 and 2 or c2 and 1 or 0) + (ng and 4 or 0))
+end
+do -- api.GetBestGroupInfo()
+	local tag, res, job = {}, {}, {}
+	local function run(this, mt, includeInactive, ck)
+		job[ck] = this
+		local pool = mt == 1 and T.InterestPool or T.ShipInterestPool
+		local best = api.UpdateGroupEstimates(pool, includeInactive, coroutine.yield)
+		if job[ck] == this then
+			res[ck], job[ck] = best, nil
+			EV("MP_MOI_GROUPS_READY", mt, includeInactive)
+		end
+	end
+	function api.GetBestGroupInfo(mt, includeInactive, allowStart)
+		assert(type(mt) == "number" and type(includeInactive) == "boolean")
+		local ck = mt .. (includeInactive and "i" or "a")
+		local ident = api.GetMissionPoolIdentity(mt) .. "/" .. api.GetFollowerIdentity(includeInactive, false, mt)
+		if ident ~= tag[ck] then
+			tag[ck], res[ck], job[ck] = ident, nil, nil
+		end
+		if allowStart and not (res[ck] or (job[ck] and coroutine.status(job[ck]) ~= "dead")) then
+			local job = coroutine.create(run)
+			coroutine.resume(job, job, mt, includeInactive, ck)
+		end
+		return res[ck], not res[ck] and (allowStart and job[ck]) or nil
+	end
+	function api.IsInterestedInMoI(moi)
+		local mb = T.InterestMask[moi[5] or moi.s[4]] or 0
+		return T.config.interestMask % 2^mb < 2^(mb-1)
+	end
+	local nextMission, nextShipMission do
+		local function nextFor(pool)
+			return function(best, id)
+				id = id + 1
+				local p = pool[id]
+				if not p then
+				elseif p.drop then
+					return nextMission(best, id)
+				else
+					return id, p, best[p[1]]
+				end
+			end
+		end
+		nextMission, nextShipMission = nextFor(T.InterestPool), nextFor(T.ShipInterestPool)
+	end
+	function api.MoIMissions(mt, best)
+		return mt == 1 and nextMission or nextShipMission, best, 0
+	end
+	function EV:MP_RELEASE_CACHES()
+		res, tag, job = {}, {}, {}, {}
 	end
 end
 

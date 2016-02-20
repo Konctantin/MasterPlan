@@ -1,30 +1,12 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
-local L, G, api = T.L, T.Garrison, T.MissionsUI
+local L, G, EV, api = T.L, T.Garrison, T.Evie, T.MissionsUI
 
 local function dismissTooltip(self)
 	if GameTooltip:IsOwned(self) then
 		GameTooltip:Hide()
 	end
 end
-local function SyncVariants()
-	local m = T.ShipMissionReplacements
-	SyncVariants = nil
-	for i=1,#m do
-		local c = m[i]
-		for j=2,#c do
-			local _, _, _, la = G.GetMissionSeen(c[j])
-			if la then
-				for j=2,#c do
-					local e = T.ShipInterestPool[j-1]
-					e[1], e.s[4] = c[j], c[1]
-				end
-				return
-			end
-		end
-	end
-end
-
 
 local moiContainer, core, loader = CreateFrame("Frame", "MasterPlanShipMoI", GarrisonShipyardFrame, "GarrisonBaseInfoBoxTemplate") do
 	moiContainer:SetPoint("TOPLEFT", 33, -64)
@@ -202,21 +184,28 @@ local moiHandle do
 		r:Show()
 	end
 	moiHandle = core:CreateHandle(CreateShipInterestMission, SetShipInterestMission, 60)
-	local function SyncMoI()
-		if SyncVariants then
-			SyncVariants()
-		end
-		core:SetData()
-		G.UpdateGroupEstimates(T.ShipInterestPool, nil, coroutine.yield)
-		core:SetData(T.ShipInterestPool, moiHandle)
-	end
 	moiContainer:SetScript("OnShow", function()
 		GarrisonShipyardFrame.MissionTab:Hide()
 		GarrisonShipyardFrame.FollowerTab:Hide()
 		GarrisonShipyardFrame.FollowerList:Hide()
-		loader.job = coroutine.create(SyncMoI)
-		loader:Show()
+		local info, job = G.GetBestGroupInfo(2, false, true)
+		if info then
+			-- This part is actually cheating.
+			for _, mi, b in G.MoIMissions(2, info) do
+				mi.best = b
+			end
+			core:SetData(T.ShipInterestPool, moiHandle)
+		else
+			core:SetData()
+			loader.job = job
+			loader:Show()
+		end
 	end)
+	function EV:MP_MOI_GROUPS_READY()
+		if moiContainer:IsVisible() then
+			moiContainer:GetScript("OnShow")(moiContainer)
+		end
+	end
 end
 
 local moiTab = CreateFrame("Button", "GarrisonShipyardFrameTab3", GarrisonShipyardFrame, "GarrisonMissionFrameTabTemplate", 3) do

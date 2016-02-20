@@ -3205,25 +3205,18 @@ do -- interestMissionsHandle
 			return ac
 		end
 		function updateRedundantFollowers(missions)
-			local mask, mt = T.config.interestMask, T.InterestMask
-			if missions.imask == mask then
-				return
-			end
-			missions.imask = mask
-			
 			local finfo = G.GetFollowerInfo()
-			local uf, ua, hasUE, hasInactive = {}, unusedEntry.unused, missions[1] == unusedEntry
+			local uf, ua, hasInactive = {}, unusedEntry.unused
 			for k, v in pairs(finfo) do
 				if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] and v.followerTypeID == 1 then
 					uf[k] = true
 				end
 			end
-			for i=hasUE and 2 or 1,#missions do
+			for i=1,#missions do
 				local mi = missions[i]
-				local mb, b = mt[mi[5] or mi.s[4]] or 0, mi.best
-				local keep =  b and (mask % 2^mb < 2^(mb-1))
+				local b, keep = mi.best, G.IsInterestedInMoI(mi)
 				mi.redundantIgnored, mi.ord = not keep, mi.ord or i
-				if keep then
+				if b and keep then
 					local muf = b and b.used
 					for j=1, mi.s[2] do
 						if muf % (2^j) >= 2^(j-1) then
@@ -3251,80 +3244,53 @@ do -- interestMissionsHandle
 					end
 					return ac < bc
 				end)
-				if not hasUE then
-					table.insert(missions, 1, unusedEntry)
-				end
-			elseif hasUE then
-				table.remove(missions, 1)
+				table.insert(missions, 1, unusedEntry)
 			end
 		end
 	end
-	local updateInterestMissions do
-		local drop = {}
-		function updateInterestMissions()
-			local ts, ls, mp, ni = T.TraitStack, T.config.legendStep, T.InterestPool, 1
-			local c2, c3 = ls > 0 or IsQuestFlaggedCompleted(35998), ls > 1 or IsQuestFlaggedCompleted(36013)
-			T.config.legendStep, drop[115280], drop[115510] = c3 and 2 or c2 and 1 or nil, c2, c3
-			drop[35] = not (C_Garrison.GetOwnedBuildingInfoAbbrev(25) == 36 or C_Garrison.GetOwnedBuildingInfoAbbrev(22) == 36)
-		
-			for i=1,#mp do
-				local m = mp[i]
-				if not (drop[m[4]] or drop[m.s[4]]) then
-					missions[ni], ni = m, ni + 1
-				end
-			end
-			for i=ni,#missions do
-				missions[i] = nil
-			end
-		
-			for k,r in pairs(T.MissionRewardSets) do
-				for i=1,#r do
-					local c, r = 0, r[i]
-					for i=3,r[2] > 0 and #r or 0 do
-						c = c + (tonumber(GetStatistic(r[i]) or 0) or 0)
-					end
-					if c >= r[2] then
-						mappedRewards[k], r[2], ts[k] = r[1], 0, ts[k] or r.ts
-						break
-					end
+	local function updateDisplayFromInfo(info)
+		wipe(missions) do
+			local ni = 1
+			for i, m, b in G.MoIMissions(1, info) do
+				if not m.drop then
+					missions[ni], ni, m.best = m, ni + 1, b
 				end
 			end
 		end
-	end
-	local function loadAndRefresh(id, includeInactive)
-		interestMissionsHandle.ident = nil
-		core:SetData(emptyTable, interestMissionsHandle)
-		updateInterestMissions()
-		G.UpdateGroupEstimates(missions, includeInactive, coroutine.yield)
-		missions.imask = nil
+		local ts = T.TraitStack
+		for k,r in pairs(T.MissionRewardSets) do
+			for i=1,#r do
+				local c, r = 0, r[i]
+				for i=3,r[2] > 0 and #r or 0 do
+					c = c + (tonumber(GetStatistic(r[i]) or 0) or 0)
+				end
+				if c >= r[2] then
+					mappedRewards[k], r[2], ts[k] = r[1], 0, ts[k] or r.ts
+					break
+				end
+			end
+		end
 		updateRedundantFollowers(missions)
-		interestMissionsHandle.ident = id
-		coroutine.yield(2, 100,100)
-		if core:IsOwned(interestMissionsHandle) then
-			core:SetData(missions, interestMissionsHandle)
-		end
+		return missions
 	end
 	function interestMissionsHandle:Show(includeInactive)
-		local id = G.GetFollowerIdentity(includeInactive, false)
 		interestUI.excludeInactive:SetChecked(not includeInactive)
-		if id ~= interestMissionsHandle.ident then
-			local job = coroutine.create(loadAndRefresh)
-			interestUI.loader.job = job, coroutine.resume(job, id, includeInactive)
+		local info, job = G.GetBestGroupInfo(1, includeInactive, true)
+		if not info then
+			core:SetData(emptyTable, interestMissionsHandle)
+			interestUI.loader.job = job
 			interestUI.loader:Show()
 			return
-		elseif not core:IsOwned(interestMissionsHandle) then
-			updateRedundantFollowers(missions)
-			core:SetData(missions, interestMissionsHandle)
-		else
-			updateRedundantFollowers(missions)
-			core:Refresh()
+		end
+		core:SetData(updateDisplayFromInfo(info), interestMissionsHandle)
+	end
+	function EV:MP_MOI_GROUPS_READY()
+		if core:IsOwned(interestMissionsHandle) and core:IsShown() then
+			interestMissionsHandle:Show(not interestUI.excludeInactive:GetChecked())
 		end
 	end
 	function EV:MP_RELEASE_CACHES()
-		interestMissionsHandle.ident = nil
-		for i=1,#missions do
-			missions[i].best = nil
-		end
+		missions, interestMissionsHandle.ident = {}
 	end
 end
 do -- Ships
