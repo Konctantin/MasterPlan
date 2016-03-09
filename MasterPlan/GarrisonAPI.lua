@@ -756,6 +756,13 @@ do -- CompleteMissions/AbortCompleteMissions
 			end
 		end
 	end
+	local function whineAboutUnexpectedState(msg, mid)
+		local et = msg .. ": " .. tostring(mid) .. " does not fit (" .. curIndex .. ";"
+		for i=1,#curStack do
+			et = et .. " " .. tostring(curStack[i] and curStack[i].missionID or "?")
+		end
+		securecall(error, et .. ")", 3)
+	end
 	function completionStep(ev, ...)
 		if not curState then return end
 		local mi = curStack[curIndex]
@@ -781,7 +788,7 @@ do -- CompleteMissions/AbortCompleteMissions
 		elseif curState == "COMPLETE" and ev == "GARRISON_MISSION_COMPLETE_RESPONSE" then
 			local mid, cc, ok = ...
 			if mid ~= mi.missionID and not cc then return end
-			if securecall(assert, mid == mi.missionID, "Unexpected mission completion") then
+			if mid == mi.missionID or whineAboutUnexpectedState("Unexpected mission completion", mid) then
 				if ok then
 					saveMultipliers(mi)
 					mi.state, curState = 0, "BONUS"
@@ -806,7 +813,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			end
 		elseif curState == "BONUS" and ev == "GARRISON_MISSION_BONUS_ROLL_COMPLETE" then
 			local mid, _ok = ...
-			if securecall(assert, mid == mi.missionID, "Unexpected bonus roll completion") then
+			if mid == mi.missionID or whineAboutUnexpectedState("Unexpected bonus roll completion", mid) then
 				mi.succeeded, curState, curIndex = true, "NEXT", curIndex + 1
 				if mi.rewards then
 					for k,r in pairs(mi.rewards) do
@@ -2497,27 +2504,37 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 	if specName then
 		self:AddLine(specName, 1,1,1)
 		self:AddLine(L"Potential counters:")
-		for i=1,#c do
-			local pc, lc, rc = c[i], c[i % #c + 1], c[(i+1) % #c + 1]
-			local _, _, pi = api.GetMechanicInfo(pc)
-			local _, _, li = api.GetMechanicInfo(lc)
-			local _, _, ri = api.GetMechanicInfo(rc)
-			local pt = "|T" .. pi .. ":16:16:0:0:64:64:5:59:5:59|t"
-			local lt = pt .. "|T" .. li .. ":16:16:0:0:64:64:5:59:5:59|t"
-			local rt = pt .. "|T" .. ri .. ":16:16:0:0:64:64:5:59:5:59|t"
-
-			local lct, lpt, rct, rpt = dct[pc*100+lc], dct[-(pc*100+lc)], dct[pc*100+rc], dct[-(pc*100+rc)]
-			local lf, la, lp = api.countFreeFollowers(lct, finfo), lct and #lct or 0, lpt and #lpt or 0
-			local rf, ra, rp = api.countFreeFollowers(rct, finfo), rct and #rct or 0, rpt and #rpt or 0
-
-			lt = lt .. " " .. (lf == 0 and la == 0 and "0" or "") .. (lf > 0 and "|cff20ff20" .. lf .. "|r" or "") .. (la > lf and (lf > 0 and "+" or "") .. "|cffccc78f" .. (la - lf) .. "|r" or "") .. "|cffa0a0a0/" .. lp
-			rt = (rf == 0 and ra == 0 and "0" or "") .. (rf > 0 and "|cff20ff20" .. rf .. "|r" or "") .. (ra > rf and (rf > 0 and "+" or "") .. "|cffccc78f" .. (ra - rf) .. "|r" or "") .. "|cffa0a0a0/" .. rp .. " " .. rt
-
-			if #c == 4 and i > 2 then
-				rt = ""
+		local dupIdx, dupNext do
+			for i=1,#c-1 do
+				if c[i] == c[i+1] then
+					dupIdx, dupNext = i, i + 1
+					break
+				end
 			end
+		end
+		for i=1,#c do
+			local lidx, ridx = i % #c + 1, (i+1) % #c + 1
+			if i ~= dupNext then
+				local pc, lc, rc = c[i], c[lidx], c[ridx]
+				local _, _, pi = api.GetMechanicInfo(pc)
+				local _, _, li = api.GetMechanicInfo(lc)
+				local _, _, ri = api.GetMechanicInfo(rc)
+				local pt = "|T" .. pi .. ":16:16:0:0:64:64:5:59:5:59|t"
+				local lt = pt .. "|T" .. li .. ":16:16:0:0:64:64:5:59:5:59|t"
+				local rt = pt .. "|T" .. ri .. ":16:16:0:0:64:64:5:59:5:59|t"
 
-			self:AddDoubleLine(lt, rt, 1,1,1, 1,1,1)
+				local lct, lpt, rct, rpt = dct[pc*100+lc], dct[-(pc*100+lc)], dct[pc*100+rc], dct[-(pc*100+rc)]
+				local lf, la, lp = api.countFreeFollowers(lct, finfo), lct and #lct or 0, lpt and #lpt or 0
+				local rf, ra, rp = api.countFreeFollowers(rct, finfo), rct and #rct or 0, rpt and #rpt or 0
+
+				lt = lt .. " " .. (lf == 0 and la == 0 and "0" or "") .. (lf > 0 and "|cff20ff20" .. lf .. "|r" or "") .. (la > lf and (lf > 0 and "+" or "") .. "|cffccc78f" .. (la - lf) .. "|r" or "") .. "|cffa0a0a0/" .. lp
+				rt = (rf == 0 and ra == 0 and "0" or "") .. (rf > 0 and "|cff20ff20" .. rf .. "|r" or "") .. (ra > rf and (rf > 0 and "+" or "") .. "|cffccc78f" .. (ra - rf) .. "|r" or "") .. "|cffa0a0a0/" .. rp .. " " .. rt
+
+				if (#c == 4 and i > 2) or lidx == dupIdx then
+					rt = ""
+				end
+				self:AddDoubleLine(lt, rt, 1,1,1, 1,1,1)
+			end
 		end
 	else
 		self:AddLine(ITEM_QUALITY_COLORS[4].hex .. L"Epic Ability")

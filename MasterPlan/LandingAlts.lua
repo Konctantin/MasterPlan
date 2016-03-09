@@ -259,14 +259,14 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		end
 	end
 	
-	local h, data = core:CreateHandle(CreateCharEntry, SetCharEntry, 58)
+	local emptySummary, h, data = {}, core:CreateHandle(CreateCharEntry, SetCharEntry, 58)
 	handle = h
 	local function initData()
 		local d, cr, me = {}, GetRealmName(), UnitName("player")
 		for r,c in pairs(MasterPlanAG) do
 			for c,t in pairs(c) do
-				if t.summary and (c ~= me or r ~= cr) then
-					d[#d+1] = {r,c, t.summary, t}
+				if (t.summary or t.lastCacheTime) and (c ~= me or r ~= cr) then
+					d[#d+1] = {r,c, t.summary or emptySummary, t}
 				end
 			end
 		end
@@ -274,6 +274,10 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 			local ac, bc = a[1], b[1]
 			if ac ~= bc then
 				return ac == cr or (bc ~= cr and ac < bc)
+			end
+			ac, bc = a[3] == emptySummary, b[3] == emptySummary
+			if ac ~= bc then
+				return bc
 			end
 			return a[2] < b[2]
 		end)

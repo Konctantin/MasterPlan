@@ -75,6 +75,7 @@ function E:ADDON_LOADED(addon)
 	cdata.class, cdata.faction, cdata.cacheSize = select(2,UnitClass("player")), UnitFactionGroup("player"), cdata.cacheSize ~= 750 and cdata.cacheSize or nil
 	setmetatable(api, {__index={data=cdata}})
 	CheckCacheWarning()
+	gett(_G, "MasterPlanAG", "IgnoreRewards")
 
 	return "remove"
 end
@@ -90,6 +91,8 @@ function E:PLAYER_LOGOUT()
 		local _, gr = GetCurrencyInfo(824)
 		local _, oil = GetCurrencyInfo(1101)
 		cdata.curRes, cdata.curOil = gr and gr > 0 and gr or nil, oil and oil > 0 and oil or nil
+	elseif next(MasterPlanAG.IgnoreRewards) == nil then
+		MasterPlanAG.IgnoreRewards = nil
 	end
 end
 E.ZONE_CHANGED = CheckCacheWarning

@@ -675,7 +675,9 @@ do -- Counter-follower lists
 	hooksecurefunc("GarrisonFollowerAbilityTooltipTemplate_SetAbility", function(self, aid)
 		self.CounterIcon:SetMask("")
 		self.CounterIcon:SetTexCoord(4/64,60/64,4/64,60/64)
-		if self.Details:IsShown() then
+		if not aid then
+			return
+		elseif self.Details:IsShown() then
 			itip:ActivateFor(self, "TOPLEFT", self.CounterIcon, "BOTTOMLEFT", -14, 16)
 		else
 			itip:ActivateFor(self, "TOPLEFT", self.Description, "BOTTOMLEFT", -10, 12)

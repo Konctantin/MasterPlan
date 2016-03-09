@@ -1877,19 +1877,16 @@ do -- CreateMissionButton
 			if self.itemID then
 				GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
 				G.SetItemTooltip(GameTooltip, self.itemID)
-				GameTooltip:Show()
 			elseif self.tooltipTitle and self.tooltipText then
 				GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
 				GameTooltip:AddLine(self.tooltipTitle)
 				GameTooltip:AddLine(self.tooltipText, 1,1,1,1)
-				GameTooltip:Show()
 				if self.tooltipTitle == GARRISON_REWARD_MONEY then
 					G.SetCurrencyTraitTip(GameTooltip, 0, self.followerType)
 				end
 			elseif self.currencyID then
 				GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
 				GameTooltip:SetCurrencyByID(self.currencyID)
-				GameTooltip:Show()
 				G.SetCurrencyTraitTip(GameTooltip, self.currencyID, self.followerType)
 			elseif self.bonusAbilityID and self.bonusInfo then
 				GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
@@ -1897,14 +1894,25 @@ do -- CreateMissionButton
 				GameTooltip:AddLine(self.bonusInfo.description, 1,1,1,1)
 				GameTooltip:AddLine(" ")
 				GameTooltip:AddLine(GARRISON_BONUS_EFFECT_TIME_ACTIVE:format(SecondsToTime(self.bonusInfo.duration)))
-				GameTooltip:Show()
+			else
+				return
 			end
 			if self:GetParent():IsEnabled() then
 				self:GetParent():LockHighlight()
 			end
+			if self.canIgnore then
+				local prompt = self.isIgnored and L"Unignore" or "Ignore"
+				GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. prompt, 0.5, 0.8, 1)
+			end
+			GameTooltip:Show()
 		end
-		local function Reward_OnClick(self)
-			if IsModifiedClick("CHATLINK") then
+		local function Reward_OnClick(self, button)
+			if self.canIgnore and button == "RightButton" then
+				MasterPlan:SetRewardIgnore(self.canIgnore, not self.isIgnored or nil, IsAltKeyDown())
+				if self.isIgnored and MasterPlan:IsRewardIgnored(self.canIgnore) then
+					MasterPlan:SetRewardIgnore(self.canIgnore, false, IsAltKeyDown())
+				end
+			elseif IsModifiedClick("CHATLINK") then
 				local qt, text, _ = self.quantity:GetText()
 				if self.itemID then
 					_, text = GetItemInfo(self.itemID)
@@ -1926,6 +1934,7 @@ do -- CreateMissionButton
 			local r = CreateFrame("Button", nil, parent)
 			r:SetSize(h, h)
 			r:SetPoint("RIGHT", -12, 0)
+			r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 			local t = r:CreateTexture(nil, "BACKGROUND")
 			t:SetAtlas("GarrMission_RewardsShadow")
 			t:SetPoint("CENTER")
@@ -2641,23 +2650,23 @@ do -- availMissionsHandle
 		end
 		self.followers:SetText(fol)
 
-		local nr = 1
+		local nr, isIgnored = 1, d.ord0 == -1
 		if type(d.rewards) == "table" then
 			for k,v in pairs(d.rewards) do
 				local icon, quant, r = v.icon, v.quantity ~= 1 and v.quantity
 				r, nr = self.rewards[nr], nr + 1
-				r.itemID, r.tooltipTitle, r.tooltipText, r.currencyID = v.itemID, v.title, v.tooltip, v.currencyID
+				r.itemID, r.tooltipTitle, r.tooltipText, r.currencyID, r.isIgnored, r.canIgnore = v.itemID, v.title, v.tooltip, v.currencyID, isIgnored
 				r.border:Hide()
 				if v.followerXP then
-					quant = v.followerXP
+					quant, r.canIgnore = v.followerXP, d.level < 95 and "f:xp90" or "f:xp95"
 				elseif v.currencyID == 0 then
 					quant = floor(v.quantity/10000)
-					r.tooltipText = GetMoneyString(v.quantity)
-				elseif v.currencyID == GARRISON_CURRENCY then
-					quant = v.quantity
+					r.tooltipText, r.canIgnore = GetMoneyString(v.quantity), "c:0"
+				elseif v.currencyID then
+					r.canIgnore = "c:" .. v.currencyID
 				elseif v.itemID then
 					local _, _, q, l, _, _, _, _, _, tex = GetItemInfo(v.itemID)
-					icon, l = tex or GetItemIcon(v.itemID), T.CrateLevels[v.itemID] or l
+					r.canIgnore, icon, l = "i:" .. v.itemID, tex or GetItemIcon(v.itemID), T.CrateLevels[v.itemID] or l
 					if v.quantity == 1 and q and l and l > 500 then
 						quant = ITEM_QUALITY_COLORS[q].hex .. l
 						if G.IsLevelAppropriateToken(v.itemID) then
@@ -2667,8 +2676,19 @@ do -- availMissionsHandle
 						end
 					end
 				end
+				if r.canIgnore and not isIgnored and MasterPlan:IsRewardIgnored(r.canIgnore) then
+					r.isIgnored = true
+				end
 				r.quantity:SetText(quant or "")
 				r.icon:SetTexture(icon or "Interface/Icons/Temp")
+				r.icon:SetDesaturated(r.isIgnored)
+				if r.isIgnored then
+					r.icon:SetVertexColor(0.8,0.4,0.4)
+				elseif isIgnored then
+					r.icon:SetVertexColor(0.8,0.6,0.6)
+				else
+					r.icon:SetVertexColor(1,1,1)
+				end
 				r:Show()
 			end
 		end
@@ -2709,14 +2729,11 @@ do -- availMissionsHandle
 			b:Show()
 		end
 		
-		self.veil:SetShown(d.reqCheckFailed)
+		self.veil:SetShown(d.ord0 == -3)
 	end
 	local GetAvailableMissions do
 		local roamingParty = api.roamingParty
 		local function cmp(a,b)
-			if a.reqCheckFailed ~= b.reqCheckFailed then
-				return b.reqCheckFailed
-			end
 			local ac, bc = a.ord0, b.ord0
 			if ac == bc then
 				ac, bc = a.ord, b.ord
@@ -2761,7 +2778,7 @@ do -- availMissionsHandle
 				local mid, sr = mi.missionID, G.HasSignificantRewards(mi)
 				local sg = groupCache[mid]
 				mi.groups, g = sg, sg[1] and not G.GetMissionGroupDeparture(sg[1], mi) and sg[1] or eg
-				mi.ord0, mi.ord1 = 0, (cw[g[9]] or cw[sr] or (sr and 8) or 0) * 1e16 + g[1]*g[3]*1e3 + (sr and g[1] or 0)
+				mi.ord1 = (cw[g[9]] or cw[sr] or (sr and 8) or 0) * 1e16 + g[1]*g[3]*1e3 + (sr and g[1] or 0)
 				
 				if order == "duration" then
 					mi.ord = -mi.durationSeconds
@@ -2781,9 +2798,13 @@ do -- availMissionsHandle
 				end
 				local tc = G.HasTentativeParty(mid)
 				if tc == mi.numFollowers then
-					mi.ord0, mi.reqCheckFailed = -1, false
+					mi.ord0 = -2
+				elseif checkReq and mi.numFollowers > (nf + tc) or (mi.cost > nr) then
+					mi.ord0 = -3
+				elseif MasterPlan:IsMissionIgnored(mi) then
+					mi.ord0 = -1
 				else
-					mi.reqCheckFailed = checkReq and mi.numFollowers > (nf + tc) or (mi.cost > nr)
+					mi.ord0 = 0
 				end
 			end
 			table.sort(missions, cmp)
@@ -2854,7 +2875,7 @@ do -- availMissionsHandle
 		end
 	end
 	function EV:MP_SETTINGS_CHANGED(s)
-		if s == "availableMissionSort" or s == "timeHorizon" then
+		if s == "availableMissionSort" or s == "timeHorizon" or s == "missionIgnore" then
 			availMissionsHandle:Refresh(true)
 		end
 	end
@@ -3035,7 +3056,6 @@ do -- interestMissionsHandle
 	local unusedFollowers = CreateFrame("Button") do
 		unusedFollowers:SetSize(880, 38)
 		local c, t = {}, unusedFollowers:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-		t:SetText(L"Redundant followers:")
 		t:SetPoint("BOTTOM", unusedFollowers, "TOP", 0, 4)
 		unusedFollowers.ufollowers, unusedFollowers.label = c, t
 		for i=1,21 do
@@ -3046,6 +3066,7 @@ do -- interestMissionsHandle
 		end
 	end
 	local function SetUnusedFollowers(self, d)
+		local isRed = d.lType == "redundant"
 		self.veil:Hide()
 		self.altBG:Show()
 		for i=1,#self.rewards do
@@ -3066,6 +3087,7 @@ do -- interestMissionsHandle
 		self.mtype:SetTexture(0,0,0,0)
 		unusedFollowers:SetParent(self)
 		unusedFollowers:SetPoint("BOTTOM")
+		unusedFollowers.label:SetText(isRed and L"Redundant followers:" or L"Inactive followers:")
 		local finfo, uf = G.GetFollowerInfo(), unusedFollowers.ufollowers
 		for i=1,#d do
 			local fb, fi = uf[i], finfo[d[i]]
@@ -3207,6 +3229,8 @@ do -- interestMissionsHandle
 		function updateRedundantFollowers(missions)
 			local finfo = G.GetFollowerInfo()
 			local uf, ua, hasInactive = {}, unusedEntry.unused
+			wipe(ua)
+			
 			for k, v in pairs(finfo) do
 				if v.status ~= GARRISON_FOLLOWER_INACTIVE and v.status ~= GARRISON_FOLLOWER_WORKING and not T.config.ignore[k] and v.followerTypeID == 1 then
 					uf[k] = true
@@ -3219,20 +3243,21 @@ do -- interestMissionsHandle
 				if b and keep then
 					local muf = b and b.used
 					for j=1, mi.s[2] do
-						if muf % (2^j) >= 2^(j-1) then
+						if finfo[b[j]].status == GARRISON_FOLLOWER_INACTIVE then
+							if not hasInactive then
+								wipe(uf)
+							end
+							hasInactive, uf[b[j]] = true, 1
+						elseif not hasInactive and muf % (2^j) >= 2^(j-1) then
 							uf[b[j] or 0] = nil
 						end
-						hasInactive = hasInactive or (finfo[b[j]].status == GARRISON_FOLLOWER_INACTIVE)
 					end
 				end
 			end
 			table.sort(missions, mcmp)
 			
-			wipe(ua)
-			if not hasInactive then
-				for k in pairs(uf) do
-					ua[#ua + 1] = k
-				end
+			for k in pairs(uf) do
+				ua[#ua + 1] = k
 			end
 			
 			if #ua > 0 then
@@ -3244,6 +3269,7 @@ do -- interestMissionsHandle
 					end
 					return ac < bc
 				end)
+				ua.lType = hasInactive and "inactive" or "redundant"
 				table.insert(missions, 1, unusedEntry)
 			end
 		end
@@ -3281,6 +3307,8 @@ do -- interestMissionsHandle
 			interestUI.loader.job = job
 			interestUI.loader:Show()
 			return
+		else
+			interestUI.loader:Hide()
 		end
 		core:SetData(updateDisplayFromInfo(info), interestMissionsHandle)
 	end

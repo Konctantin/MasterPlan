@@ -33,6 +33,7 @@ local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	moC=0, moE=0, moV=0, moN=0, goldCollected=0,
 	allowShipXP=true,
 	ignore={},
+	rIgnore={},
 }})
 T.config, api = conf, setmetatable({}, {__index={GarrisonAPI=T.Garrison}})
 
@@ -41,7 +42,8 @@ function EV:ADDON_LOADED(addon)
 		return
 	end
 	function EV:PLAYER_LOGOUT()
-		MasterPlanPC, conf.ignore, conf.complete = conf, next(conf.ignore) and conf.ignore, securecall(T._GetMissionSeenTable)
+		MasterPlanPC, conf.ignore, conf.rIgnore = conf, next(conf.ignore) and conf.ignore, next(conf.rIgnore) and conf.rIgnore
+		conf.complete = securecall(T._GetMissionSeenTable)
 	end
 	
 	local pc
@@ -53,12 +55,19 @@ function EV:ADDON_LOADED(addon)
 	
 	for k,v in pairs(pc) do
 		local tv = type(v)
-		if k ~= "ignore" and k ~= "complete" and tv == type(conf[k]) then
-			conf[k] = v
-		elseif k == "ignore" and tv == "table" then
+		if k == "ignore" and tv == "table" then
 			for k,v in pairs(v) do
 				conf.ignore[k] = v
 			end
+		elseif k == "rIgnore" and tv == "table" then
+			local gt = MasterPlanAG.IgnoreRewards
+			for k,v in pairs(v) do
+				if type(k) == "string" and type(v) == "boolean" and (gt[k] ~= v) then
+					conf.rIgnore[k] = v
+				end
+			end
+		elseif k ~= "complete" and tv == type(conf[k]) then
+			conf[k] = v
 		end
 	end
 	T._SetMissionSeenTable(pc.complete)
@@ -97,6 +106,51 @@ end
 function api:SetFollowerIgnored(fid, ignore)
 	assert(type(fid) == "string", 'Syntax: MasterPlan:SetFollowerIgnored("followerID", ignore)')
 	conf.ignore[fid] = ignore and 1 or nil
+end
+
+function api:IsRewardIgnored(key)
+	local me = conf.rIgnore[key]
+	if me == nil then
+		return MasterPlanAG.IgnoreRewards[key]
+	end
+	return me
+end
+function api:SetRewardIgnore(key, val, isForAll)
+	assert(type(key) == "string" and type(val or false) == "boolean" and type(isForAll or false) == "boolean")
+	if isForAll then
+		MasterPlanAG.IgnoreRewards[key], conf.rIgnore[key] = val
+	else
+		conf.rIgnore[key] = val
+	end
+	EV("MP_SETTINGS_CHANGED", "missionIgnore", key)
+end
+function api:IsMissionIgnored(minfo)
+	assert(type(minfo) == "table" and type(minfo.missionID) == "number", 'Syntax: isIgnored = MasterPlan:IsMissionIgnored(missionInfoTable)')
+	local byMid = api:IsRewardIgnored("m:" .. minfo.missionID)
+	if byMid ~= nil then
+		return byMid
+	elseif type(minfo.rewards) ~= "table" then
+		return nil
+	end
+	local xpType, hasIgnore = type(minfo.level) == "number" and minfo.level < 95 and "f:xp90" or "f:xp95", nil
+	for k,v in pairs(minfo.rewards) do
+		if v.currencyID then
+			k = api:IsRewardIgnored("c:" .. v.currencyID)
+		elseif v.itemID then
+			k = api:IsRewardIgnored("i:" .. v.itemID)
+		elseif v.followerXP then
+			k = api:IsRewardIgnored(xpType)
+		else
+			v = nil
+		end
+		if not v then
+		elseif k ~= true then
+			return false -- Not quite the right answer for the tri-state.
+		else
+			hasIgnore = true
+		end
+	end
+	return hasIgnore
 end
 
 MasterPlan = api
