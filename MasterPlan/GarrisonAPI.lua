@@ -2398,25 +2398,25 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 	end
 end
 function api.GetFollowerRerollConstraints(fid)
-	local mt = C_Garrison.GetFollowerInfo(fid).followerTypeID
-	local info = api.GetBestGroupInfo(mt, false, false)
+	local tf = C_Garrison.GetFollowerInfo(fid)
+	local mt, isInactive = tf.followerTypeID, tf.status == GARRISON_FOLLOWER_INACTIVE
+	local info = tf.isCollected and api.GetBestGroupInfo(mt, isInactive, false)
 	if not info then return end
 	
 	local est = mt == 1 and FollowerEstimator or ShipEstimator
-	local f = est.GetGroupMembers(false)
+	local f = est.GetGroupMembers(isInactive)
 	for i=1,#f do
 		f[f[i].followerID] = f[i]
 	end
 	
 	local tf, scratch, counters, traits, ts = f[fid], {}, est.PrepareCounters()
-	local tfsa, tfa, cc, ct = tf.saffinity, tf.affinity, {}, {}
+	local tfsa, tfa, cc, ct, lt = tf.saffinity, tf.affinity, {}, {}, T.LockTraits
 	for i=1,2 do
 		local s, d = tf[i == 1 and "counters" or "traits"], i == 1 and cc or ct
 		for i=1,#s do
 			d[s[i]] = i
 		end
 	end
-	
 	for _, mi, b in api.MoIMissions(mt, info) do
 		local idx = b and (b[1] == fid and 1 or b[2] == fid and 2 or b[3] == fid and 3)
 		if idx and b.used and api.IsInterestedInMoI(mi) and b.used % (2^idx) >= 2^(idx-1) then
@@ -2436,15 +2436,17 @@ function api.GetFollowerRerollConstraints(fid)
 			for i=1,2 do
 				local s, t = i == 1 and cc or ct, i == 1 and counters or traits
 				for k in pairs(s) do
-					t[k] = t[k] - 1
-					if tfsa and tfa == k and i == 2 then
-						tf.saffinity = false
+					if not lt[k] then
+						t[k] = t[k] - 1
+						if tfsa and tfa == k and i == 2 then
+							tf.saffinity = false
+						end
+						local gv = est.EvaluateGroup(mi.s, counters, traits, fa, fb, fc, scratch)
+						if gv < bgv then
+							s[k] = nil
+						end
+						t[k], tf.saffinity = t[k] + 1, tfsa
 					end
-					local gv = est.EvaluateGroup(mi.s, counters, traits, fa, fb, fc, scratch)
-					if gv < bgv then
-						s[k] = nil
-					end
-					t[k], tf.saffinity = t[k] + 1, tfsa
 				end
 			end
 			

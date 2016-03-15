@@ -446,7 +446,8 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 			return ""
 		end
 		f:SetScript("OnEnter", function(self)
-			local groups, fid = G.GetBestGroupInfo(1, false, false), self.followerID
+			local fid = self.followerID
+			local groups = G.GetBestGroupInfo(1, C_Garrison.GetFollowerStatus(fid) == GARRISON_FOLLOWER_INACTIVE, false)
 			if not (groups and fid) then
 				self:Hide()
 				return
@@ -468,12 +469,12 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 				end
 			end
 			if used then
-				local et, hasUnboundTraits, cc, ct = T.EquivTrait, false, G.GetFollowerRerollConstraints(fid)
+				local et, lt, hasUnboundTraits, cc, ct = T.EquivTrait, T.LockTraits, false, G.GetFollowerRerollConstraints(fid)
 				GameTooltip:AddLine(" ")
 				for i=1,3 do
 					local a = C_Garrison.GetFollowerTraitAtIndex(fid, i)
 					local m = et[a] or a
-					if m and m > 0 and ct[m] then
+					if m and m > 0 and ct[m] and not lt[a] then
 						if not hasUnboundTraits then
 							GameTooltip:AddLine(L"You may replace these traits:")
 						end
@@ -512,7 +513,7 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 		if owner.Class then
 			owner.Class:SetAlpha(0)
 		end
-		local best = fi.isCollected and fi.status ~= GARRISON_FOLLOWER_INACTIVE and fi.level == 100 and fi.quality >= 4 and G.GetBestGroupInfo(1, false, false)
+		local best = fi.isCollected and fi.level == 100 and fi.quality >= 4 and G.GetBestGroupInfo(1, fi.status == GARRISON_FOLLOWER_INACTIVE, false)
 		if best then
 			local fid = fi.followerID
 			local f, r = UnitFactionGroup("player") == "Horde" and "Interface/Icons/Achievement_pvp_h_" or "Interface/Icons/Achievement_pvp_a_", "01"

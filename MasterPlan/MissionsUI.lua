@@ -1908,8 +1908,9 @@ do -- CreateMissionButton
 		end
 		local function Reward_OnClick(self, button)
 			if self.canIgnore and button == "RightButton" then
-				MasterPlan:SetRewardIgnore(self.canIgnore, not self.isIgnored or nil, IsAltKeyDown())
-				if self.isIgnored and MasterPlan:IsRewardIgnored(self.canIgnore) then
+				local wasIgnored = self.isIgnored
+				MasterPlan:SetRewardIgnore(self.canIgnore, not wasIgnored or nil, IsAltKeyDown())
+				if wasIgnored and MasterPlan:IsRewardIgnored(self.canIgnore) then
 					MasterPlan:SetRewardIgnore(self.canIgnore, false, IsAltKeyDown())
 				end
 			elseif IsModifiedClick("CHATLINK") then

@@ -264,9 +264,11 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 	local function initData()
 		local d, cr, me = {}, GetRealmName(), UnitName("player")
 		for r,c in pairs(MasterPlanAG) do
-			for c,t in pairs(c) do
-				if (t.summary or t.lastCacheTime) and (c ~= me or r ~= cr) then
-					d[#d+1] = {r,c, t.summary or emptySummary, t}
+			if r ~= "IgnoreRewards" then
+				for c,t in pairs(c) do
+					if type(t) == "table" and (t.summary or t.lastCacheTime) and (c ~= me or r ~= cr) then
+						d[#d+1] = {r,c, t.summary or emptySummary, t}
+					end
 				end
 			end
 		end
