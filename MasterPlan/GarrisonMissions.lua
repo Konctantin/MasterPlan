@@ -894,7 +894,7 @@ do -- Reward item tooltips
 	end
 end
 do -- Ship re-fitting
-	local refit = CreateFrame("Frame") do
+	local refit = CreateFrame("Frame", "MPShipRefitContainer") do
 		refit:SetBackdrop({edgeFile="Interface/Tooltips/UI-Tooltip-Border", bgFile="Interface/DialogFrame/UI-DialogBox-Background-Dark", tile=true, edgeSize=16, tileSize=16, insets={left=3,right=3,bottom=3,top=3}})
 		refit:SetBackdropBorderColor(1, 0.75, 0.25)
 		refit:SetSize(240, 90)
@@ -1080,12 +1080,19 @@ do -- Ship re-fitting
 				for j=1,2 do
 					local s, a = slots[i*2+j-2], fi and C_Garrison.GetFollowerAbilityAtIndex(fi.followerID, j) or 0
 					if a > 0 then
+						local cc, ct = G.GetFollowerRerollConstraints(fi.followerID)
 						numSlots, hasEquipmentSlots = numSlots + 1, true
 						s.traitID = a
 						s.icon:SetTexture(C_Garrison.GetFollowerAbilityIcon(a))
 						local nc, nt = countTraitThreats(mi and mi.numFollowers or 0, a)
-						if nt > 0 then
-							s.border:SetAtlas(nc <= nt and "bags-glow-green" or "bags-glow-heirloom")
+						local cof = C_Garrison.GetFollowerAbilityCounterMechanicInfo(a)
+						local isReplacable = ct and (cof and cc[cof] or not cof and ct[T.EquivTrait[a] or a])
+						
+						if isReplacable and (nt == 0 or nc > nt) then
+							s.border:SetAtlas("bags-glow-green")
+							s.border:Show()
+						elseif nt > 0 then
+							s.border:SetAtlas(nc <= nt and "bags-glow-blue" or "bags-glow-heirloom")
 							s.border:Show()
 						else
 							s.border:Hide()
@@ -1121,7 +1128,7 @@ do -- Ship re-fitting
 			end
 		end
 	end
-	local trigger = CreateFrame("Button", nil, SHIP_MISSION_PAGE) do
+	local trigger = CreateFrame("Button", "MPShipRefitTrigger", SHIP_MISSION_PAGE) do
 		local b = trigger
 		b:SetSize(26, 26)
 		b:SetPoint("RIGHT", -16, 32)--SHIP_MISSION_PAGE.Followers[3], "")

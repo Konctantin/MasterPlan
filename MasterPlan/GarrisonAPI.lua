@@ -1833,8 +1833,8 @@ function api.ExtendFollowerTooltipGainedXP(tip, awardXP, fi)
 end
 
 local FollowerEstimator, ShipEstimator = {TraitStack=T.TraitStack}, {TraitStack=T.ShipTraitStack}
-function FollowerEstimator.GetGroupMembers(ftype, includeInactive)
-	local f, ni, et = C_Garrison.GetFollowers(ftype), 1, T.EquivTrait
+function FollowerEstimator.GetGroupMembers(includeInactive)
+	local f, ni, et = C_Garrison.GetFollowers(1), 1, T.EquivTrait
 	for i=1,#f do
 		local fi = f[i]
 		if fi.isCollected and (includeInactive or fi.status ~= GARRISON_FOLLOWER_INACTIVE) and not T.config.ignore[fi.followerID] then
@@ -2203,7 +2203,7 @@ function api.UpdateGroupEstimates(missions, useInactive, yield)
 	end
 	local missionType = C_Garrison.GetFollowerTypeByMissionID(missions[1][1])
 	local est = missionType == 1 and FollowerEstimator or ShipEstimator
-	local f, nf = est.GetGroupMembers(missionType, useInactive)
+	local f, nf = est.GetGroupMembers(useInactive)
 
 	local counters, traits, ts = est.PrepareCounters()
 	local n2, n3, s1 = m2 and #m2 or 0, m3 and #m3 or 0, 17592186044416
@@ -2397,6 +2397,73 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 		end
 	end
 end
+function api.GetFollowerRerollConstraints(fid)
+	local mt = C_Garrison.GetFollowerInfo(fid).followerTypeID
+	local info = api.GetBestGroupInfo(mt, false, false)
+	if not info then return end
+	
+	local est = mt == 1 and FollowerEstimator or ShipEstimator
+	local f = est.GetGroupMembers(false)
+	for i=1,#f do
+		f[f[i].followerID] = f[i]
+	end
+	
+	local tf, scratch, counters, traits, ts = f[fid], {}, est.PrepareCounters()
+	local tfsa, tfa, cc, ct = tf.saffinity, tf.affinity, {}, {}
+	for i=1,2 do
+		local s, d = tf[i == 1 and "counters" or "traits"], i == 1 and cc or ct
+		for i=1,#s do
+			d[s[i]] = i
+		end
+	end
+	
+	for _, mi, b in api.MoIMissions(mt, info) do
+		local idx = b and (b[1] == fid and 1 or b[2] == fid and 2 or b[3] == fid and 3)
+		if idx and b.used and api.IsInterestedInMoI(mi) and b.used % (2^idx) >= 2^(idx-1) then
+			for j=1,mi.s[2] do
+				for i=1,2 do
+					local s, t = f[b[j]][i == 1 and "counters" or "traits"], i == 1 and counters or traits
+					for i=1,#s do
+						local v = s[i]
+						t[v] = (t[v] or 0) + 1
+					end
+				end
+			end
+
+			ct[ts[mi.s[4]] or 0] = nil
+			local fa, fb, fc = f[b[1]], f[b[2]], f[b[3] or b[2]]
+			local bgv = est.EvaluateGroup(mi.s, counters, traits, fa, fb, fc, scratch)
+			for i=1,2 do
+				local s, t = i == 1 and cc or ct, i == 1 and counters or traits
+				for k in pairs(s) do
+					t[k] = t[k] - 1
+					if tfsa and tfa == k and i == 2 then
+						tf.saffinity = false
+					end
+					local gv = est.EvaluateGroup(mi.s, counters, traits, fa, fb, fc, scratch)
+					if gv < bgv then
+						s[k] = nil
+					end
+					t[k], tf.saffinity = t[k] + 1, tfsa
+				end
+			end
+			
+			for j=1,mi.s[2] do
+				for i=1,2 do
+					local s, t = f[b[j]][i == 1 and "counters" or "traits"], i == 1 and counters or traits
+					for i=1,#s do
+						local v = s[i]
+						t[v] = t[v] - 1
+					end
+				end
+			end
+		end
+	end
+	
+	return cc, ct
+end
+
+
 function api.GetRewardMultiplier(minfo, curID)
 	local k = "rewardMultiplier" .. (curID or "N")
 	local ret = minfo[k]

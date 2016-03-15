@@ -377,6 +377,47 @@ local CreateClassSpecButton, ClassSpecButton_Set do
 		self.follower = info
 	end
 end
+local function UpdateValidSpellHighlightCheck(self, followerID, followerInfo, _hideCounters)
+	local et, _, ct = T.EquivTrait, G.GetFollowerRerollConstraints(followerID)
+	for i=1, #followerInfo.abilities do
+		local ability = followerInfo.abilities[i]
+		local button = self.followerTab.AbilitiesFrame.Abilities[i]
+		local highlight = button.IconButton.ValidSpellHighlight
+		if highlight:IsShown() and ability.isTrait then
+			if ct and ct[et[ability.id] or ability.id] then
+				highlight:SetVertexColor(1,1,0)
+			elseif ct then
+				highlight:SetVertexColor(1,0.8,0.8)
+			else
+				highlight:SetVertexColor(1,1,1)
+			end
+		end
+	end
+end
+hooksecurefunc(GarrisonFollowerList, "UpdateValidSpellHighlight", UpdateValidSpellHighlightCheck)
+hooksecurefunc(GarrisonMissionFrameFollowers, "UpdateValidSpellHighlight", UpdateValidSpellHighlightCheck)
+hooksecurefunc(GarrisonLandingPageFollowerList, "UpdateValidSpellHighlight", UpdateValidSpellHighlightCheck)
+hooksecurefunc(GarrisonShipyardFrameFollowers, "UpdateValidSpellHighlight", function(self, followerID, followerInfo, _hideCounters)
+	local idx, et, cc, ct = 1, T.EquivTrait, G.GetFollowerRerollConstraints(followerID)
+	for i=1, #followerInfo.abilities do
+		local ability = followerInfo.abilities[i]
+		if not ability.isTrait then
+			local highlight = self.followerTab.EquipmentFrame.Equipment[idx].ValidSpellHighlight
+			if highlight:IsShown() then
+				local cof = C_Garrison.GetFollowerAbilityCounterMechanicInfo(ability.id)
+				if ct and (cof and cc[cof] or not cof and ct[et[ability.id] or ability.id]) then
+					highlight:SetVertexColor(1,1,0)
+				elseif ct then
+					highlight:SetVertexColor(1,0.8,0.8)
+				else
+					highlight:SetVertexColor(1,1,1)
+				end
+			end
+			idx = idx + 1
+		end
+	end
+end)
+
 local SpecAffinityFrame = CreateFrame("Frame") do
 	SpecAffinityFrame:SetSize(80, 42)
 	SpecAffinityFrame.ClassSpec = CreateClassSpecButton(SpecAffinityFrame) do
@@ -426,7 +467,30 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 					GameTooltip:AddDoubleLine(GetMoIRewardIcon(mi.s[4]) .. " " .. (C_Garrison.GetMissionName(mid) or mid or "?"), b[5] .. "%", 1,1,1)
 				end
 			end
-			if not used then
+			if used then
+				local et, hasUnboundTraits, cc, ct = T.EquivTrait, false, G.GetFollowerRerollConstraints(fid)
+				GameTooltip:AddLine(" ")
+				for i=1,3 do
+					local a = C_Garrison.GetFollowerTraitAtIndex(fid, i)
+					local m = et[a] or a
+					if m and m > 0 and ct[m] then
+						if not hasUnboundTraits then
+							GameTooltip:AddLine(L"You may replace these traits:")
+						end
+						GameTooltip:AddLine("|T" .. C_Garrison.GetFollowerAbilityIcon(a) .. ":0|t " .. C_Garrison.GetFollowerAbilityName(a), 1,1,1)
+						hasUnboundTraits = true
+					end
+				end
+				if not hasUnboundTraits then
+					GameTooltip:AddLine(L"All current traits are required.")
+				end
+				local nc = 0
+				for k in pairs(cc) do nc = nc + 1 end
+				if nc == (C_Garrison.GetFollowerQuality(fid) > 3 and 2 or 1) then
+					GameTooltip:AddLine(" ")
+					GameTooltip:AddLine(L"Abilities may be retrained.")
+				end
+			else
 				GameTooltip:SetText(L"Redundant")
 				GameTooltip:AddLine((L"%s is not required by any Missions of Interest."):format(C_Garrison.GetFollowerName(fid)), 1,1,1, 1)
 			end

@@ -90,7 +90,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		if GetRealmName() == d[1] then
 			name = d[2]
 		end
-		return "|c" .. (RAID_CLASS_COLORS[sum.class or all.class].colorStr or "ffffffff") .. name
+		return "|c" .. (RAID_CLASS_COLORS[sum.class or all.class or "PRIEST"].colorStr or "ffffffff") .. name
 	end
 	local dmFrame, dm = CreateFrame("Frame", "MasterPlanLandingDrop", nil, "UIDropDownMenuTemplate"), {
 		{notCheckable=true, isTitle=true},
