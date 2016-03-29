@@ -12,6 +12,14 @@ local function HideOwnedGameTooltip(self)
 	end
 end
 
+do -- Feed FrameXML updates to Evie
+	local function FollowerList_OnUpdateData(self)
+		EV("FXUI_GARRISON_FOLLOWER_LIST_UPDATE", self:GetParent())
+	end
+	hooksecurefunc(GarrisonMissionFrame.FollowerList, "UpdateData", FollowerList_OnUpdateData)
+	hooksecurefunc(GarrisonLandingPage.FollowerList, "UpdateData", FollowerList_OnUpdateData)
+end
+
 do -- GarrisonFollowerList_SortFollowers
 	local toggle = CreateFrame("CheckButton", nil, GarrisonMissionFrameFollowers, "InterfaceOptionsCheckButtonTemplate")
 	toggle:SetSize(24, 24) toggle:SetHitRectInsets(0,0,0,0)
@@ -174,8 +182,8 @@ local GarrisonFollower_OnDoubleClick do -- Adding followers to missions
 		return origShipMenu(self, ...)
 	end
 end
-hooksecurefunc("GarrisonFollowerList_Update", function(self)
-	local buttons = self.FollowerList.listScroll.buttons
+function EV:FXUI_GARRISON_FOLLOWER_LIST_UPDATE(frame)
+	local buttons = frame.FollowerList.listScroll.buttons
 	local mi = MISSION_PAGE_FRAME:IsShown() and MISSION_PAGE_FRAME.missionInfo
 	local mlvl = mi and G.GetFMLevel(mi)
 	for i=1, #buttons do
@@ -210,7 +218,7 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 			end
 		end
 	end
-end)
+end
 local function FollowerList_UpdateShip(self)
 	local buttons = self.listScroll.buttons
 	local mi = SHIP_MISSION_PAGE:IsShown() and SHIP_MISSION_PAGE.missionInfo
@@ -322,8 +330,8 @@ local function FollowerButton_OnLeave(self)
 		GameTooltip:Hide()
 	end
 end
-hooksecurefunc("GarrisonFollowerList_Update", function(self)
-	local buttons, fl = self.FollowerList.listScroll.buttons, G.GetFollowerInfo()
+function EV:FXUI_GARRISON_FOLLOWER_LIST_UPDATE(frame)
+	local buttons, fl = frame.FollowerList.listScroll.buttons, G.GetFollowerInfo()
 	local mi = MISSION_PAGE_FRAME.missionInfo
 	local mid = mi and mi.missionID
 	local upW, upA = G.GetUpgradeRange()
@@ -355,13 +363,13 @@ hooksecurefunc("GarrisonFollowerList_Update", function(self)
 				end
 				buttons[i].ILevel:SetText(itext)
 			end
-			if self == GarrisonMissionFrame then
+			if frame == GarrisonMissionFrame then
 				buttons[i]:SetScript("OnEnter", FollowerButton_OnEnter)
 				buttons[i]:SetScript("OnLeave", FollowerButton_OnLeave)
 			end
 		end
 	end
-end)
+end
 local function mousewheelListUpdate(self, ...)
 	HybridScrollFrame_OnMouseWheel(self, ...)
 	local buttons = self.buttons

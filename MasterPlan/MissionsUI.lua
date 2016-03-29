@@ -8,6 +8,8 @@ local RefreshActiveMissionsView, activeMissionsHandle
 local RefreshAvailMissionsView, availMissionsHandle
 local interestMissionsHandle
 
+local Interest_RewardMap = {}
+
 local function SetMissionsFrameTab(id)
 	local mainFrame = GarrisonMissionFrame
 	PlaySound("UI_Garrison_Nav_Tabs");
@@ -905,6 +907,9 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 			end})
 		end
 	end
+	lootContainer.nothing = lootContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	lootContainer.nothing:SetPoint("CENTER")
+	lootContainer.nothing:SetText(L"No loot received.")
 	function activeUI:SetCompletionRewards(rewards, followers, numMissions, overflowLoot)
 		lootFrame.noBagSlots:SetShown(overflowLoot)
 		lootFrame.numMissions:SetFormattedText(GARRISON_NUM_COMPLETED_MISSIONS, numMissions or 1)
@@ -912,8 +917,10 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		
 		local fi, fn = G.GetFollowerInfo(), 1
 		for k,v in pairs(followers) do
-			SetFollower(lootContainer.followers[fn], fi[k], v.xpAward, v.oqual)
-			fn = fn + 1
+			if v.xpAward and v.xpAward > 0 then
+				SetFollower(lootContainer.followers[fn], fi[k], v.xpAward, v.oqual)
+				fn = fn + 1
+			end
 		end
 		for i=fn, #lootContainer.followers do
 			lootContainer.followers[i]:Hide()
@@ -960,6 +967,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 			lootContainer.count = numTotal
 		end
 		
+		lootContainer.nothing:SetShown(ni == 1 and fn == 1)
 		lootFrame:Show()
 	end
 end
@@ -1425,6 +1433,9 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				{arg1=0, text="|TInterface\\Icons\\INV_Misc_Coin_02:16:16:0:0:64:64:4:60:4:60|t " .. BONUS_ROLL_REWARD_MONEY},
 				{arg1=128315},
 				{arg1=128430},
+				{arg1=127748},
+				{arg1=128313},
+				{arg1=128316},
 				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC},
 			}
 			local function toggleInterestBit(_, key)
@@ -1435,8 +1446,18 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				local b, m = T.InterestMask[self.arg1], T.config.interestMask
 				return (m % 2^b) < 2^(b-1)
 			end
+			local function ShowInterestFilterTip(self, arg1)
+				if type(arg1) ~= "number" or arg1 < 1 then return end
+				GameTooltip:SetOwner(self, "ANCHOR_NONE")
+				GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 16, 8)
+				if arg1 < 2e3 then
+					GameTooltip:SetCurrencyByID(arg1)
+				else
+					GameTooltip:SetItemByID(Interest_RewardMap[arg1] or arg1)
+				end
+			end
 			for i=2,#m do
-				m[i].func, m[i].checked, m[i].isNotRadio, m[i].keepShownOnClick = toggleInterestBit, checkInterestBit, true, true
+				m[i].func, m[i].checked, m[i].isNotRadio, m[i].keepShownOnClick, m[i].tooltipOnButton = toggleInterestBit, checkInterestBit, true, true, ShowInterestFilterTip
 			end
 			b:SetScript("OnClick", function(self)
 				if m[#m].arg1 == 115280 and T.config.legendStep >= 2 then
@@ -2229,6 +2250,8 @@ local GroupButtonBase = {} do
 			text = ("%d |TInterface\\Garrison\\GarrisonCurrencyIcons:0:0:0:0:128:128:12:52:12:52|t"):format(ec)
 		elseif ec > 0 and et == 1101 then
 			text = ("%d|TInterface\\Garrison\\GarrisonCurrencyIcons:0:0:0:2:128:128:70:104:68:104|t"):format(ec)
+		elseif ec > 0 and et == 823 then
+			text = ec .. " |T" .. select(3,GetCurrencyInfo(et)) .. ":0:0:0:1:64:64:4:60:4:60|t"
 		elseif ec >= 1e4 and et == 0 and G.HasSignificantRewards(mi) == "gold" then
 			text = GetMoneyString(ec - ec % 1e4)
 		else
@@ -2659,7 +2682,7 @@ do -- availMissionsHandle
 				r.itemID, r.tooltipTitle, r.tooltipText, r.currencyID, r.isIgnored, r.canIgnore = v.itemID, v.title, v.tooltip, v.currencyID, isIgnored
 				r.border:Hide()
 				if v.followerXP then
-					quant, r.canIgnore = v.followerXP, d.level < 95 and "f:xp90" or "f:xp95"
+					quant, r.canIgnore = v.followerXP, d.level == 100 and "f:xp10" or d.level < 95 and "f:xp90" or "f:xp95"
 				elseif v.currencyID == 0 then
 					quant = floor(v.quantity/10000)
 					r.tooltipText, r.canIgnore = GetMoneyString(v.quantity), "c:0"
@@ -2887,7 +2910,7 @@ do -- availMissionsHandle
 	end
 end
 do -- interestMissionsHandle
-	local usefulTraits, mappedRewards = setmetatable({}, T.AlwaysTraits), {}
+	local usefulTraits, mappedRewards = setmetatable({}, T.AlwaysTraits), Interest_RewardMap
 	local function Threat_OnEnter(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		G.SetThreatTooltip(GameTooltip, self.id, nil, self.missionLevel)

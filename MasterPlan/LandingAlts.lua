@@ -48,16 +48,16 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 			GameTooltip:SetItemByID(self.itemID)
 			if type(self.lastOffer) == "number" then
 				GameTooltip:AddLine("|n" .. (L"Last offered: %s ago"):format(
-					HIGHLIGHT_FONT_COLOR_CODE .. G.GetTimeStringFromSeconds(G.stime() - self.lastOffer) .. "|r"))
+					HIGHLIGHT_FONT_COLOR_CODE .. G.GetTimeStringFromSeconds(GetServerTime() - self.lastOffer) .. "|r"))
 				GameTooltip:Show()
 			end
 		elseif self.currencyID == 1101 then
 			GameTooltip:SetOwner(self, "ANCHOR_LEFT")
 			GameTooltip:SetText(C_Garrison.GetMissionName(745))
 			if type(self.inProgress) == "number" then
-				if self.inProgress > time() then
+				if self.inProgress > GetServerTime() then
 					GameTooltip:AddLine("|n" .. GARRISON_SHIPYARD_MSSION_INPROGRESS_TOOLTIP .. "; " .. GARRISON_SHIPYARD_MISSION_INPROGRESS_TIMELEFT:format(
-						HIGHLIGHT_FONT_COLOR_CODE .. G.GetTimeStringFromSeconds(self.inProgress - time()) .. "|r"))
+						HIGHLIGHT_FONT_COLOR_CODE .. G.GetTimeStringFromSeconds(self.inProgress - GetServerTime()) .. "|r"))
 				else
 					GameTooltip:AddLine("|n" .. GREEN_FONT_COLOR_CODE .. GARRISON_MISSION_COMPLETE)
 				end
@@ -75,6 +75,9 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		elseif self.cacheSize then
 			GameTooltip:SetOwner(self, "ANCHOR_LEFT")
 			T.SetCacheTooltip(GameTooltip, self.current, G.GetResourceCacheInfo(self.cacheTime, self.cacheSize))
+		elseif self.recruitTime then
+			GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+			T.SetRecruitTooltip(GameTooltip, self.recruitTime)
 		end
 	end
 	local function Timer_OnLeave(self)
@@ -169,7 +172,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		t:SetPoint("TOPLEFT", f.Name, "BOTTOMLEFT", 0, -1)
 		f.Summary = t
 		
-		for i=1,#T.TrackedMissionSets+2 do
+		for i=1,#T.TrackedMissionSets+3 do
 			t = CreateFrame("Frame", nil, f, "GarrisonLandingPageReportShipmentStatusTemplate")
 			t:SetScale(42/64)
 			t:SetPoint("RIGHT", (40 -55*i)/t:GetScale(), 0)
@@ -191,7 +194,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 	local function SetCharEntry(f, d)
 		t.itemID, t.lastOffer, t.cacheTime, t.cacheSize, t.current, t.inProgress = nil
 		
-		local nt, sum, all, snow, lnow = 1, d[3], d[4], G.stime(), time()
+		local nt, sum, all, snow = 1, d[3], d[4], GetServerTime()
 		f.Name:SetText(Char_GetName(d))
 		
 		if all.lastCacheTime then
@@ -208,14 +211,29 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 			t.AltDone:SetShown(cv == mv)
 			t:Show()
 		end
+		if all.recruitTime then
+			local t, rt = f.Timers[nt], all.recruitTime
+			nt, t.recruitTime = nt + 1, rt
+			SetPortraitToTexture(t.Icon, "Interface\\Icons\\INV_Garrison_Hearthstone")
+			local tl = type(rt) == "number" and snow-rt
+			local done = tl and tl > 604800
+			t.Icon:SetDesaturated(true)
+			if done then
+				t.Swipe:SetCooldownUNIX(0, 0)
+			else
+				t.Swipe:SetCooldownUNIX(GetServerTime()-snow+rt, 604800)
+			end
+			t.AltDone:SetShown(done)
+			t:Show()
+		end
 		if sum.lastOilTime then
 			local t, finTime, fin = f.Timers[nt], sum.inProgress and sum.inProgress[745]
-			nt, t.currencyID, t.current, t.lastOffer, t.inProgress, fin = nt + 1, 1101, all.curOil, sum.lastOilTime, sum.inProgress and sum.inProgress[745], finTime and finTime < lnow
+			nt, t.currencyID, t.current, t.lastOffer, t.inProgress, fin = nt + 1, 1101, all.curOil, sum.lastOilTime, sum.inProgress and sum.inProgress[745], finTime and finTime < snow
 			SetPortraitToTexture(t.Icon, "Interface\\Icons\\Garrison_Oil")
 			t.Icon:SetDesaturated(not fin)
 			if type(finTime) == "number" and not fin then
 				t.AltDone:Hide()
-				t.Swipe:SetCooldown(GetTime()-lnow+finTime, 64800)
+				t.Swipe:SetCooldownUNIX(finTime-64800, 64800)
 			else
 				t.AltDone:Show()
 				t.Swipe:SetCooldownUNIX(0,0)
@@ -247,7 +265,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 			local total, complete = 0,0
 			for k,v in pairs(sum.inProgress) do
 				total = total + 1
-				if v <= lnow then
+				if v <= snow then
 					complete = complete + 1
 				end
 			end
@@ -266,7 +284,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		for r,c in pairs(MasterPlanAG) do
 			if r ~= "IgnoreRewards" then
 				for c,t in pairs(c) do
-					if type(t) == "table" and (t.summary or t.lastCacheTime) and (c ~= me or r ~= cr) then
+					if type(t) == "table" and (t.summary or t.lastCacheTime or t.recruitTime) and (c ~= me or r ~= cr) then
 						d[#d+1] = {r,c, t.summary or emptySummary, t}
 					end
 				end
@@ -298,7 +316,7 @@ end
 
 local lastIP, lastAvail = C_Garrison.GetInProgressMissions(), {}
 function E:PLAYER_LOGOUT()
-	local t, now = {}, G.stime()
+	local t, now = {}, GetServerTime()
 	MasterPlanA.data.summary = t
 	
 	for k=1,#T.TrackedMissionSets do
@@ -324,7 +342,7 @@ function E:PLAYER_LOGOUT()
 	end
 	if next(r) then
 		if r[745] then
-			t.lastOilTime = r[745] - 64800  + (now - time())
+			t.lastOilTime = r[745] - 64800  + (now - GetServerTime())
 		else
 			local _, _, _, lastSpawn = G.GetMissionSeen(745)
 			t.lastOilTime = lastSpawn and (now - lastSpawn) or nil

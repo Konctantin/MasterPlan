@@ -129,3 +129,26 @@ local CreateLazyItemButton do
 end
 
 ShoppingTooltip1TextLeft3:SetJustifyH("LEFT")
+
+do -- SetModifierSensitiveTooltip
+	local func, owner, watching, a1, a2, a3, a4, a5
+	local function watch()
+		if watching:IsOwned(owner) then
+			func(watching, a1, a2, a3, a4, a5)
+			watching:Show()
+		else
+			func, owner, watching, a1, a2, a3, a4, a5 = nil
+			return "remove"
+		end
+	end
+	function T.SetModifierSensitiveTip(...)
+		local owatching = watching
+		func, watching, a1, a2, a3, a4, a5 = ...
+		if watching then
+			owner = watching:GetOwner()
+			if not owatching then
+				E.MODIFIER_STATE_CHANGED = watch
+			end
+		end
+	end
+end

@@ -188,15 +188,6 @@ function api.GetTimeStringFromSeconds(sec)
 		return (sec % 86400 < 3600 and GARRISON_DURATION_DAYS or GARRISON_DURATION_DAYS_HOURS):format(sec/84600, (sec/3600) % 24)
 	end
 end
-local stime do
-	local t = {}
-	function api.stime()
-		t.month, t.day, t.year = select(2, CalendarGetDate())
-		t.sec, t.hour, t.min = time()%60, GetGameTime()
-		return time(t)
-	end
-	stime = api.stime
-end
 
 local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 	local complete, startQueue, startQueueSize, it = {}, {}, 0, 1
@@ -746,16 +737,6 @@ do -- CompleteMissions/AbortCompleteMissions
 		end
 	end
 
-	local function saveMultipliers(mi)
-		if not mi.rewardMultiplier and mi.rewards then
-			for k,v in pairs(mi.rewards) do
-				if v.currencyID then
-					api.GetRewardMultiplier(mi, v.currencyID)
-					return
-				end
-			end
-		end
-	end
 	local function whineAboutUnexpectedState(msg, mid)
 		local et = msg .. ": " .. tostring(mid) .. " does not fit (" .. curIndex .. ";"
 		for i=1,#curStack do
@@ -773,15 +754,11 @@ do -- CompleteMissions/AbortCompleteMissions
 			curState = mi and "ABORT" or "DONE"
 			C_Timer.After(... == "IMMEDIATE" and 0 or 0.5, delayDone)
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
-			saveMultipliers(mi)
+			api.ExtendMissionInfoWithParty(mi)
 			if mi.state == -1 then
 				curState, delayIndex, delayMID = "COMPLETE", curIndex, mi.missionID
 				delayOpen(... ~= "IMMEDIATE" and 0.2)
-			elseif isWastingCurrency(mi) then
-				if ... == "IMMEDIATE" then
-					return completionStep(ev, ...)
-				end
-			else
+			elseif not isWastingCurrency(mi) then
 				curState, delayIndex, delayMID = "BONUS", curIndex, mi.missionID
 				delayRoll(... ~= "IMMEDIATE" and 0.2)
 			end
@@ -790,17 +767,12 @@ do -- CompleteMissions/AbortCompleteMissions
 			if mid ~= mi.missionID and not cc then return end
 			if mid == mi.missionID or whineAboutUnexpectedState("Unexpected mission completion", mid) then
 				if ok then
-					saveMultipliers(mi)
+					api.ExtendMissionInfoWithParty(mi)
 					mi.state, curState = 0, "BONUS"
 				else
 					mi.failed, curState, curIndex = cc and true or nil, "NEXT", curIndex + 1
 				end
 				if cc then
-					local msc = mi.successChance
-					if msc and (0 < msc or ok) and (msc < 100 or not ok) then
-						local sp, conf = msc / 100, T.config
-						conf.moC, conf.moE, conf.moV, conf.moN = conf.moC + (ok and 1 or 0), conf.moE + sp, conf.moV + sp*(1-sp), conf.moN + 1
-					end
 					securecall(curCallback, "STEP", curStack, curRewards, curFollowers, ok and "COMPLETE" or "FAIL", mi.missionID)
 				end
 				if ok then
@@ -820,9 +792,6 @@ do -- CompleteMissions/AbortCompleteMissions
 						if r.currencyID and r.quantity then
 							local ik, q = "cur:" .. r.currencyID, r.quantity
 							q = floor(r.quantity * api.GetRewardMultiplier(mi, r.currencyID))
-							if r.currencyID == 0 then
-								T.config.goldCollected = T.config.goldCollected + q
-							end
 							curRewards[ik] = curRewards[ik] or {quantity=0, currencyID=r.currencyID}
 							curRewards[ik].quantity = curRewards[ik].quantity + q
 						elseif r.itemID and r.quantity then
@@ -865,7 +834,7 @@ end
 do -- GetMissionSeen
 	local lastOffer, expire = {}, T.MissionExpire
 	function api.ObserveMissions(missions, mtype)
-		local dnow = stime() - GetTime()
+		local dnow = GetServerTime() - GetTime()
 		if not missions then
 			missions, mtype = C_Garrison.GetAvailableMissions(), "*"
 		end
@@ -895,7 +864,7 @@ do -- GetMissionSeen
 	end
 	local shortHourFormat = GARRISON_DURATION_HOURS:gsub("%%[%d$]*d", "%%s")
 	function api.GetMissionSeen(mid, mi)
-		local mi, lastAppeared, now = mi or C_Garrison.GetBasicMissionInfo(mid), lastOffer[mid], stime()
+		local mi, lastAppeared, now = mi or C_Garrison.GetBasicMissionInfo(mid), lastOffer[mid], GetServerTime()
 		local tl = mi and mi.offerEndTime and (mi.offerEndTime - GetTime()) or -1
 		return tl, mi and mi.offerTimeRemaining or tl >= 0 and api.GetTimeStringFromSeconds(tl) or "", tl >= 0 and shortHourFormat:format(math.floor(tl/3600+0.5)) or "", lastAppeared and (now-lastAppeared)
 	end
@@ -1623,6 +1592,8 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 			if g[1] <= 0 then
 			elseif rt == 824 and rq > 0 then
 				res = floor(g[1]*rq/100) .. " |TInterface\\Garrison\\GarrisonCurrencyIcons:20:20:0:-2:128:128:12:52:12:52|t"
+			elseif rt == 823 and rq > 0 then
+				res = floor(g[1]*rq/100) .. " |T" .. select(3,GetCurrencyInfo(rt)) .. ":14:14:0:0:64:64:4:60:4:60|t"
 			elseif rt == 0 and rq > 0 then
 				local r = g[1]*rq/100
 				res = GetMoneyString(r - r % 1e4)
@@ -1637,8 +1608,17 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 			mm[#mm+1] = { text = text, notCheckable=true, tooltipOnButton=ShowGroupTip, func=SetGroup, arg1=g, arg2=mi}
 		end
 	end
-	local function dominating(a,b)
-		return a[1] >= b[1] and a[3] >= b[3] and a[4] <= b[4] and (a[1] > b[1] or a[3] > b[3])
+	local function dominating(a,b, faultTies)
+		return a[1] >= b[1] and a[3] >= b[3] and a[4] <= b[4] and (a[1] > b[1] or a[3] > b[3] or faultTies)
+	end
+	local function getBaseReward(mi)
+		if mi.rewards then
+			for k,v in pairs(mi.rewards) do
+				if (v.currencyID == 0 or v.currencyID == 824 or v.currencyID == 1101 or v.currencyID == 823) then
+					return v.quantity
+				end
+			end
+		end
 	end
 	function api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 		local finfo, nf, mid, now = api.GetFollowerInfo(), mi.numFollowers, mi.missionID, time()
@@ -1646,7 +1626,7 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 		local hasPartialParty = np > 0 and np < nf
 		local rank, rt = api.GetMissionDefaultGroupRank(mi)
 		local trank = rt ~= "threats" and api.GroupRank.threats2
-		local ag, fg, pg, ds = api.GetMissionGroups(mid, nil, mi), {}, hasPartialParty and {} or nil, mi.durationSeconds
+		local ag, fg, pg, ds, br = api.GetMissionGroups(mid, nil, mi), {}, hasPartialParty and {} or nil, mi.durationSeconds, getBaseReward(mi)
 		for i=1,#ag do
 			local ok, g = true, ag[i]
 			for i=5,fin do
@@ -1679,9 +1659,12 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 					if trank and (sg[4] == nil or trank(g, sg[4], finfo, mi, now)) then
 						sg[4] = g
 					end
-					local tk = "t" .. (ds/g[4])
+					local tk, rk = "t" .. (ds/g[4]), br and g[3] and "r" .. g[3]
 					if sg[tk] == nil or rank(g, sg[tk], finfo, mi, now) then
 						sg[tk] = g
+					end
+					if rk and (sg[rk] == nil or rank(g, sg[rk], finfo, mi, now)) then
+						sg[rk] = g
 					end
 				end
 			end
@@ -1707,6 +1690,18 @@ do -- api.GetSuggestedGroupsMenu(mi, f1, f2, f3)
 						table.remove(sg, i)
 						break
 					end
+				end
+			end
+			for i=br and nf or 0,1,-1 do
+				local g = sg["r" .. br*i]
+				for j=1,g and #sg or 0 do
+					if g == sg[j] or dominating(sg[j], g, true) then
+						g = nil
+						break
+					end
+				end
+				if g then
+					sg[#sg+1] = g
 				end
 			end
 			for i=nf,0,-1 do
@@ -1780,6 +1775,16 @@ function api.ExtendMissionInfoWithXPRewardData(mi, force)
 	end
 	mi.groupXPBuff, mi.baseXP, mi.extraXP, mi.bonusXP, mi.mentorLevel = bmul, base, extra, bonus, mentor
 	return bmul, base, extra, bonus, mentor
+end
+function api.ExtendMissionInfoWithParty(mi)
+	local _, mm, gm
+	_, _, _, mi.successChance, _, _, _, mm, gm = C_Garrison.GetPartyMissionInfo(mi.missionID)
+	if not mi.rewards then return end
+	for k,v in pairs(mi.rewards) do
+		if v.currencyID then
+			api.GetRewardMultiplier(mi, v.currencyID, true, mm, gm)
+		end
+	end
 end
 function api.ExtendFollowerTooltipProjectedRewardXP(mi, fi)
 	local tip = fi and (fi.followerTypeID == 1 and GarrisonFollowerTooltip or GarrisonShipyardFollowerTooltip)
@@ -2139,7 +2144,7 @@ function ShipEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, _scratch)
 	end
 	
 	local base = mi[5]
-	return math.floor(base+(100-base)*score/threat)
+	return math.floor(base+(100-base)*score/threat+.5)
 end
 function ShipEstimator.SaveGroup(best, mi, traits, ts, _na, _nw, _fa, _fb, _fc, sc, _amlvl, _bmlvl, _cmlvl, a, b, c)
 	local v = traits[ts[mi[4]]] or 0
@@ -2314,7 +2319,7 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 				mi.numFollowers,
 				mi.durationSeconds,
 				rt or 1,
-				env and api.GetMechanicInfo(env:lower()) or 0
+				mi.followerTypeID == 2 and select(4,C_Garrison.GetPartyMissionInfo(mi.missionID)) or env and api.GetMechanicInfo(env:lower()) or 0,
 			}
 			for i=1,#en do
 				for id in pairs(en[i].mechanics) do
@@ -2466,11 +2471,13 @@ function api.GetFollowerRerollConstraints(fid)
 end
 
 
-function api.GetRewardMultiplier(minfo, curID)
+function api.GetRewardMultiplier(minfo, curID, passingMultiplierData, mm, gm)
 	local k = "rewardMultiplier" .. (curID or "N")
 	local ret = minfo[k]
 	if not ret and curID then
-		local mm, gm = select(8, C_Garrison.GetPartyMissionInfo(minfo.missionID))
+		if not passingMultiplierData then
+			mm, gm = select(8, C_Garrison.GetPartyMissionInfo(minfo.missionID))
+		end
 		if curID == 0 then
 			ret = gm or 1
 		else
@@ -2481,28 +2488,6 @@ function api.GetRewardMultiplier(minfo, curID)
 	return ret or 1
 end
 
-local setModifierSensitiveTip do
-	local func, owner, watching, a1, a2, a3, a4, a5
-	local function watch()
-		if watching:IsOwned(owner) then
-			func(watching, a1, a2, a3, a4, a5)
-			watching:Show()
-		else
-			func, owner, watching, a1, a2, a3, a4, a5 = nil
-			return "remove"
-		end
-	end
-	function setModifierSensitiveTip(...)
-		local owatching = watching
-		func, watching, a1, a2, a3, a4, a5 = ...
-		if watching then
-			owner = watching:GetOwner()
-			if not owatching then
-				EV.MODIFIER_STATE_CHANGED = watch
-			end
-		end
-	end
-end
 local function addFollowerList(tip, info, finfo, mlvl, showInactive, thisMech, specDup)
 	api.sortByFollowerLevels(info, finfo)
 	for i=1,#info do
@@ -2643,7 +2628,7 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 	return true
 end
 function api.SetTraitTooltip(tip, id, info, showInactive, skipDescription)
-	if not showInactive then setModifierSensitiveTip(api.SetTraitTooltip, tip, id, info, showInactive, skipDescription) end
+	if not showInactive then T.SetModifierSensitiveTip(api.SetTraitTooltip, tip, id, info, showInactive, skipDescription) end
 	local finfo, showInactive = api.GetFollowerInfo(), showInactive or IsShiftKeyDown() or IsAltKeyDown()
 	local ico, nl = "|T" .. C_Garrison.GetFollowerAbilityIcon(id) .. ":0:0:0:0:64:64:4:60:4:60|t ", skipDescription and "" or "|n"
 	if skipDescription then
@@ -2673,7 +2658,7 @@ function api.SetTraitTooltip(tip, id, info, showInactive, skipDescription)
 	end
 end
 function api.SetThreatTooltip(tip, id, info, missionLevel, showInactive, skipDescription)
-	if not showInactive then setModifierSensitiveTip(api.SetThreatTooltip, tip, id, info, missionLevel, showInactive, skipDescription) end
+	if not showInactive then T.SetModifierSensitiveTip(api.SetThreatTooltip, tip, id, info, missionLevel, showInactive, skipDescription) end
 	local finfo, showInactive = api.GetFollowerInfo(), showInactive or IsShiftKeyDown() or IsAltKeyDown()
 	local id, name, ico, desc = api.GetMechanicInfo(id)
 	if skipDescription then
@@ -2724,7 +2709,7 @@ function api.SetItemTooltip(tip, id)
 	local cs = T.TokenSlots[id]
 	tip:SetItemByID(id)
 	if cs then
-		setModifierSensitiveTip(api.SetItemTooltip, tip, id)
+		T.SetModifierSensitiveTip(api.SetItemTooltip, tip, id)
 		local st1, st2 = tip.shoppingTooltips[1], tip.shoppingTooltips[2]
 		if IsModifiedClick("COMPAREITEMS") or GetCVarBool("alwaysCompareItems") then
 			local ofsFrame, oy = GameTooltip, -8
@@ -2759,7 +2744,7 @@ local function doSetCurrencyTraitTip(owner, id, tip)
 	else
 		tip:Hide()
 	end
-	setModifierSensitiveTip(doSetCurrencyTraitTip, owner, id, tip)
+	T.SetModifierSensitiveTip(doSetCurrencyTraitTip, owner, id, tip)
 end
 function api.SetCurrencyTraitTip(tip, id, ftype)
 	local ts = T[ftype == 2 and "ShipTraitStack" or "TraitStack"][id]
@@ -2845,7 +2830,7 @@ function api.GetUnderLevelledFollower(g, mi)
 	end
 end
 function api.SetDoubleCountersTooltip(tip, ci)
-	setModifierSensitiveTip(api.SetDoubleCountersTooltip, tip, ci)
+	T.SetModifierSensitiveTip(api.SetDoubleCountersTooltip, tip, ci)
 	local showInactive = IsAltKeyDown()
 	tip:SetText("|TInterface\\Icons\\Inv_Misc_Book_11:0:0:0:0:64:64:4:60:4:60|t " .. L"Duplicate counters")
 	local finfo, skip, oico = api.GetFollowerInfo(), 0
@@ -2963,12 +2948,21 @@ do -- api.GetResourceCacheInfo
 			lt, sz = securecall(getCacheData)
 		end
 		if lt and lt > 0 then
-			local cur = min(sz, floor((time()-lt)/STEP_INTERVAL)*STEP_SIZE)
+			local cur = min(sz, floor((GetServerTime()-lt)/STEP_INTERVAL)*STEP_SIZE)
 			return cur < STORE_FLOOR and 0 or cur, sz, lt, sz/STEP_SIZE*STEP_INTERVAL
 		end
 	end
+	function api.GetRecruitInfo()
+		local rt = MasterPlanA.data.recruitTime
+		local dt = type(rt) == "number" and GetServerTime()-rt
+		return dt, 604800, rt
+	end
 end
 
+function api.HasLevelTwoInn()
+	local a, b = C_Garrison.GetOwnedBuildingInfoAbbrev(25), C_Garrison.GetOwnedBuildingInfoAbbrev(22)
+	return a == 35 or a == 36 or b == 35 or b == 36
+end
 function api.GetMissionPoolIdentity(mt)
 	if mt ~= 1 then
 		local m = T.ShipMissionReplacements

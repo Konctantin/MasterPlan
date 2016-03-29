@@ -13,7 +13,7 @@ local L = newproxy(true) do
 	T.L = L
 end
 
-local EV, conf, api = T.Evie, setmetatable({}, {__index={
+local EV, G, conf, api, aconf = T.Evie, T.Garrison, setmetatable({}, {__index={
 	availableMissionSort="reward",
 	sortFollowers=true,
 	riskReward=1,
@@ -30,12 +30,12 @@ local EV, conf, api = T.Evie, setmetatable({}, {__index={
 	crateLevelGrace=25,
 	interestMask=0,
 	ship1=100, ship2=90, ship3=80, ship4=50,
-	moC=0, moE=0, moV=0, moN=0, goldCollected=0,
+	moC=0, moE=0, moV=0, moN=0, goldCollected=0, goldCollectedS=0,
 	allowShipXP=true,
 	ignore={},
 	rIgnore={},
 }})
-T.config, api = conf, setmetatable({}, {__index={GarrisonAPI=T.Garrison}})
+T.config, api, aconf = conf, setmetatable({}, {__index={GarrisonAPI=G}}), MasterPlanA.data
 
 function EV:ADDON_LOADED(addon)
 	if addon ~= addonName then
@@ -75,6 +75,38 @@ function EV:ADDON_LOADED(addon)
 	EV("MP_SETTINGS_CHANGED")
 	
 	return "remove"
+end
+function EV:GARRISON_MISSION_COMPLETE_RESPONSE(mid, cc, ok)
+	local mi = mid and cc and C_Garrison.GetBasicMissionInfo(mid)
+	if not mi then return end
+	G.ExtendMissionInfoWithParty(mi)
+	local msc = mi.successChance
+	if msc and (0 < msc or ok) and (msc < 100 or not ok) then
+		local sp = msc / 100
+		conf.moC, conf.moE, conf.moV, conf.moN = conf.moC + (ok and 1 or 0), conf.moE + sp, conf.moV + sp*(1-sp), conf.moN + 1
+	end
+	if ok and mi.rewards then
+		for k,r in pairs(mi.rewards) do
+			if r.currencyID == 0 then
+				local q = floor(r.quantity * G.GetRewardMultiplier(mi, r.currencyID))
+				conf.goldCollected, conf.goldCollectedS = conf.goldCollected + q, conf.goldCollectedS + (mi.followerTypeID == 2 and q or 0)
+			end
+		end
+	end
+end
+
+function EV:GARRISON_RECRUITMENT_NPC_OPENED()
+	if C_Garrison.CanGenerateRecruits() then
+		aconf.recruitTime = GetServerTime()-604801
+	else
+		local dt = type(aconf.recruitTime) == "number" and GetServerTime() - aconf.recruitTime or 604801
+		if dt > 604800 then
+			aconf.recruitTime = GetServerTime()
+		end
+	end
+end
+function EV:GARRISON_RECRUITMENT_FOLLOWERS_GENERATED()
+	aconf.recruitTime = GetServerTime()
 end
 
 function api:GetSortFollowers()
@@ -132,7 +164,7 @@ function api:IsMissionIgnored(minfo)
 	elseif type(minfo.rewards) ~= "table" then
 		return nil
 	end
-	local xpType, hasIgnore = type(minfo.level) == "number" and minfo.level < 95 and "f:xp90" or "f:xp95", nil
+	local xpType, hasIgnore = minfo.level == 100 and "f:xp10" or (type(minfo.level) == "number" and minfo.level < 95 and "f:xp90") or "f:xp95", nil
 	for k,v in pairs(minfo.rewards) do
 		if v.currencyID then
 			k = api:IsRewardIgnored("c:" .. v.currencyID)

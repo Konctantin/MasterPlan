@@ -337,29 +337,11 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		sb:SetText(q)
 		sb.clearText = q
 	end)
-	local function ShowResetTipOnEnter(self)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-		GameTooltip:SetText("|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. RESET, 0.5, 0.8, 1)
-	end
 	local function HideGameTooltip(self)
 		if GameTooltip:IsOwned(self) then
 			GameTooltip:Hide()
 		end
 	end
-	rows[3]:RegisterForClicks("RightButtonUp")
-	rows[3]:SetScript("OnClick", function(self)
-		T.config.goldCollected = 0
-		self.Text:SetText(0)
-	end)
-	rows[3]:SetScript("OnEnter", ShowResetTipOnEnter)
-	rows[3]:SetScript("OnLeave", HideGameTooltip)
-	rows[4]:RegisterForClicks("RightButtonUp")
-	rows[4]:SetScript("OnClick", function(self)
-		T.config.moC, T.config.moE, T.config.moV, T.config.moN = 0,0,0,0
-		self.Text:SetText("???")
-	end)
-	rows[4]:SetScript("OnEnter", ShowResetTipOnEnter)
-	rows[4]:SetScript("OnLeave", HideGameTooltip)
 	local function CountUpgradableFollowers()
 		local nuA, nuI, upW, upA = 0,0, G.GetUpgradeRange()
 		for k,v in pairs(G.GetFollowerInfo()) do
@@ -375,8 +357,90 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		end
 		return nuA, nuI
 	end
+	rows[2]:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L"Upgradable gear", 1,1,1)
+		local aA, aI, wA, wI, cap = 0,0, 0,0, T.FOLLOWER_ITEM_LEVEL_CAP
+		for k,v in pairs(G.GetFollowerInfo()) do
+			if v.followerTypeID == 1 and v.level == 100 then
+				local _weaponItemID, weaponItemLevel, _armorItemID, armorItemLevel = C_Garrison.GetFollowerItems(k)
+				if v.status == GARRISON_FOLLOWER_INACTIVE then
+					aI, wI = aI + cap - armorItemLevel, wI + cap - weaponItemLevel
+				else
+					aA, wA = aA + cap - armorItemLevel, wA + cap - weaponItemLevel
+				end
+			end
+		end
+		local wH = GetItemCount(114128)*3 + GetItemCount(114129)*6 + GetItemCount(114131)*9
+		local aH = GetItemCount(114745)*3 + GetItemCount(114808)*6 + GetItemCount(114822)*9
+		GameTooltip:AddDoubleLine(L"Weapon levels:", "|cffffffff" .. wA .. (wI > 0 and "|cffccc78f+" .. wI or "") .. (wH > 0 and " |cff00ff00" .. (L"(have %d)"):format(wH) or ""))
+		GameTooltip:AddDoubleLine(L"Armor levels:", "|cffffffff" .. aA .. (aI > 0 and "|cffccc78f+" .. aI or "") .. (aH > 0 and " |cff00ff00" .. (L"(have %d)"):format(aH) or ""))
+		local nuA, nuI = CountUpgradableFollowers()
+		GameTooltip:AddLine("|n" .. (L"Upgrades are available for |cffffffff%d active followers|r."):format(nuA) .. (nuI > 0 and " |cffccc78f" .. (L"(+%d inactive followers)"):format(nuI) or ""), nil, nil, nil, 1)
+		GameTooltip:Show()
+	end)
+	rows[2]:SetScript("OnLeave", HideGameTooltip)
+	rows[3]:RegisterForClicks("RightButtonUp")
+	rows[3]:SetScript("OnClick", function(self)
+		T.config.goldCollected, T.config.goldCollectedS = 0, 0
+		self.Text:SetText(0)
+		HideGameTooltip(self)
+		self:GetScript("OnEnter")(self)
+	end)
+	rows[3]:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(select(2,GetAchievementInfo(328)), 1,1,1)
+		local s = T.config.goldCollectedS
+		if s >= 1e4 then
+			GameTooltip:AddDoubleLine(L"From Naval Missions:", "|cffffffff" .. GetMoneyString(s - s % 1e4))
+		end
+		GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. RESET, 0.5, 0.8, 1)
+		GameTooltip:Show()
+	end)
+	rows[3]:SetScript("OnLeave", HideGameTooltip)
+	rows[4]:RegisterForClicks("RightButtonUp")
+	rows[4]:SetScript("OnClick", function(self)
+		T.config.moC, T.config.moE, T.config.moV, T.config.moN = 0,0,0,0
+		self.Text:SetText("???")
+		HideGameTooltip(self)
+		self:GetScript("OnEnter")(self)
+	end)
+	local function ncdf(m, v, l)
+		local t, s, d, e = 0, math.max(16*v^0.5/10000,0.00001), 1/(2*v), math.exp(1)
+		for i=m-8*v^0.5,l,s do
+			t = t + e^(-(i-m)^2*d)
+		end
+		return t*s*(v*2*math.pi)^-0.5
+	end
+	local function formatPCT(p)
+		local c = math.min(p, 1-p)
+		return (c >= 0.10 and "%d%%" or c >= 0.01 and "%.1f%%" or "%.2f%%"):format(p*100)
+	end
+	local function SetLuckTooltip(GameTooltip)
+		local c, e, v, n = T.config.moC, T.config.moE, T.config.moV, T.config.moN
+		if n > 0 then
+			GameTooltip:SetText(L"Luck", 1,1,1)
+			local j = 4
+			local nl, nh = ncdf(e+j/2, v+j/4, c), ncdf(e+j/2, v+j/4, c+j)
+			local s = nh-nl > 0.02 and formatPCT(nl) .. "-" .. formatPCT(nh) or formatPCT(ncdf(e, v, c))
+			GameTooltip:AddLine((L"Better than %s of players (based on %s uncertain missions)."):format("|cffffffff" .. s .. "|r", "|cffffffff" .. n .. "|r"), nil, nil, nil, 1)
+			if IsAltKeyDown() then
+				GameTooltip:AddLine(("|nX=%d E=%g V=%g"):format(c, e, v), 0.65, 0.65, 0.65)
+			end
+			GameTooltip:AddLine("|n|TInterface\\TUTORIALFRAME\\UI-TUTORIAL-FRAME:14:12:0:-1:512:512:10:70:330:410|t " .. RESET, 0.5, 0.8, 1)
+			GameTooltip:Show()
+		end
+	end
+	rows[4]:SetScript("OnEnter", function(self)
+		if T.config.moN > 0 and (IsAltKeyDown() or self.Text:GetText() ~= "???") then
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			SetLuckTooltip(GameTooltip)
+			T.SetModifierSensitiveTip(SetLuckTooltip, GameTooltip)
+		end
+	end)
+	rows[4]:SetScript("OnLeave", HideGameTooltip)
 	function stats:Sync()
-		rows[1].Text:SetFormattedText(L"%d followers recruited", C_Garrison.GetNumFollowers())
+		rows[1].Text:SetFormattedText(L"%d followers recruited", C_Garrison.GetNumFollowers(1))
 		local uptext, nuA, nuI = "", CountUpgradableFollowers()
 		if nuA == 0 then
 			uptext = "|cffccc78f" .. L("%d total"):format(nuI)

@@ -5,7 +5,7 @@ local G, L, E = T.Garrison, T.L, T.Evie
 function T.SetCacheTooltip(GameTooltip, current, cv, mv, st, md)
 	GameTooltip:ClearLines()
 	GameTooltip:AddLine(GARRISON_CACHE)
-	local tl = st+md-time()
+	local tl = st+md-GetServerTime()
 	if tl > 5400 then
 		tl = SPELL_TIME_REMAINING_HOURS:format((tl+3599)/3600)
 	elseif tl > 90 then
@@ -34,11 +34,25 @@ function T.SetCacheTooltip(GameTooltip, current, cv, mv, st, md)
 	end
 	GameTooltip:Show()
 end
+function T.SetRecruitTooltip(GameTooltip, recruitTime)
+	GameTooltip:SetText((select(2, C_Garrison.GetBuildingInfo(35))))
+	local dt = GetServerTime()-recruitTime
+	if dt < 604800 then
+		GameTooltip:AddLine("\n" .. (L"Last recruited: %s ago"):format("|cffffffff" .. SecondsToTime(dt) .. "|r"))
+	else
+		GameTooltip:AddLine("|n" .. GREEN_FONT_COLOR_CODE .. AVAILABLE)
+	end
+	GameTooltip:Show()
+end
 
 local function Ship_OnEnter(self, ...)
 	if self.buildingID == -1 and self.plotID == -42 then
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		T.SetCacheTooltip(GameTooltip, select(2, GetCurrencyInfo(824)), G.GetResourceCacheInfo())
+		self.UpdateTooltip = Ship_OnEnter
+	elseif self.buildingID == -1 and self.plotID == -43 then
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		T.SetRecruitTooltip(GameTooltip, select(3,G.GetRecruitInfo()))
 		self.UpdateTooltip = Ship_OnEnter
 	else
 		GarrisonLandingPageReportShipment_OnEnter(self, ...)
@@ -49,32 +63,58 @@ local function Ship_OnEnter(self, ...)
 		end
 	end
 end
-hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
+local function Ship_SetCache(ship)
 	local cv, mv, st, md = G.GetResourceCacheInfo()
-	if not cv then return end
-
+	if not (ship and cv) then return end
+	ship:SetScript("OnEnter", Ship_OnEnter)
+	ship.Done:SetShown(cv == mv)
+	ship.Border:SetShown(cv < mv)
+	ship.BG:SetShown(cv < mv)
+	ship.Count:SetText(cv > 0 and cv or "")
+	SetPortraitToTexture(ship.Icon, "Interface\\Icons\\INV_Garrison_Resource")
+	ship.Icon:SetDesaturated(true)
+	ship.Name:SetText(GARRISON_CACHE)
+	if cv == mv then
+		ship.Swipe:SetCooldownUNIX(0, 0);
+	else
+		ship.Swipe:SetCooldownUNIX(st, md);
+	end
+	ship.buildingID, ship.plotID = -1, -42
+	ship:Show()
+	return true
+end
+local function Ship_SetRecruit(ship)
+	local dt, lim = G.GetRecruitInfo()
+	if not (ship and dt and G.HasLevelTwoInn()) then return end
+	ship:SetScript("OnEnter", Ship_OnEnter)
+	local done = dt >= lim
+	ship.Done:SetShown(done)
+	ship.Border:SetShown(not done)
+	ship.BG:SetShown(not done)
+	ship.Count:SetText("")
+	SetPortraitToTexture(ship.Icon, "Interface\\Icons\\INV_Garrison_Hearthstone")
+	ship.Icon:SetDesaturated(true)
+	ship.Name:SetText((select(2, C_Garrison.GetBuildingInfo(35))))
+	if done then
+		ship.Swipe:SetCooldownUNIX(0, 0);
+	else
+		ship.Swipe:SetCooldownUNIX(GetServerTime()-dt, lim);
+	end
+	ship.buildingID, ship.plotID = -1, -43
+	ship:Show()
+	return true
+end
+hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
 	local ships = self.Shipments
 	for i=1,#ships do
 		local ship = ships[i]
-		ship:SetScript("OnEnter", Ship_OnEnter)
-		if not ship:IsShown() then
-			ship.Done:SetShown(cv == mv)
-			ship.Border:SetShown(cv < mv)
-			ship.BG:SetShown(cv < mv)
-			ship.Count:SetText(cv > 0 and cv or "")
-			SetPortraitToTexture(ship.Icon, "Interface\\Icons\\INV_Garrison_Resource")
-			ship.Icon:SetDesaturated(true)
-			ship.Name:SetText(GARRISON_CACHE)
-			if cv == mv then
-				ship.Swipe:SetCooldownUNIX(0, 0);
-			else
-				ship.Swipe:SetCooldownUNIX(st, md);
+		if ship:IsShown() then
+			if C_Garrison.GetFollowerInfoForBuilding(ship.plotID) then
+				ship.Name:SetText("|cff90e090" .. ship.Name:GetText())
 			end
-			ship.buildingID, ship.plotID = -1, -42
-			ship:Show()
+		else
+			Ship_SetCache(ships[i + (Ship_SetRecruit(ship) and 1 or 0)])
 			break
-		elseif C_Garrison.GetFollowerInfoForBuilding(ship.plotID) then
-			ship.Name:SetText("|cff90e090" .. ship.Name:GetText())
 		end
 	end
 end)

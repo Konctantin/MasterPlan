@@ -3,6 +3,14 @@ if T.Mark ~= 50 then return end
 local G, L, EV = T.Garrison, T.L, T.Evie
 local countFreeFollowers = G.countFreeFollowers
 
+do -- Feed FrameXML updates to Evie
+	local function FollowerList_OnShowFollower(self, ...)
+		EV("FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER", self.followerTab, ...)
+	end
+	hooksecurefunc(GarrisonMissionFrame.FollowerList, "ShowFollower", FollowerList_OnShowFollower)
+	hooksecurefunc(GarrisonLandingPage.FollowerList, "ShowFollower", FollowerList_OnShowFollower)
+end
+
 local function HideOwnedGameTooltip(self)
 	if GameTooltip:IsOwned(self) then
 		GameTooltip:Hide()
@@ -641,13 +649,13 @@ local function FollowerPageAbility_OnEnter(self)
 	self.classSpec, self.otherCounter = ppp.classSpec, ppp.otherCounter
 	return RecruitAbility_OnEnter(self)
 end
-hooksecurefunc("GarrisonFollowerPage_ShowFollower", function(self)
-	local af = self.AbilitiesFrame.Abilities
+function EV:FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER(followerTab)
+	local af = followerTab.AbilitiesFrame.Abilities
 	for i=1,#af do
 		af[i].IconButton:SetScript("OnEnter", FollowerPageAbility_OnEnter)
 		af[i].IconButton:SetScript("OnLeave", RecruitAbility_OnLeave)
 	end
-end)
+end
 
 GarrisonThreatCountersFrame:SetScript("OnShow", GarrisonThreatCountersFrame.Hide)
 
@@ -939,9 +947,9 @@ do -- Weapon/Armor upgrades and rerolls
 			end
 		end
 	end
-	local function updateTabView(self, id)
-		self.MPLastFollowerID = id
-		if not self:IsVisible() or not self.MPItemsOffsetY then
+	local function updateTabView(_event, tab, id)
+		tab.MPLastFollowerID = id
+		if not tab:IsVisible() or not tab.MPItemsOffsetY then
 			return
 		elseif type(id) ~= "string" then
 			items:Hide()
@@ -955,19 +963,18 @@ do -- Weapon/Armor upgrades and rerolls
 			gear:Sync()
 			gear:Show()
 		end
-		reroll:SetPoint("TOP", items, "BOTTOM", 0, self.MPSideItemsOffsetY or -2)
+		reroll:SetPoint("TOP", items, "BOTTOM", 0, tab.MPSideItemsOffsetY or -2)
 		reroll:Sync()
-		items:SetParent(self)
-		items:SetPoint("BOTTOM", self, "BOTTOMLEFT", 156 + (self.MPItemsOffsetX or 0), self.MPItemsOffsetY)
+		items:SetParent(tab)
+		items:SetPoint("BOTTOM", tab, "BOTTOMLEFT", 156 + (tab.MPItemsOffsetX or 0), tab.MPItemsOffsetY)
 		items:Show()
 	end
 	local function tabOnShow(self)
-		updateTabView(self, self.MPLastFollowerID)
+		updateTabView("OnShow", self, self.MPLastFollowerID)
 	end
+	EV.FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER = updateTabView
 	GarrisonLandingPage.FollowerTab:HookScript("OnShow", tabOnShow)
 	GarrisonMissionFrame.FollowerTab:HookScript("OnShow", tabOnShow)
-	
-	hooksecurefunc("GarrisonFollowerPage_ShowFollower", updateTabView)
 end
 
 do -- XP Projections for follower summaries
@@ -1098,6 +1105,7 @@ do -- Ship equipment
 		local reroll = T.shipUpgradesFrame
 		reroll:SetPoint("TOPRIGHT", -14, -98)
 		reroll:SetHeight(24)
+		reroll:Hide()
 		local buttons = {}
 		for k,v in pairs(T.EquipmentTraitItems) do
 			local b = T.CreateLazyItemButton(reroll, v)
@@ -1136,7 +1144,7 @@ do -- Ship equipment
 		fleetContainer:SetScript("OnShow", function(self)
 			T.shipUpgradesFrame:DisplayFor(self, nil, "RIGHT")
 		end)
-		hooksecurefunc("GarrisonFollowerPage_ShowFollower", function()
+		hooksecurefunc(GarrisonShipyardFrame.FollowerList, "ShowFollower", function()
 			if fleetContainer:IsVisible() then
 				fleetContainer:GetScript("OnShow")(fleetContainer)
 			end
