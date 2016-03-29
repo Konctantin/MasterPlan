@@ -76,22 +76,35 @@ function EV:ADDON_LOADED(addon)
 	
 	return "remove"
 end
-function EV:GARRISON_MISSION_COMPLETE_RESPONSE(mid, cc, ok)
-	local mi = mid and cc and C_Garrison.GetBasicMissionInfo(mid)
-	if not mi then return end
-	G.ExtendMissionInfoWithParty(mi)
-	local msc = mi.successChance
-	if msc and (0 < msc or ok) and (msc < 100 or not ok) then
-		local sp = msc / 100
-		conf.moC, conf.moE, conf.moV, conf.moN = conf.moC + (ok and 1 or 0), conf.moE + sp, conf.moV + sp*(1-sp), conf.moN + 1
+do -- Completion stats
+	local sc = {}
+	function EV:MP_MARK_MISSION_COMPLETE(mid)
+		local m = C_Garrison.GetBasicMissionInfo(mid)
+		if m then
+			sc[mid] = m
+			G.ExtendMissionInfoWithParty(m)
+		end
 	end
-	if ok and mi.rewards then
-		for k,r in pairs(mi.rewards) do
-			if r.currencyID == 0 then
-				local q = floor(r.quantity * G.GetRewardMultiplier(mi, r.currencyID))
-				conf.goldCollected, conf.goldCollectedS = conf.goldCollected + q, conf.goldCollectedS + (mi.followerTypeID == 2 and q or 0)
+	function EV:GARRISON_MISSION_COMPLETE_RESPONSE(mid, cc, ok)
+		local mi = cc and sc[mid]
+		if not mi then return end
+		local msc = mi.successChance
+		if msc and (0 < msc or ok) and (msc < 100 or not ok) then
+			local sp = msc / 100
+			conf.moC, conf.moE, conf.moV, conf.moN = conf.moC + (ok and 1 or 0), conf.moE + sp, conf.moV + sp*(1-sp), conf.moN + 1
+		end
+		if ok and mi.rewards then
+			for k,r in pairs(mi.rewards) do
+				if r.currencyID == 0 then
+					local q = floor(r.quantity * G.GetRewardMultiplier(mi, r.currencyID))
+					conf.goldCollected, conf.goldCollectedS = conf.goldCollected + q, conf.goldCollectedS + (mi.followerTypeID == 2 and q or 0)
+				end
 			end
 		end
+		sc[mid] = nil
+	end
+	function EV:MP_RELEASE_CACHES()
+		sc = {}
 	end
 end
 
