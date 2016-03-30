@@ -3,6 +3,9 @@ Master Plan modifies the Garrison Missions UI, making it easier to figure out wh
 
 Bug reports and feature suggestions should be submitted using the [ticket tracker](http://wow.curseforge.com/addons/master-plan/tickets/?per-page=40). For some frequently-posted comments, see [the FAQ page](https://www.townlong-yak.com/master-plan/faq.html).
 
+## Author
+[foxlit](http://wow.curseforge.com/profiles/foxlit/)
+
 ## Available Missions tab
 
 * A more compact layout for the available missions list fits more missions on screen, and shows you the mission's threats, as well as some suggested groups and their expected results, allowing you to quickly select the party for the mission.
