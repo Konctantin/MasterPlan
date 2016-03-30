@@ -40,3 +40,6 @@ Bug reports and feature suggestions should be submitted using the [ticket tracke
 * You can upgrade your followers' gear by clicking on the Weapon/Armor slots and selecting the desired upgrade item, without having to open your bags.
 * Followers that are currently away on mission display the remaining mission time in their status.
 * Followers can be ignored via their right-click menu. Ignored followers will not be sent on missions by Master Plan, and are sorted with, and appear similar to Working followers in follower lists.
+
+## Screenshot
+![Screenshot](http://legacy.curseforge.com/thumbman/images/82/577/600x440/avail.jpg.-m1.png)
