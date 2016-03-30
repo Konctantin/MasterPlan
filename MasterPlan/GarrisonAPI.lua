@@ -2423,12 +2423,17 @@ function api.GetFollowerRerollConstraints(fid)
 	for i=1,2 do
 		local s, d = tf[i == 1 and "counters" or "traits"], i == 1 and cc or ct
 		for i=1,#s do
-			d[s[i]] = i
+			if s[i] > 0 then
+				d[s[i]] = i
+			end
 		end
 	end
+	
+	local hasInterestedMissions, hasDoubleCounter = false, tf.counters[1] == tf.counters[2]
 	for _, mi, b in api.MoIMissions(mt, info) do
 		local idx = b and (b[1] == fid and 1 or b[2] == fid and 2 or b[3] == fid and 3)
 		if idx and b.used and api.IsInterestedInMoI(mi) and b.used % (2^idx) >= 2^(idx-1) then
+			hasInterestedMissions = true
 			for j=1,mi.s[2] do
 				for i=1,2 do
 					local s, t = f[b[j]][i == 1 and "counters" or "traits"], i == 1 and counters or traits
@@ -2446,7 +2451,8 @@ function api.GetFollowerRerollConstraints(fid)
 				local s, t = i == 1 and cc or ct, i == 1 and counters or traits
 				for k in pairs(s) do
 					if not lt[k] then
-						t[k] = t[k] - 1
+						local d = hasDoubleCounter and i == 1 and 2 or 1
+						t[k] = t[k] - d
 						if tfsa and tfa == k and i == 2 then
 							tf.saffinity = false
 						end
@@ -2454,7 +2460,7 @@ function api.GetFollowerRerollConstraints(fid)
 						if gv < bgv then
 							s[k] = nil
 						end
-						t[k], tf.saffinity = t[k] + 1, tfsa
+						t[k], tf.saffinity = t[k] + d, tfsa
 					end
 				end
 			end
@@ -2471,7 +2477,7 @@ function api.GetFollowerRerollConstraints(fid)
 		end
 	end
 	
-	return cc, ct
+	return cc, ct, hasInterestedMissions
 end
 
 

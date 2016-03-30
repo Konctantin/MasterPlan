@@ -8,7 +8,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 	
 	local t = ui:CreateFontString(nil, "ARTWORK", "QuestFont_Enormous")
 	t:SetPoint("LEFT", ui:GetParent().HeaderBar, "LEFT", 26, 0)
-	t:SetText(GARRISON_LANDING_PAGE_TITLE)
+	t:SetText(L"Other Characters")
 	t, ui.Title = ui:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge2"), t
 	t:SetText(L"No other characters are currently known.")
 	t, ui.NoDataText = ui:CreateFontString(nil, "ARTWORK", "GameFontHighlight"), t

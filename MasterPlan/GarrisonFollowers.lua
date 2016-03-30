@@ -4,11 +4,20 @@ local G, L, EV = T.Garrison, T.L, T.Evie
 local countFreeFollowers = G.countFreeFollowers
 
 do -- Feed FrameXML updates to Evie
-	local function FollowerList_OnShowFollower(self, ...)
-		EV("FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER", self.followerTab, ...)
+	local function FollowerList_OnShowFollower(self, id)
+		local tab = self.followerTab
+		tab.MPLastFollowerID = id
+		EV("FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER", tab, id, false)
+	end
+	local function tabOnShow(self)
+		if self.MPLastFollowerID then
+			EV("FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER", self, self.MPLastFollowerID, true)
+		end
 	end
 	hooksecurefunc(GarrisonMissionFrame.FollowerList, "ShowFollower", FollowerList_OnShowFollower)
 	hooksecurefunc(GarrisonLandingPage.FollowerList, "ShowFollower", FollowerList_OnShowFollower)
+	GarrisonLandingPage.FollowerTab:HookScript("OnShow", tabOnShow)
+	GarrisonMissionFrame.FollowerTab:HookScript("OnShow", tabOnShow)
 end
 
 local function HideOwnedGameTooltip(self)
@@ -385,26 +394,32 @@ local CreateClassSpecButton, ClassSpecButton_Set do
 		self.follower = info
 	end
 end
-local function UpdateValidSpellHighlightCheck(self, followerID, followerInfo, _hideCounters)
-	local et, _, ct = T.EquivTrait, G.GetFollowerRerollConstraints(followerID)
-	for i=1, #followerInfo.abilities do
-		local ability = followerInfo.abilities[i]
-		local button = self.followerTab.AbilitiesFrame.Abilities[i]
-		local highlight = button.IconButton.ValidSpellHighlight
-		if highlight:IsShown() and ability.isTrait then
-			if ct and ct[et[ability.id] or ability.id] then
-				highlight:SetVertexColor(1,1,0)
-			elseif ct then
-				highlight:SetVertexColor(1,0.8,0.8)
+function EV:FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER(tab, followerID)
+	local et, ab, at, ct, _hasMissions = T.EquivTrait,  tab.AbilitiesFrame.Abilities, G.GetFollowerRerollConstraints(followerID)
+	for i=1, #ab do
+		local button = ab[i]
+		local abid, isFree = button.IconButton.abilityID
+		if not (abid and abid > 0 and ct and at) then
+			if abid and abid > 0 then
+				button.Name:SetText(C_Garrison.GetFollowerAbilityName(abid))
+			end
+			button.IconButton.ValidSpellHighlight:SetVertexColor(1,1,1)
+		else
+			if C_Garrison.GetFollowerAbilityIsTrait(abid) then
+				isFree = ct[et[abid] or abid]
 			else
-				highlight:SetVertexColor(1,1,1)
+				isFree = at[C_Garrison.GetFollowerAbilityCounterMechanicInfo(abid)]
+			end
+			if isFree then
+				button.Name:SetText([[|TInterface\Buttons\UI-RefreshButton:10:10:-2:2:16:16:16:0:16:0:120:255:0|t]]..C_Garrison.GetFollowerAbilityName(abid))
+				button.IconButton.ValidSpellHighlight:SetVertexColor(1,1,0)
+			else
+				button.Name:SetText([[|TInterface\PetBattles\PetBattle-LockIcon:11:10:-2:1:32:32:4:28:2:30:255:120:100|t]]..C_Garrison.GetFollowerAbilityName(abid))
+				button.IconButton.ValidSpellHighlight:SetVertexColor(1,0.8,0.8)
 			end
 		end
 	end
 end
-hooksecurefunc(GarrisonFollowerList, "UpdateValidSpellHighlight", UpdateValidSpellHighlightCheck)
-hooksecurefunc(GarrisonMissionFrameFollowers, "UpdateValidSpellHighlight", UpdateValidSpellHighlightCheck)
-hooksecurefunc(GarrisonLandingPageFollowerList, "UpdateValidSpellHighlight", UpdateValidSpellHighlightCheck)
 hooksecurefunc(GarrisonShipyardFrameFollowers, "UpdateValidSpellHighlight", function(self, followerID, followerInfo, _hideCounters)
 	local idx, et, cc, ct = 1, T.EquivTrait, G.GetFollowerRerollConstraints(followerID)
 	for i=1, #followerInfo.abilities do
@@ -948,7 +963,6 @@ do -- Weapon/Armor upgrades and rerolls
 		end
 	end
 	local function updateTabView(_event, tab, id)
-		tab.MPLastFollowerID = id
 		if not tab:IsVisible() or not tab.MPItemsOffsetY then
 			return
 		elseif type(id) ~= "string" then
@@ -969,12 +983,7 @@ do -- Weapon/Armor upgrades and rerolls
 		items:SetPoint("BOTTOM", tab, "BOTTOMLEFT", 156 + (tab.MPItemsOffsetX or 0), tab.MPItemsOffsetY)
 		items:Show()
 	end
-	local function tabOnShow(self)
-		updateTabView("OnShow", self, self.MPLastFollowerID)
-	end
 	EV.FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER = updateTabView
-	GarrisonLandingPage.FollowerTab:HookScript("OnShow", tabOnShow)
-	GarrisonMissionFrame.FollowerTab:HookScript("OnShow", tabOnShow)
 end
 
 do -- XP Projections for follower summaries
