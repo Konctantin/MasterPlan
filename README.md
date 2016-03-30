@@ -1,12 +1,12 @@
 # MasterPlan
 Master Plan modifies the Garrison Missions UI, making it easier to figure out what you want to do. It can both suggest and complete parties to maximize mission rewards; see below for details.
 
-Bug reports and feature suggestions should be submitted using the ticket tracker. For some frequently-posted comments, see the FAQ page.
+Bug reports and feature suggestions should be submitted using the [ticket tracker](http://wow.curseforge.com/addons/master-plan/tickets/?per-page=40). For some frequently-posted comments, see [the FAQ page](https://www.townlong-yak.com/master-plan/faq.html).
 
 ## Available Missions tab
 
 * A more compact layout for the available missions list fits more missions on screen, and shows you the mission's threats, as well as some suggested groups and their expected results, allowing you to quickly select the party for the mission.
-  * The suggested group buttons summarise total expected rewards for the group, factoring in trait bonuses, low-level follower efficiency, XP caps, and success chance.
+  * The suggested group buttons summarise total [expected](http://en.wikipedia.org/wiki/Expected_value) rewards for the group, factoring in trait bonuses, low-level follower efficiency, XP caps, and success chance.
 * Missions can be sorted by a number of parameters, including success chance, follower XP gain, mission expiration time, duration, or level.
 * The number of idle, idle (level 100 epic), working, and away-on-missions followers is displayed next to the garrison resources on this tab.
 
