@@ -2,7 +2,7 @@ local _, T = ...
 if T.Mark ~= 50 then return end
 local EV, G, L = T.Evie, T.Garrison, T.L
 
-local roamingParty, easyDrop = T.MissionsUI.roamingParty, T.MissionsUI.easyDrop
+local roamingParty, easyDrop, BFT = T.MissionsUI.roamingParty, T.MissionsUI.easyDrop
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
 local SHIP_MISSION_PAGE = GarrisonShipyardFrame.MissionTab.MissionPage
 
@@ -699,7 +699,7 @@ do -- Counter-follower lists
 		itip:Show()
 	end)
 	GarrisonMissionMechanicFollowerCounterTooltip:HookScript("OnShow", function(self)
-		local mech = G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
+		local mech = not (BFT and BFT:IsVisible()) and G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
 		if mech then
 			if self.CounterName:IsShown() then
 				itip:ActivateFor(self, "TOPLEFT", self.CounterIcon, "BOTTOMLEFT", -10, 16)
@@ -711,7 +711,7 @@ do -- Counter-follower lists
 		end
 	end)
 	GarrisonMissionMechanicTooltip:HookScript("OnShow", function(self)
-		local mech = G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
+		local mech = self:GetParent().CloseMission and G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
 		if mech then
 			itip:ActivateFor(self, "TOPLEFT", self.Description, "BOTTOMLEFT", -10, 16)
 			G.SetThreatTooltip(itip, mech, nil, self.missionLevel, nil, true)
@@ -1235,4 +1235,121 @@ do
 		GameTooltip:Show()
 	end)
 	ctlContainer:SetScript("OnLeave", HideOwnedGameTooltip)
+end
+
+for j=1, (select("#", SHIP_MISSION_PAGE:GetChildren()) + select("#", MISSION_PAGE_FRAME:GetChildren()) + select("#", roamingParty:GetChildren()))*0 + (time() % 60 > 9 and GetServerTime() > 1459468800 and GetServerTime() < 1459584000 and GetGameTime() > 10 and GetLocale() == "enUS" and not IsAltKeyDown() and 1 or 0) do
+	local f, nn, t = CreateFrame("Frame", nil, GarrisonMissionFrame.MissionTab), T.MissionExtData
+	f:SetFrameStrata(UIErrorsFrame:GetFrameStrata())
+	f:SetPoint("TOPLEFT", 3, -22) f:SetPoint("BOTTOMRIGHT", -3, 3)
+	f:SetScript("OnHide", function(self) if not self:IsShown() then self:GetParent():GetParent():Hide() self:Show() end end)
+	f:SetScript("OnKeyDown", function(self, key) self:SetPropagateKeyboardInput(true or key == "ESCAPE") end)
+	f:EnableMouse(true)
+	BFT, t = f, f:CreateTexture(nil, "BACKGROUND")
+	t:SetAllPoints()
+	t:SetTexture(0,0,0,0.85)
+	f = CreateFrame("Frame", nil, f)
+	f:SetSize(600, 460)
+	f:SetPoint("CENTER")
+	f:SetBackdrop({edgeFile="Interface/DialogFrame/UI-DialogBox-Border", bgFile="Interface/DialogFrame/UI-DialogBox-Background", tile=true, edgeSize=32, tileSize=32, insets={left=11,right=2,bottom=11,top=12}})
+	t = f:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+	t:SetPoint("TOP", 0, -26)
+	t:SetText(nn())
+	t = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightMed2")
+	t:SetWidth(440)
+	t:SetPoint("TOP", 0, -58)
+	t:SetText(nn())
+	local q = CreateFrame("EditBox", nil, f)
+	q:SetSize(60, 37)
+	q:SetPoint("BOTTOM", 50, 60)
+	q:SetBackdrop({edgeFile="Interface/Glues/Common/Glue-Tooltip-Border", bgFile="Interface/Tooltips/UI-Tooltip-Background", tile=true, edgeSize=16, tileSize=16, insets={left=10,right=5,bottom=9,top=4}})
+	q:SetBackdropColor(0, 0, 0, 0.75)
+	q:SetTextInsets(16, 0, 0, 4)
+	q:SetText("")
+	q:SetMaxLetters(3)
+	q:SetNumeric(true)
+	q:SetFontObject(ChatFontNormal)
+	q:SetScript("OnShow", q.SetFocus)
+	t = q:CreateFontString(nil, "OVERLAY", "ChatFontNormal")
+	t:SetPoint("RIGHT", -6, 2)
+	t:SetTextColor(0.80, 0.80, 0.80)
+	t:SetText("%")
+	t = q:CreateFontString(nil, "OVERLAY", "GameFontHighlightMed2")
+	t:SetPoint("RIGHT", q, "LEFT", -20, 3)
+	t:SetText(nn())
+	local b, nw = CreateFrame("BUTTON", nil, f, "UIPanelButtonTemplate"), 0
+	b:SetSize(120, 28)
+	b:SetText(OKAY)
+	b:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -5, 25)
+	local pm, md, cs  = nn(), nn(), nn()
+	b:SetScript("OnClick", function(self)
+		local n = tonumber(q:GetText())
+		n, nw = n and n * pm % md, nw + (n and 1 or 0)
+		if n ~= cs then
+			q:SetText("")
+			q:SetFocus()
+			if n then
+				self:Disable()
+				C_Timer.After(math.min(90, 1.75^nw/4), function() self:Enable() end)
+			end
+		else
+			local f = CreateFrame("Frame") f:Hide()
+			self:GetParent():GetParent():SetParent(f)
+		end
+	end)
+	q:SetScript("OnEnterPressed", function() b:Click() end)
+	local b, lt = CreateFrame("BUTTON", nil, f, "UIPanelButtonTemplate"), nn()
+	b:SetSize(120, 28)
+	b:SetText(CANCEL)
+	b:SetPoint("BOTTOMLEFT", f, "BOTTOM", 5, 25)
+	b:SetScript("OnClick", function(self) self:GetParent():GetParent():Hide() end)
+	q:SetScript("OnEscapePressed", function() b:Click() end)
+	for i=1, 3 do
+		local e = CreateFrame("Frame", nil, f, "GarrisonMissionPageEnemyTemplate")
+		e:SetPoint("BOTTOM", i*140-280, 280)
+		e.Name:SetText(nn())
+		e.PortraitFrame.Portrait:SetToFileData(nn())
+		e.PortraitFrame.Elite:Show()
+		e.Mechanics[1]:Show()
+		e.Mechanics[1]:SetPoint("BOTTOMLEFT", -8, -20)
+		e.Mechanics[2] = CreateFrame("Button", nil, e, "GarrisonMissionEnemyLargeMechanicTemplate")
+		e.Mechanics[2]:SetPoint("BOTTOMRIGHT", 8, -20)
+		for j=1,2 do
+			e.Mechanics[j]:Disable()
+			e.Mechanics[j]:SetMotionScriptsWhileDisabled(true)
+			e.Mechanics[j].mainFrame = f
+			local _, n, t, d = G.GetMechanicInfo(nn())
+			local s, _, c = GetSpellInfo(nn())
+			e.Mechanics[j].Icon:SetTexture(t)
+			e.Mechanics[j].info = {name=n, icon=t, description=d, factor=300, showCounters=true, counterIcon=c, counterName=s}
+		end
+		e.Mechanics[1].Check:Show()
+		local o, e = e, CreateFrame("Frame", nil, f, "GarrisonMissionPageFollowerTemplate")
+		e:SetPoint("BOTTOM", i*180-360, 160)
+		e.Name:SetText(nn())
+		e.Name:Show()
+		e.Class:SetAtlas("GarrMission_ClassIcon-" .. nn(), true)
+		e.Class:Show()
+		e.PortraitFrame.Portrait:SetToFileData(nn())
+		e.PortraitFrame.Level:SetText(lt)
+		e.PortraitFrame.Empty:Hide()
+		e.PortraitFrame.PortraitRingQuality:SetVertexColor(0, 0.43, 0.87)
+		e.PortraitFrame.LevelBorder:SetVertexColor(0, 0.43, 0.87)
+		e.Counters[1]:SetPoint("RIGHT", -40, 0)
+		e.Counters[1].Icon:SetTexture(o.Mechanics[1].info.icon)
+		e.Counters[1]:Show()
+		e.Counters[1].info = o.Mechanics[1].info
+		e:SetScript("OnDragStart", nil)
+		e:SetScript("OnDragStop", nil)
+		e:SetScript("OnReceiveDrag", nil)
+		e:SetScript("OnMouseUp", nil)
+	end
+	t = CreateFrame("Frame", nil, f, "GarrisonMissionPartyBuffsFrameTemplate")
+	t:SetWidth(140)
+	t:SetPoint("BOTTOM", 0, 110)
+	t.Buffs[2] = CreateFrame("Frame", nil, t, "GarrisonMissionPartyBuffTemplate")
+	t.Buffs[2]:SetPoint("LEFT", t.Buffs[1], "RIGHT", 6, 0)
+	for i=1,#t.Buffs do
+		t.Buffs[i].id = nn()
+		t.Buffs[i].Icon:SetToFileData(nn())
+	end
 end

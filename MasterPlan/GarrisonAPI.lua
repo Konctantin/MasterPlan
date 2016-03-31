@@ -1842,6 +1842,7 @@ function api.ExtendFollowerTooltipGainedXP(tip, awardXP, fi)
 end
 
 local FollowerEstimator, ShipEstimator = {TraitStack=T.TraitStack}, {TraitStack=T.ShipTraitStack}
+local EnvironmentCounters, EnvironmentGhosts, EnvironmentBonus = T.EnvironmentCounters, T.EnvironmentGhosts, T.EnvironmentBonus
 function FollowerEstimator.GetGroupMembers(includeInactive)
 	local f, ni, et = C_Garrison.GetFollowers(1), 1, T.EquivTrait
 	for i=1,#f do
@@ -1884,17 +1885,20 @@ end
 function FollowerEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, scratch)
 	local mlvl, tv, c, mc, umc = mi[1], mi[4] == 123858 and 3 or 6, mi[2] == 3, scratch or {}, false
 	local nc, cap = traits[201]*2 + traits[202]*4, (#mi-5)*tv do
-		local time, env = mi[3]*2^-traits[221], mi[5] do
+		local time, env, genv = mi[3]*2^-traits[221], mi[5], EnvironmentGhosts[mi[4]] do
 			local exo, apx, brt = traits[325], traits[324], traits[244]
-			nc = nc + (env == 13 and 1 or 2) * (traits[T.EnvironmentCounters[env]] or 0) + traits[(time >= 25200) and 76 or 77]*2 + traits[47]*6
+			nc = nc + (env == 13 and 1 or 2) * (traits[EnvironmentCounters[env]] or 0) + traits[(time >= 25200) and 76 or 77]*2 + traits[47]*6
 			if exo and exo > 0 then
 				nc = nc + exo*(env == 16 and 5 or 2)
 			end
 			if apx and apx > 0 then
-				nc = nc + apx * (T.EnvironmentBonus[324][env] or 0)
+				nc = nc + apx * (EnvironmentBonus[324][env] or 0)
 			end
 			if brt and brt > 0 and mi[2] == 1 then
 				nc = nc + 6
+			end
+			if genv then
+				nc = nc + 3*((apx and apx*EnvironmentBonus[324][genv] or 0) + 2*(traits[EnvironmentCounters[genv]] or 0))
 			end
 		end
 		
