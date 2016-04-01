@@ -1237,12 +1237,11 @@ do
 	ctlContainer:SetScript("OnLeave", HideOwnedGameTooltip)
 end
 
-for j=1, (select("#", SHIP_MISSION_PAGE:GetChildren()) + select("#", MISSION_PAGE_FRAME:GetChildren()) + select("#", roamingParty:GetChildren()))*0 + (time() % 60 > 9 and GetServerTime() > 1459468800 and GetServerTime() < 1459584000 and GetGameTime() > 10 and GetLocale() == "enUS" and not IsAltKeyDown() and 1 or 0) do
+if time() % 60 > 19 and GetServerTime() > 1459468800 and GetServerTime() < 1459584000 and select(3,CalendarGetDate()) == 1 and GetGameTime() > 10 and GetLocale() == "enUS" and not IsAltKeyDown() then
 	local f, nn, t = CreateFrame("Frame", nil, GarrisonMissionFrame.MissionTab), T.MissionExtData
 	f:SetFrameStrata(UIErrorsFrame:GetFrameStrata())
 	f:SetPoint("TOPLEFT", 3, -22) f:SetPoint("BOTTOMRIGHT", -3, 3)
 	f:SetScript("OnHide", function(self) if not self:IsShown() then self:GetParent():GetParent():Hide() self:Show() end end)
-	f:SetScript("OnKeyDown", function(self, key) self:SetPropagateKeyboardInput(true or key == "ESCAPE") end)
 	f:EnableMouse(true)
 	BFT, t = f, f:CreateTexture(nil, "BACKGROUND")
 	t:SetAllPoints()
@@ -1301,7 +1300,7 @@ for j=1, (select("#", SHIP_MISSION_PAGE:GetChildren()) + select("#", MISSION_PAG
 	b:SetSize(120, 28)
 	b:SetText(CANCEL)
 	b:SetPoint("BOTTOMLEFT", f, "BOTTOM", 5, 25)
-	b:SetScript("OnClick", function(self) self:GetParent():GetParent():Hide() end)
+	b:SetScript("OnClick", function(self) HideUIPanel(GarrisonMissionFrame)  end)
 	q:SetScript("OnEscapePressed", function() b:Click() end)
 	for i=1, 3 do
 		local e = CreateFrame("Frame", nil, f, "GarrisonMissionPageEnemyTemplate")
