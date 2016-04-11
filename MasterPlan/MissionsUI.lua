@@ -197,18 +197,18 @@ do -- CreateLoader(parent, W, G, H)
 	local N, c = 9, "16FF1F1DEDFC9C04F6128CFEE8FF08FD3016FE9B17FF8DD2706F6E"
 	local function Loader_OnUpdate(self)
 		if self.job then
-			local t1, tlim, ok, _, i, x = debugprofilestop(), self.tlim
+			local t1, tlim, ok, er, i, x = debugprofilestop(), self.tlim
 			repeat
 				if coroutine.status(self.job) ~= "suspended" then
 					break
 				end
-				ok, _, i, x = coroutine.resume(self.job)
+				ok, er, i, x = coroutine.resume(self.job)
 				local tdiff, stop = debugprofilestop()-t1
 				t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 1.5*tdiff
 			until not (i and x) or stop
 			if not ok then
-				if i then
-					securecall(error, i)
+				if ok ~= nil then
+					securecall(error, "CO: " .. tostring(er) .. "\n" .. debugstack(self.job))
 				end
 				for i=1,#self do
 					self[i]:SetTexture(1, 0.1, 0)
@@ -436,7 +436,7 @@ local hoverFocus = CreateFrame("Frame") do
 		end
 	end
 end
-local easyDrop = CreateFrame("Frame", "MasterPlanDropDown", nil, "UIDropDownMenuTemplate") do
+local easyDrop = CreateFrame("Frame", "MPDropDown", nil, "UIDropDownMenuTemplate") do
 	api.easyDrop = easyDrop
 	function easyDrop:IsOpen(owner)
 		return self.owner == owner and UIDROPDOWNMENU_OPEN_MENU == self and DropDownList1:IsShown()
@@ -1090,7 +1090,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		self.notebook:SetShown(GetItemCount(self.notebook.itemID) > 0)
 	end)
 	local roamingParty = CreateFrame("Frame", nil, availUI) do
-		roamingParty:SetPoint("BOTTOMRIGHT", availUI, "BOTTOM", 94, -2)
+		roamingParty:SetPoint("BOTTOMRIGHT", availUI, "BOTTOM", 106, -2)
 		local slots = {}
 		function roamingParty:GetFollowers()
 			local a, b, c
@@ -1373,7 +1373,8 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 		end
 	end
 	local ctl = CreateFrame("Frame") do
-		ctl:SetSize(56, 22)
+		ctl:SetSize(83, 22)
+		ctl:Hide()
 		interestUI.excludeInactive = CreateFrame("CheckButton", nil, ctl) do
 			local b = interestUI.excludeInactive
 			b:SetSize(20, 20)
@@ -1384,7 +1385,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 			b:SetCheckedTexture("Interface\\PetBattles\\DeadPetIcon")
 			local nt = b:GetNormalTexture()
 			nt:SetTexCoord(4/32,28/32, 4/32,28/32)
-			nt:SetVertexColor(0.8, 0.8, 0.7)
+			nt:SetVertexColor(0.84, 0.76, 0.56)
 			local ct = b:GetCheckedTexture()
 			ct:SetBlendMode("BLEND")
 			ct:ClearAllPoints()
@@ -1409,10 +1410,41 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 			end)
 			b:SetScript("OnLeave", dismissTooltip)
 		end
+		interestUI.stackMode = CreateFrame("Button", nil, ctl) do
+			local b = interestUI.stackMode
+			b:SetSize(20, 20)
+			b:SetPoint("LEFT", 30, 0)
+			b:SetScript("OnClick", function(self)
+				T.config.interestStack = bit.bxor(1, T.config.interestStack)
+				interestMissionsHandle:Show(not interestUI.excludeInactive:GetChecked())
+				if GameTooltip:IsOwned(self) then
+					self:GetScript("OnEnter")(self)
+				end
+				self:GetScript("OnShow")(self)
+			end)
+			b:SetScript("OnShow", function(self)
+				local tex = T.config.interestStack % 2 > 0 and "Interface/Minimap/TRACKING/Auctioneer" or "Interface/Minimap/TRACKING/Banker"
+				self:SetNormalTexture(tex)
+				self:GetNormalTexture():SetVertexColor(0.85, 0.85, 0.85, 0.90)
+				self:SetHighlightTexture(tex)
+				self:GetHighlightTexture():SetBlendMode("ADD")
+				self:GetHighlightTexture():SetAlpha(0.25)
+			end)
+			b:SetScript("OnEnter", function(self)
+				GameTooltip:SetOwner(self, "ANCHOR_NONE")
+				GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMLEFT", -51, -4)
+				local isStacking = T.config.interestStack % 2 > 0
+				GameTooltip:AddLine(isStacking and L"Prioritizing expected reward" or L"Prioritizing success chance")
+				GameTooltip:AddLine(L"When a mission's reward can be increased by follower traits, groups can prioritize either the expected reward or mission success chance.", 1,1,1, 1)
+				GameTooltip:Show()
+				easyDrop:Close()
+			end)
+			b:SetScript("OnLeave", dismissTooltip)
+		end
 		interestUI.interestSet = CreateFrame("Button", nil, ctl) do
 			local b = interestUI.interestSet
 			b:SetSize(20, 20)
-			b:SetPoint("LEFT", 30, 0)
+			b:SetPoint("LEFT", 57, 0)
 			b:SetNormalTexture("Interface\\Minimap\\ObjectIcons")
 			b:SetHighlightTexture("Interface\\Minimap\\ObjectIcons")
 			local nt = b:GetNormalTexture()
@@ -1475,7 +1507,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 						mi.text, mi.placeholder = "|T" .. (ico or "Interaface\\Icons\\INV_Misc_QuestionMark") .. ":16:16:0:0:64:64:4:60:4:60|t " .. (name or ("#" .. key)), not name or nil
 					end
 				end
-				easyDrop:Toggle(self, m, "TOPLEFT", self, "BOTTOMLEFT", -24, -3)
+				easyDrop:Toggle(self, m, "TOPLEFT", self, "BOTTOMLEFT", -78, -3)
 			end)
 			b:SetScript("OnEnter", function(self)
 				easyDrop:DelayOpenClick(self)
@@ -3051,6 +3083,7 @@ do -- interestMissionsHandle
 		t, b.altBG = b:CreateFontString(nil, "ARTWORK", "GameFontNormal"), t
 		t:SetPoint("TOP", b.level, "BOTTOM", 0, -1)
 		t:SetAlpha(0.8)
+		t:SetTextColor(0.83, 0.66, 0.45)
 		t, b.fc = b:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge"), t
 		t, b.chance = b:CreateFontString(nil, "ARTWORK", "GameFontNormal"), t
 		t:SetPoint("TOP", b.chance, "BOTTOM", 0, -1)
@@ -3141,7 +3174,7 @@ do -- interestMissionsHandle
 		self.level:SetText(s[1])
 		self.title:SetText(mname ~= "" and mname or (L"Future Mission #%d"):format(d[1]))
 		self.loc:SetAtlas(T.MissionLocationBanners[d[2]] .. "-List")
-		self.fc:SetText(("|TInterface\\FriendsFrame\\UI-Toast-FriendOnlineIcon:11:11:3:0:32:32:8:24:8:24:214:170:115|t"):rep(s[2]))
+		self.fc:SetText(best and best.variants and ("|TInterface\\FriendsFrame\\UI-Toast-ChatInviteIcon:12:12:0:0:32:32:6:28:4:26:214:170:115|t: " .. best.variants) or ("|TInterface\\FriendsFrame\\UI-Toast-FriendOnlineIcon:11:11:3:0:32:32:8:24:8:24:214:170:115|t"):rep(s[2]))
 		self.veil:SetShown(d.redundantIgnored)
 
 		local mc, isAvailable, lastAppeared = T.MissionCoalescing[s[4]]

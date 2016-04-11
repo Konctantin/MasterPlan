@@ -25,6 +25,16 @@ local function HideOwnedGameTooltip(self)
 		GameTooltip:Hide()
 	end
 end
+local function GetMoIRewardIcon(rid)
+	if rid == 0 then
+		return "|TInterface\\Icons\\INV_Misc_Coin_01:14:14:0:0:64:64:4:60:4:60|t"
+	elseif rid < 2000 then
+		return "|T" .. (select(3,GetCurrencyInfo(rid)) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
+	else
+		return "|T" .. (GetItemIcon(rid) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
+	end
+	return ""
+end
 
 local mechanicsFrame = CreateFrame("Frame")
 T.mechanicsFrame = mechanicsFrame
@@ -413,7 +423,7 @@ function EV:FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER(tab, followerID)
 			if not isFree then
 				button.Name:SetText([[|TInterface\PetBattles\PetBattle-LockIcon:11:10:-2:1:32:32:4:28:2:30:255:120:100|t]]..C_Garrison.GetFollowerAbilityName(abid))
 				button.IconButton.ValidSpellHighlight:SetVertexColor(1,0.8,0.8)
-			elseif T.LockTraits[et[abid] or abid] then
+			elseif T.LockTraits[et[abid] or abid] or T.LockTraits[abid] then
 				button.Name:SetText([[|TInterface\PetBattles\PetBattle-LockIcon:11:10:-2:1:32:32:4:28:2:30:220:220:160|t]]..C_Garrison.GetFollowerAbilityName(abid))
 				button.IconButton.ValidSpellHighlight:SetVertexColor(1,1,1)
 			else
@@ -461,16 +471,6 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 		f:SetSize(40, 40)
 		f:SetPoint("RIGHT", SpecAffinityFrame, "LEFT", -4, 0)
 		f:Hide()
-		local function GetMoIRewardIcon(rid)
-			if rid == 0 then
-				return "|TInterface\\Icons\\INV_Misc_Coin_01:14:14:0:0:64:64:4:60:4:60|t"
-			elseif rid < 2000 then
-				return "|T" .. (select(3,GetCurrencyInfo(rid)) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
-			else
-				return "|T" .. (GetItemIcon(rid) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
-			end
-			return ""
-		end
 		f:SetScript("OnEnter", function(self)
 			local fid = self.followerID
 			local groups = G.GetBestGroupInfo(1, C_Garrison.GetFollowerStatus(fid) == GARRISON_FOLLOWER_INACTIVE, false)
@@ -588,6 +588,87 @@ local function RecruitAbility_OnLeave(self)
 		GarrisonFollowerAbilityTooltip:Hide()
 	end
 end
+local function GetCounterIconsByKey(key)
+	local c1, c2 = math.floor(key/100), key%100
+	local _, _, i1 = G.GetMechanicInfo(c1)
+	local _, _, i2 = G.GetMechanicInfo(c2)
+	return "|T" .. i1 .. ":16:16:0:0:64:64:5:59:5:59|t|T" .. i2 .. ":16:16:0:0:64:64:5:59:5:59|t"
+end
+local MoIMark_ModifierWatch
+local function MoIMark_OnEnter(self)
+	GameTooltip:SetOwner(self, "ANCHOR_TOP")
+	GameTooltip:AddLine(L"Missions of Interest", 1,1,1)
+	if self.cR > 0 then
+		GameTooltip:AddLine((L"Improves %s |4Mission of Interest:Missions of Interest;."):format(self.cR))
+	end
+	if self.cM > self.cR then
+		GameTooltip:AddLine((L"Usable in %s groups for %s Missions of Interest."):format(self.cG, self.cM))
+	end
+	if self.lM > 0 then
+		if self.cM > 0 or self.cR > 0 then
+			GameTooltip:AddLine(" ")
+		end
+		GameTooltip:AddLine(ITEM_QUALITY_COLORS[4].hex .. L"Levelled to Epic:")
+		GameTooltip:AddDoubleLine(L"Average:", (L"%.1f groups / %.1f missions"):format(self.lG, self.lM), nil,nil,nil, 1,1,1)
+		if self.ceR then
+			GameTooltip:AddDoubleLine(L"Best Improvement:", (L"%d |4mission:missions;"):format(self.ceR.nR) .. " " .. GetCounterIconsByKey(self.ceR.key), nil,nil,nil, 1,1,1)
+		end
+		if self.ceG and (not self.ceR or self.ceR.nR < self.ceG.nG) then
+			GameTooltip:AddDoubleLine(L"Most Groups:", (L"%d |4group:groups;"):format(self.ceG.nG) .. " " .. GetCounterIconsByKey(self.ceG.key), nil,nil,nil, 1,1,1)
+		end
+		if self.ceM and (not self.ceR or self.ceR.nR < self.ceM.nM) then
+			GameTooltip:AddDoubleLine(L"Most Missions:", (L"%d |4group:groups;"):format(self.ceM.nM) .. " " .. GetCounterIconsByKey(self.ceM.key), nil,nil,nil, 1,1,1)
+		end
+	end
+	if self.eM > 0 then
+		if self.cM > 0 or self.cR > 0 or self.lM > 0 then
+			GameTooltip:AddLine(" ")
+		end
+		GameTooltip:AddLine(ITEM_QUALITY_COLORS[5].hex .. L"Re-training at Epic:")
+		GameTooltip:AddDoubleLine(L"Average:", (L"%.1f groups / %.1f missions"):format(self.eG, self.eM), nil,nil,nil, 1,1,1)
+		if self.crR then
+			GameTooltip:AddDoubleLine(L"Best Improvement:", (L"%d |4mission:missions;"):format(self.crR.nR) .. " " .. GetCounterIconsByKey(self.crR.key), nil,nil,nil, 1,1,1)
+		end
+		if self.crG and (not self.crR or self.crR.nR < self.crG.nG) then
+			GameTooltip:AddDoubleLine(L"Most Groups:", (L"%d |4group:groups;"):format(self.crG.nG) .. " " .. GetCounterIconsByKey(self.crG.key), nil,nil,nil, 1,1,1)
+		end
+		if self.crM and (not self.crR or self.crR.nR < self.crM.nM) then
+			GameTooltip:AddDoubleLine(L"Most Missions:", (L"%d |4mission:missions;"):format(self.crM.nM) .. " " .. GetCounterIconsByKey(self.crM.key), nil,nil,nil, 1,1,1)
+		end
+	end
+	
+	if self.req then
+		local addHeader, cc, overflow, lastLeft, lastRight = true, 0, 0
+		for i=1,2 do
+			for _, mi, b in G.MoIMissions(1) do
+				local mid = mi[1]
+				if self.req[mid] and G.IsInterestedInMoI(mi) and (i == 2) == (not self.cur[mid]) then
+					if addHeader then
+						GameTooltip:AddLine("|n" .. L"Could improve groups for:")
+						addHeader = false
+					end
+					cc, lastLeft, lastRight = cc + 1, GetMoIRewardIcon(mi.s[4]) .. " " .. (C_Garrison.GetMissionName(mid) or mid), (i == 1 and "|cff00ff00" or "") .. self.req[mid] .. "/" .. self.cw
+					if cc < 6 or i == 1 or IsAltKeyDown() then
+						GameTooltip:AddDoubleLine(lastLeft, lastRight, 1,1,1, 1,1,1)
+					else
+						overflow = overflow + 1
+					end
+				end
+			end
+		end
+		if overflow > 1 then
+			GameTooltip:AddLine((L"+ %d other missions"):format(overflow), 0.8, 0.8, 0.8)
+			T.SetModifierSensitiveTip(MoIMark_ModifierWatch, GameTooltip, self)
+		elseif overflow == 1 then
+			GameTooltip:AddDoubleLine(lastLeft, lastRight, 1,1,1, 1,1,1)
+		end
+	end
+	GameTooltip:Show()
+end
+function MoIMark_ModifierWatch(_, self)
+	return MoIMark_OnEnter(self)
+end
+local recruitMarks = {}
 for i=1,3 do
 	local f = GarrisonRecruitSelectFrame.FollowerSelection["Recruit" .. i]
 	f.MPClass = CreateClassSpecButton(f)
@@ -595,6 +676,112 @@ for i=1,3 do
 	f.MPClass:SetPoint("TOPRIGHT", -4, 4)
 	f.Affinity = CreateMechanicButton(f)
 	f.Affinity:SetPoint("TOPRIGHT", -28, 4)
+	f.MoIMark = CreateFrame("Frame", nil, f, nil, i) do
+		local m = f.MoIMark
+		m:SetSize(180, 40)
+		m:SetPoint("BOTTOM", f.Model, "TOP")
+		m.icon = m:CreateTexture()
+		m.icon:SetSize(28, 28)
+		m.icon:SetPoint("BOTTOM")
+		m:Hide()
+		m:SetScript("OnEnter", MoIMark_OnEnter)
+		m:SetScript("OnLeave", HideOwnedGameTooltip)
+		recruitMarks[i] = m
+	end
+end
+local rpLoader = T.MissionsUI.CreateLoader(GarrisonRecruitSelectFrame.FollowerSelection, 8, 4, 14)
+rpLoader:SetPoint("TOPRIGHT", GarrisonRecruitSelectFrame, -46, -38)
+local function Recruit_ProspectCompare(a, b)
+	local ac, bc = a.cR, b.cR
+	if ac == bc then
+		ac, bc = a.crR and a.crR.nR or a.cR, b.crR and b.crR.nR or b.cR
+		if ac == bc then
+			ac, bc = a.eR, b.eR
+			if ac == bc then
+				ac, bc = a.ceR and a.ceR.nR or a.cR, b.ceR and b.ceR.nR or b.cR
+				if ac == bc then
+					ac, bc = a.eM, b.eM
+					if ac == bc then
+						ac, bc = a.eG, b.eG
+						if ac == bc then
+							ac, bc = a:GetID(), b:GetID()
+						end
+					end
+				end
+			end
+		end
+	end
+	return ac > bc
+end
+function EV:MP_RECRUIT_PROSPECTS_READY(data)
+	for i=1,3 do
+		local cs, sw, ew, p, double = T.SpecCounters[data[i].classSpec], 0, 0, data[i]
+		for i=2,#cs do
+			if cs[i-1] == cs[i] then
+				double = cs[i]
+				break
+			end
+		end
+		local fat = GarrisonRecruitSelectFrame.FollowerSelection["Recruit" .. i].Abilities.Entries
+		local cc = fat[1] and (not fat[2] or not fat[2]:IsShown()) and C_Garrison.GetFollowerAbilityCounterMechanicInfo(fat[1].abilityID) or nil
+		for k,v in pairs(p.clones) do
+			local c1, c2 = math.floor(k/100), k % 100
+			local w = c1 == 0 and 0 or (c1 == c2) and 1 or (c1 == double or c2 == double) and 2 or 1
+			local ec = ((c1 == cc or c2 == cc) and w or 0)
+			v.nR, v.nG, v.nM, v.weight, sw, ew, v.epic, v.key = 0, 0, 0, w, sw + w, ew + ec, ec, k
+		end
+		p.cloneWeight, p.levelWeight, p.req = sw, ew
+	end
+	
+	local gc = data.gc
+	for _, mi, b in G.MoIMissions(1) do
+		if G.IsInterestedInMoI(mi) then
+			local gc, mid = gc[mi[1]], mi[1]
+			for i=1,3 do
+				local f = data[i]
+				for k,v in pairs(f.clones) do
+					local ng = v[mid]
+					if ng and ng > 0 then
+						v.nG, v.nM = v.nG + ng, v.nM + 1
+						if gc == 0 then
+							v.nR = v.nR + 1
+							f.req = f.req or {}
+							f.req[mid] = (f.req[mid] or 0) + v.weight
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	for i=1,data and 3 or 0 do
+		local f = GarrisonRecruitSelectFrame.FollowerSelection["Recruit" .. i]
+		local m, u = f.MoIMark, data[i]
+		m:Show()
+		local sR, sUG, sUM, lR, lUG, lUM, cw, ew = 0,0,0, 0,0,0, u.cloneWeight, math.max(1,u.levelWeight)
+		local eR, eG, eM, rR, rG, rM
+		for k,v in pairs(u.clones) do
+			local w, ew, nR, nG, nM = v.weight, v.epic, v.nR, v.nG, v.nM
+			sR, sUG, sUM = sR + w*nR, sUG + w*nG, sUM + w*nM
+			lR, lUG, lUM = lR + ew*nR, lUG + ew*nG, lUM + ew*nM
+			if ew > 0 then
+				eR, eG, eM = eR and eR.nR >= v.nR and eR or v, eG and eG.nG >= v.nG and eG or v, eM and eM.nM >= v.nM and eM or v
+			end
+			rR, rG, rM = rR and rR.nR >= v.nR and rR or v, rG and rG.nG >= v.nG and rG or v, rM and rM.nM >= v.nM and rM or v
+		end
+		m.eR, m.eG, m.eM = sR/cw, sUG/cw, sUM/cw
+		m.lR, m.lG, m.lM = lR/ew, lUG/ew, lUM/ew
+		m.cR, m.cG, m.cM = u.cur.nR, u.cur.nG, u.cur.nM
+		m.ceR, m.ceG, m.ceM, m.crR, m.crG, m.crM = eR and eR.nR > 0 and eR, eG and eG.nG > 0 and eG, eM and eM.nM > 0 and eM, rR and rR.nR > 0 and rR, rG and rG.nG > 0 and rG, rM and rM.nM > 0 and rM
+		m.clones, m.cur, m.classSpec, m.req, m.cw = u.clones, u.cur, u.classSpec, u.req, cw
+	end
+	if data then
+		table.sort(recruitMarks, Recruit_ProspectCompare)
+		for i=1,3 do
+			local m, base = recruitMarks[i], i == 1 and 12 or i == 2 and 6 or 1
+			m.icon:SetTexture(("Interface/PvPRankBadges/PvPRank%02d"):format(base + (m.ceR and 2 or m.crR and 1 or 0)))
+		end
+	end
 end
 hooksecurefunc("GarrisonRecruitSelectFrame_UpdateRecruits", function(waiting)
 	if not waiting then
@@ -608,7 +795,15 @@ hooksecurefunc("GarrisonRecruitSelectFrame_UpdateRecruits", function(waiting)
 			else
 				ico:Hide()
 			end
+			ff.MoIMark:Hide()
 			ClassSpecButton_Set(ff.MPClass, f)
+		end
+		local data, job = G.GetRecruitGroupProspects(true)
+		if job and not data then
+			rpLoader.job = job
+			rpLoader:Show()
+		elseif data then
+			EV("MP_RECRUIT_PROSPECTS_READY", data)
 		end
 	end
 end)

@@ -8,7 +8,7 @@ local function dismissTooltip(self)
 	end
 end
 
-local moiContainer, core, loader = CreateFrame("Frame", "MasterPlanShipMoI", GarrisonShipyardFrame, "GarrisonBaseInfoBoxTemplate") do
+local moiContainer, core, loader = CreateFrame("Frame", "MPShipMoI", GarrisonShipyardFrame, "GarrisonBaseInfoBoxTemplate") do
 	moiContainer:SetPoint("TOPLEFT", 33, -64)
 	moiContainer:SetPoint("BOTTOMRIGHT", -35, 34)
 	moiContainer:Hide() do

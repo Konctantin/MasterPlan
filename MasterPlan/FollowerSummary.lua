@@ -376,7 +376,7 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		GameTooltip:AddDoubleLine(L"Weapon levels:", "|cffffffff" .. wA .. (wI > 0 and "|cffccc78f+" .. wI or "") .. (wH > 0 and " |cff00ff00" .. (L"(have %d)"):format(wH) or ""))
 		GameTooltip:AddDoubleLine(L"Armor levels:", "|cffffffff" .. aA .. (aI > 0 and "|cffccc78f+" .. aI or "") .. (aH > 0 and " |cff00ff00" .. (L"(have %d)"):format(aH) or ""))
 		local nuA, nuI = CountUpgradableFollowers()
-		GameTooltip:AddLine("|n" .. (L"Upgrades are available for |cffffffff%d active followers|r."):format(nuA) .. (nuI > 0 and " |cffccc78f" .. (L"(+%d inactive followers)"):format(nuI) or ""), nil, nil, nil, 1)
+		GameTooltip:AddLine("|n" .. (L"Upgrades are available for |cffffffff%d |4active follower:active followers;|r."):format(nuA) .. (nuI > 0 and " |cffccc78f" .. (L"(+%d inactive followers)"):format(nuI) or ""), nil, nil, nil, 1)
 		GameTooltip:Show()
 	end)
 	rows[2]:SetScript("OnLeave", HideGameTooltip)

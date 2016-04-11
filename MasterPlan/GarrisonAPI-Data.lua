@@ -40,17 +40,6 @@ T.MissionExpire = {} do
 	end
 end
 
-do
-	local t, i, r = {"Evi$}sy$e$vsfsxC", "Tpiewi$irxiv$xli$wyggiww$glergi$sj$xli$tevx}$wls{r$fips{$xs$tvszi$xlex$}sy$evi$rsx$e$vskyi$Krsqmwl$gviexmsr2", "Wyggiww$glergi>", 2016040111, 31357, 29403, "mPzp$:;9", "Skvi$E", 1067420, 9, 921, 2, 921, "Teppew", "Vskyi", 1239527, "Q}wxivmsyw$Skvi$F", 1067411, 10, 138558, 2, 138558, "Qmpplsywi$Qerewxsvq", "Qeki", 1066529, "Skvi$G", 1067418, 1, 126123, 7, 126123, "Jmsre", "Tvmiwx", 1066059, 324, 236186, 76, 135987 }, 1
-	local function m(c)
-		return c.char(c:byte() - 4)
-	end
-	function T.MissionExtData()
-		i, r = i + 1, t[i]
-		return type(r) == "string" and r:gsub(".", m) or r
-	end
-end
-
 T.EnvironmentCounters = {[11]=4, [12]=38, [13]=42, [14]=43, [15]=37, [16]=36, [17]=40, [18]=41, [19]=42, [20]=39, [21]=7, [22]=9, [23]=8, [24]=45, [25]=46, [26]=44, [28]=48, [29]=49, [60]=54, [61]=55, [62]=56, [63]=57, [67]=58, [64]=59, [65]=60, [66]=61,}
 T.EquipmentCounters = {[73]=263, [74]=261, [75]=262, [76]=264, [77]=265, [78]=266, [79]=267, [80]=268, [81]=269, [82]=270, [83]=271, [84]=272, [87]=260, [88]=306}
 T.EquipmentTraitItems = {[269]=127882, [270]=127883, [272]=127884, [271]=127663, [266]=125787, [267]=127662, [265]=127880, [268]=127881, [305]=127894, [275]=127886, [306]=127895}

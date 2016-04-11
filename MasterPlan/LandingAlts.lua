@@ -95,7 +95,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		end
 		return "|c" .. (RAID_CLASS_COLORS[sum.class or all.class or "PRIEST"].colorStr or "ffffffff") .. name
 	end
-	local dmFrame, dm = CreateFrame("Frame", "MasterPlanLandingDrop", nil, "UIDropDownMenuTemplate"), {
+	local dmFrame, dm = CreateFrame("Frame", "MPLandingDrop", nil, "UIDropDownMenuTemplate"), {
 		{notCheckable=true, isTitle=true},
 		{text=REMOVE,
 			func=function(_, r, a)
