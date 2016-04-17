@@ -62,12 +62,17 @@ local tentativeState, tentativeParties = {}, {} do
 		local p = tentativeParties[mid]
 		return p and #p or 0
 	end
-	function api.HasReadyTentativeParties(typeID)
+	function api.GetTentativePartyCount(typeID)
+		local total, ready = 0,0
 		for k,v in pairs(tentativeParties) do
-			if #v == C_Garrison.GetMissionMaxFollowers(k) and C_Garrison.GetFollowerTypeByMissionID(k) == typeID then
-				return true
+			if C_Garrison.GetFollowerTypeByMissionID(k) ~= typeID then
+			elseif #v == C_Garrison.GetMissionMaxFollowers(k) then
+				ready = ready + 1
+			else
+				total = total + 1
 			end
 		end
+		return ready, total+ready
 	end
 	function api.GetReadyTentativeParties(typeID)
 		return tentativeFullNext, typeID
@@ -78,10 +83,13 @@ local tentativeState, tentativeParties = {}, {} do
 	function api.DissolveMissionByFollower(fid)
 		dissolve(tentativeState[fid])
 	end
-	function api.DissolveAllTentativeParties()
+	function api.DissolveAllTentativeParties(typeID)
 		if next(tentativeParties) or next(tentativeState) then
-			wipe(tentativeParties)
-			wipe(tentativeState)
+			for k,v in pairs(tentativeParties) do
+				if C_Garrison.GetFollowerTypeByMissionID(k) == typeID then
+					dissolve(k, true)
+				end
+			end
 			notifyChange()
 		end
 	end
@@ -2176,7 +2184,7 @@ function ShipEstimator.GetGroup(best, mi, f, counters, traits, stack, sc)
 	local u1, u2, u3 = best[6], best[7], best[8]
 	for i=1, mi[2] do
 		local fi = f[best[1+i]]
-		local fid = f.followerID
+		local fid = fi.followerID
 		bt[i] = fid
 		for i=1,2 do
 			local s, t = fi[i == 1 and "counters" or "traits"], i == 1 and counters or traits

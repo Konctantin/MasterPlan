@@ -230,7 +230,7 @@ do -- CreateLoader(parent, W, G, H)
 				return
 			else
 				if self.OnFinish then
-					securecall(self.OnFinish, self.nf or 0)
+					securecall(self.OnFinish, self, self.nf or 0)
 				end
 				self.nf, self.job = 0
 				if self.animHide then
@@ -258,11 +258,11 @@ do -- CreateLoader(parent, W, G, H)
 		loader:SetSize(WG*N-G, H)
 		loader:Hide()
 		for i=1,N do
-			local tex = loader:CreateTexture()
+			local tex = loader:CreateTexture(nil, "OVERLAY", nil, -8+i)
 			tex:SetSize(W, H)
 			local r,g,b = c:match("(%x%x)(%x%x)(%x%x)", 6*i-5)
 			tex.r, tex.g, tex.b = tonumber(r or 64,16)/255, tonumber(g or 64,16)/255, tonumber(b or 64,16)/255
-			tex:SetTexture(tex.r, tex.g, tex.b)
+			tex:SetTexture(0,0,0, 0.25)
 			tex:SetPoint("LEFT", WG*(i-1), 0)
 			loader[i] = tex
 		end
@@ -1253,7 +1253,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		b:Hide()
 		b:SetScript("OnLeave", dismissTooltip)
 		b:SetScript("OnEnter", function(self)
-			if G.GetNumPendingMissionStarts() > 0 or not G.HasReadyTentativeParties(1) then return end
+			if G.GetNumPendingMissionStarts() > 0 or G.GetTentativePartyCount(1) == 0 then return end
 			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
 			GameTooltip:SetText(L"Start Missions")
 			if C_Garrison.IsAboveFollowerSoftCap(1) then
@@ -1297,8 +1297,8 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			if G.GetNumPendingMissionStarts() > 0 then
 				G.AbortMissionQueue()
 				RefreshAvailMissionsView()
-			elseif button == "RightButton" or not G.HasReadyTentativeParties(1) then
-				G.DissolveAllTentativeParties()
+			elseif button == "RightButton" or G.GetTentativePartyCount(1) == 0 then
+				G.DissolveAllTentativeParties(1)
 				PlaySound("UChatScrollButton")
 			elseif not C_Garrison.IsAboveFollowerSoftCap(1) then
 				G.SuppressFollowerEvents()
@@ -1315,15 +1315,14 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 			local function sync()
 				synced = true
 				local np = G.GetNumPendingMissionStarts()
-				b:SetShown(np > 0 or next(T.tentativeState) ~= nil)
+				local nr, nt = G.GetTentativePartyCount(1)
+				b:SetShown(np > 0 or nt > 0)
 				if b:IsShown() then
 					local text
 					if np > 0 then
 						text = L("%d |4party:parties; remaining..."):format(np)
-					elseif G.HasReadyTentativeParties(1) then
-						text = L"Send Tentative Parties"
 					else
-						text = L"Clear Tentative Parties"
+						text = nr > 0 and L"Send Tentative Parties" or L"Clear Tentative Parties"
 					end
 					b:SetText(text)
 					if GameTooltip:IsOwned(b) then
@@ -1367,7 +1366,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 	interestUI:Hide()
 	interestUI.loader = api.CreateLoader(interestUI, 20, 30, 20)
 	interestUI.loader:SetPoint("CENTER", GarrisonMissionFrameMissions)
-	function interestUI.loader.OnFinish(nf)
+	function interestUI.loader:OnFinish(nf)
 		if nf > 2 then
 			missionList.FadeIn:Play()
 		end

@@ -525,7 +525,18 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 		end)
 		f:SetScript("OnLeave", HideOwnedGameTooltip)
 	end
+	local loader = T.MissionsUI.CreateLoader(SpecAffinityFrame, 6, 3, 6)
+	loader:SetPoint("TOPRIGHT", SpecAffinityFrame, "BOTTOMRIGHT", 0, -2)
+	function loader.OnFinish()
+		local p = SpecAffinityFrame:GetParent()
+		local os = p and p:GetScript("OnShow")
+		if os then
+			os(p) -- TODO: Really need a better way to force follower frame update.
+			SpecAffinityFrame:ShowFor(p, SpecAffinityFrame.info)
+		end
+	end
 	function SpecAffinityFrame:ShowFor(owner, fi)
+		self.info = fi
 		self:SetParent(owner)
 		self:SetPoint("TOPRIGHT", -18 + (owner.MPSpecOffsetX or 0), -8 + (owner.MPSpecOffsetY or 0))
 		local afid = T.Affinities[fi.garrFollowerID or fi.followerID] or 0
@@ -539,7 +550,10 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 		if owner.Class then
 			owner.Class:SetAlpha(0)
 		end
-		local best = fi.isCollected and fi.level == 100 and fi.quality >= 4 and G.GetBestGroupInfo(1, fi.status == GARRISON_FOLLOWER_INACTIVE, false)
+		local best, job = fi.isCollected and fi.level == 100 and fi.quality >= 4
+		if best then
+			best, job = G.GetBestGroupInfo(1, fi.status == GARRISON_FOLLOWER_INACTIVE, true)
+		end
 		if best then
 			local fid = fi.followerID
 			local f, r = UnitFactionGroup("player") == "Horde" and "Interface/Icons/Achievement_pvp_h_" or "Interface/Icons/Achievement_pvp_a_", "01"
@@ -555,6 +569,10 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 			self.Missions:Show()
 		else
 			self.Missions:Hide()
+			if job then
+				loader.job = job
+				loader:Show()
+			end
 		end
 	end
 end
@@ -592,7 +610,7 @@ local function GetCounterIconsByKey(key)
 	local c1, c2 = math.floor(key/100), key%100
 	local _, _, i1 = G.GetMechanicInfo(c1)
 	local _, _, i2 = G.GetMechanicInfo(c2)
-	return "|T" .. i1 .. ":16:16:0:0:64:64:5:59:5:59|t|T" .. i2 .. ":16:16:0:0:64:64:5:59:5:59|t"
+	return (i1 and "|T" .. i1 .. ":16:16:0:0:64:64:5:59:5:59|t|T" or "|T") .. i2 .. ":16:16:0:0:64:64:5:59:5:59|t"
 end
 local MoIMark_ModifierWatch
 local function MoIMark_OnEnter(self)
@@ -900,6 +918,14 @@ end)
 
 local GarrisonFollowerList_SortFollowers = GarrisonFollowerList_SortFollowers
 local specialSearchQueries = {["duplicate counters"]="dup", [(L"Duplicate counters"):lower()]="dup", ["upgradable gear"]="up", [(L"Upgradable gear"):lower()]="up", ["redundant"]="red", [(L"Redundant"):lower()]="red"}
+local searchLoader = T.MissionsUI.CreateLoader(nil, 12, 4, 3)
+function searchLoader:OnFinish()
+	local sb = self.list and self.list.SearchBox
+	if sb and sb:IsVisible() then
+		sb:GetScript("OnTextChanged")(sb, false)
+	end
+	self.list = nil
+end
 function _G.GarrisonFollowerList_SortFollowers(followerList)
 	local searchString = followerList.SearchBox and followerList.SearchBox:GetText() or ""
 	local ws = followerList.SearchBox and followerList.SearchBox.MPWarning
@@ -1017,22 +1043,26 @@ function _G.GarrisonFollowerList_SortFollowers(followerList)
 				if ok and filterRed ~= nil then
 					if redFollowers == nil then
 						redFollowers = false
-						local groups = G.GetBestGroupInfo(f.followerTypeID, false, false)
+						local groups, job = G.GetBestGroupInfo(f.followerTypeID, false, true)
 						if groups then
 							redFollowers = {}
 							for _, mi, b in G.MoIMissions(f.followerTypeID, groups) do
 								if b and G.IsInterestedInMoI(mi) then
 									local muf = b and b.used
 									for j=1, muf and mi.s[2] or 0 do
-										if muf % (2^j) >= 2^(j-1) then
+										if muf % (2^j) >= 2^(j-1) and b[j] then
 											redFollowers[b[j]] = mi[1]
 										end
 									end
 								end
 							end
 						else
+							searchLoader:SetParent(followerList)
+							searchLoader:SetPoint("TOP", ws, "BOTTOM", 0, -2)
+							searchLoader.job, searchLoader.list = job, followerList
+							searchLoader:Show()
 							ws:Show()
-							ws:SetText((L"Redundant followers not known.\nOpen the %s tab."):format("|cffffffff" .. L"Missions of Interest" .. "|r"))
+							ws:SetText((L"Computing, please wait."))
 						end
 					end
 					ok = redFollowers and f.status ~= GARRISON_FOLLOWER_INACTIVE and ((not redFollowers[id]) == filterRed) or false

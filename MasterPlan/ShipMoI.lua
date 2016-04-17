@@ -39,7 +39,7 @@ local moiContainer, core, loader = CreateFrame("Frame", "MPShipMoI", GarrisonShi
 		a:SetDuration(0.25)
 	end
 	
-	function loader.OnFinish(nf)
+	function loader:OnFinish(nf)
 		if nf > 2 then
 			fadeIn:Play()
 		end
