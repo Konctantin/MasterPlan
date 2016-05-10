@@ -396,7 +396,7 @@ local function SetFollowerInfo(t)
 			ft[fid], v.missionEndTime, v.affinity = v, tls and (now + tls) or nil, T.Affinities[v.garrFollowerID or v.followerID]
 		end
 	end
-	if um > 11 then T.config.goldRewardThreshold = 0 end
+	if um > 10 then T.config.goldRewardThreshold = 0 end
 	for k,v in pairs(dropFollowers) do
 		local f = ft[k]
 		if not f.missionEndTime then
@@ -1546,7 +1546,7 @@ do -- HasSignificantRewards(minfo)
 			else
 				for _, r in pairs(mi.rewards) do
 					if r.currencyID == 0 then
-						gold = r.quantity
+						gold = r.quantity*(1+mi.numFollowers)
 					elseif not r.followerXP then
 						if T.MinorRewards[r.itemID] or api.IsLevelAppropriateToken(r.itemID) == false then
 							hasMinor = "minor"
@@ -2212,7 +2212,10 @@ function ShipEstimator.GetGroup(best, mi, f, counters, traits, stack, sc)
 	
 	return bt
 end
-function api.UpdateGroupEstimates(missions, useInactive, yield, moreFollowers)
+function api.GetGroupMemberPool(mt, ...)
+	return (mt == 1 and FollowerEstimator or ShipEstimator).GetMemberPool(...)
+end
+function api.UpdateGroupEstimates(missions, followers, yield, bMax)
 	local best, bkey, ms = {}, {}, {} do
 		for i=1,#missions do
 			local mi = missions[i].s
@@ -2224,7 +2227,8 @@ function api.UpdateGroupEstimates(missions, useInactive, yield, moreFollowers)
 		end
 	end
 	local est = C_Garrison.GetFollowerTypeByMissionID(missions[1][1]) == 1 and FollowerEstimator or ShipEstimator
-	local mt, f, nf1, nf = est == FollowerEstimator and 1 or 2, est.GetMemberPool(useInactive, moreFollowers)
+	local mt, f = est == FollowerEstimator and 1 or 2, followers
+	local nf1, nf = bMax and bMax or #f, #f -- TODO: moreFollowers thingy.
 
 	local scratch, counters, traits = {}, est.PrepareCounters()
 	local EvaluateGroup, SaveGroup, s1, doStack = est.EvaluateGroup, est.SaveGroup, 68719476736, bit.band(T.config.interestStack,2^mt/2)>0
@@ -2367,7 +2371,7 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 	end
 	local function procJobs(jobs, yield)
 		yield()
-		local best = api.UpdateGroupEstimates(jobs, true, yield)
+		local best = api.UpdateGroupEstimates(jobs, api.GetGroupMemberPool(1, true), yield)
 		local finfo, now = api.GetFollowerInfo(), time()
 		for i=1,#jobs do
 			local j = jobs[i]
@@ -2487,7 +2491,6 @@ function api.GetFollowerRerollConstraints(fid)
 	return cc, ct, hasInterestedMissions
 end
 
-
 function api.GetRewardMultiplier(minfo, curID, passingMultiplierData, mm, gm)
 	local k = "rewardMultiplier" .. (curID or "N")
 	local ret = minfo[k]
@@ -2503,6 +2506,17 @@ function api.GetRewardMultiplier(minfo, curID, passingMultiplierData, mm, gm)
 		minfo[k] = ret
 	end
 	return ret or 1
+end
+
+function api.GetMoIRewardIcon(rid)
+	if rid == 0 then
+		return "|TInterface\\Icons\\INV_Misc_Coin_01:14:14:0:0:64:64:4:60:4:60|t"
+	elseif rid < 2000 then
+		return "|T" .. (select(3,GetCurrencyInfo(rid)) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
+	else
+		return "|T" .. (GetItemIcon(rid) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
+	end
+	return ""
 end
 
 local function addFollowerList(tip, info, finfo, mlvl, showInactive, thisMech, specDup)
@@ -2650,6 +2664,7 @@ function api.SetClassSpecTooltip(self, specId, specName, ab1, ab2)
 		end
 	end
 	
+	self:Show()
 	return true
 end
 function api.SetTraitTooltip(tip, id, info, showInactive, skipDescription)
@@ -2962,6 +2977,84 @@ function api.SetCounterTraitTip(tip, cid, tid)
 		end
 	end
 end
+local function GetCounterIconsByKey(key)
+	local c1, c2 = math.floor(key/100), key%100
+	local _, _, i1 = api.GetMechanicInfo(c1)
+	local _, _, i2 = api.GetMechanicInfo(c2)
+	return (i1 and "|T" .. i1 .. ":16:16:0:0:64:64:5:59:5:59|t|T" or "|T") .. i2 .. ":16:16:0:0:64:64:5:59:5:59|t"
+end
+function api.SetFollowerCloneTip(tip, cl, isCollected)
+	local numLines = tip:NumLines()
+	if cl.cR > 0 then
+		tip:AddLine((isCollected and L"Required by %s |4Mission of Interest:Missions of Interest;." or L"Improves %s |4Mission of Interest:Missions of Interest;."):format(cl.cR))
+	end
+	if cl.cM > cl.cR then
+		tip:AddLine((L"Usable in %s groups for %s Missions of Interest."):format(cl.cG, cl.cM))
+	end
+	if cl.lM > 0 then
+		if cl.cM > 0 or cl.cR > 0 then
+			tip:AddLine(" ")
+		end
+		tip:AddLine(ITEM_QUALITY_COLORS[4].hex .. L"Levelled to Epic:")
+		tip:AddDoubleLine(L"Average:", (L"%.1f groups / %.1f missions"):format(cl.lG, cl.lM), nil,nil,nil, 1,1,1)
+		if cl.ceR then
+			tip:AddDoubleLine(L"Best Improvement:", (L"%d |4mission:missions;"):format(cl.ceR.nR) .. " " .. GetCounterIconsByKey(cl.ceR.key), nil,nil,nil, 1,1,1)
+		end
+		if cl.ceG and (not cl.ceR or cl.ceR.nR < cl.ceG.nG) then
+			tip:AddDoubleLine(L"Most Groups:", (L"%d |4group:groups;"):format(cl.ceG.nG) .. " " .. GetCounterIconsByKey(cl.ceG.key), nil,nil,nil, 1,1,1)
+		end
+		if cl.ceM and (not cl.ceR or cl.ceR.nR < cl.ceM.nM) then
+			tip:AddDoubleLine(L"Most Missions:", (L"%d |4group:groups;"):format(cl.ceM.nM) .. " " .. GetCounterIconsByKey(cl.ceM.key), nil,nil,nil, 1,1,1)
+		end
+	end
+	if cl.eM > 0 then
+		if cl.cM > 0 or cl.cR > 0 or cl.lM > 0 then
+			tip:AddLine(" ")
+		end
+		local cq = cl.quality or 0
+		tip:AddLine(ITEM_QUALITY_COLORS[5].hex .. (cq <= 3 and L"Retraining at Epic:" or L"Retraining:"))
+		tip:AddDoubleLine(L"Average:", (L"%.1f groups / %.1f missions"):format(cl.eG, cl.eM), nil,nil,nil, 1,1,1)
+		if cl.crR then
+			tip:AddDoubleLine(L"Best Improvement:", (L"%d |4mission:missions;"):format(cl.crR.nR) .. " " .. GetCounterIconsByKey(cl.crR.key), nil,nil,nil, 1,1,1)
+		end
+		if cl.crG and (not cl.crR or cl.crR.nR < cl.crG.nG) then
+			tip:AddDoubleLine(L"Most Groups:", (L"%d |4group:groups;"):format(cl.crG.nG) .. " " .. GetCounterIconsByKey(cl.crG.key), nil,nil,nil, 1,1,1)
+		end
+		if cl.crM and (not cl.crR or cl.crR.nR < cl.crM.nM) then
+			tip:AddDoubleLine(L"Most Missions:", (L"%d |4mission:missions;"):format(cl.crM.nM) .. " " .. GetCounterIconsByKey(cl.crM.key), nil,nil,nil, 1,1,1)
+		end
+	end
+	
+	if cl.req then
+		local addHeader, cc, overflow, cur, lastLeft, lastRight = true, 0, 0, cl.cur
+		for i=1,2 do
+			for _, mi, b in api.MoIMissions(1) do
+				local mid = mi[1]
+				if cl.req[mid] and api.IsInterestedInMoI(mi) and (i == 2) == (not (cur and cur[mid])) then
+					if addHeader then
+						tip:AddLine("|n" .. L"Could improve groups for:")
+						addHeader = false
+					end
+					cc, lastLeft, lastRight = cc + 1, api.GetMoIRewardIcon(mi.s[4]) .. " " .. (C_Garrison.GetMissionName(mid) or mid), (i == 1 and "|cff00ff00" or "") .. cl.req[mid] .. "/" .. cl.rerollWeight
+					if cc < 6 or i == 1 or IsAltKeyDown() then
+						tip:AddDoubleLine(lastLeft, lastRight, 1,1,1, 1,1,1)
+					else
+						overflow = overflow + 1
+					end
+				end
+			end
+		end
+		if overflow > 1 then
+			tip:AddLine((L"+ %d other missions"):format(overflow), 0.8, 0.8, 0.8)
+		elseif overflow == 1 then
+			tip:AddDoubleLine(lastLeft, lastRight, 1,1,1, 1,1,1)
+		end
+	end
+	if tip:NumLines() == numLines then
+		tip:AddLine(L"Not useful with current traits.", 0.95, 0.45, 0, 1)
+	end
+	tip:Show()
+end
 
 do -- api.GetResourceCacheInfo
 	local STEP_INTERVAL, STEP_SIZE, STORE_FLOOR, STORE_CEIL = 600, 1, 10, 500
@@ -3022,13 +3115,12 @@ function api.GetMissionPoolIdentity(mt)
 end
 do -- api.GetBestGroupInfo()
 	local tag, res, job = {}, {}, {}
-	local function run(this, mt, includeInactive, ck, yield)
+	local function baseRun(this, ck, notifyEvent, run, ...)
 		job[ck] = this
-		local pool = mt == 1 and T.InterestPool or T.ShipInterestPool
-		local best = api.UpdateGroupEstimates(pool, includeInactive, yield)
+		local ret = run(...)
 		if job[ck] == this then
-			res[ck], job[ck] = best, nil
-			EV("MP_MOI_GROUPS_READY", mt, includeInactive)
+			res[ck], job[ck] = ret, nil
+			EV(notifyEvent, ret)
 		end
 	end
 	function api.GetBestGroupInfo(mt, includeInactive, allowStart)
@@ -3039,8 +3131,9 @@ do -- api.GetBestGroupInfo()
 			tag[ck], res[ck], job[ck] = ident, nil, nil
 		end
 		if allowStart and not (res[ck] or (job[ck] and coroutine.status(job[ck]) ~= "dead")) then
-			local job = coroutine.create(run)
-			coroutine.resume(job, job, mt, includeInactive, ck, coroutine.yield)
+			local pool = mt == 1 and T.InterestPool or T.ShipInterestPool
+			local job = coroutine.create(baseRun)
+			coroutine.resume(job, job, ck, "MP_MOI_GROUPS_READY", api.UpdateGroupEstimates, pool, api.GetGroupMemberPool(mt, includeInactive), coroutine.yield)
 		end
 		return res[ck], not res[ck] and (allowStart and job[ck]) or nil
 	end
@@ -3070,15 +3163,53 @@ do -- api.GetBestGroupInfo()
 		res, tag, job = {}, {}, {}, {}
 	end
 	
-	local function runRecruitProspects(this, ck, rt, yield)
-		job[ck] = this
+	local function annotateClones(clones, f, cur)
+		local cs, sw, ew, double = T.SpecCounters[f.classSpec], 0, 0
+		for i=2,#cs do
+			if cs[i-1] == cs[i] then
+				double = cs[i]
+				break
+			end
+		end
+		local cc = f.counters[2] == nil and f.counters[1] or nil
+		for k,v in pairs(clones) do
+			if type(k) == "number" then
+				local c1, c2 = math.floor(k/100), k % 100
+				local w = c1 == 0 and 0 or (c1 == c2) and 1 or (c1 == double or c2 == double) and 2 or 1
+				local ec = ((c1 == cc or c2 == cc) and w or 0)
+				v.weight, sw, ew, v.epic, v.key = w, sw + w, ew + ec, ec, k
+			end
+		end
+		clones.rerollWeight, clones.levelWeight, clones.cur, clones.quality = sw, ew, cur, f.quality
+		return clones
+	end
+	local function synthFollower(fi, at, rtid)
+		fi.affinity, rtid = T.Affinities[fi.followerID], rtid and (rtid .. "#" .. fi.followerID)
+		fi.followerID, fi.garrFollowerID = "Sx" .. fi.followerID, fi.followerID
+
+		local counters, traits, et = {}, {-fi.affinity}, T.EquivTrait
+		for i=1,#at do
+			local isTrait, id = at[i].isTrait, at[i].id
+			rtid = rtid and (rtid .. ":" .. id)
+			if isTrait then
+				id = et[id] or id
+				traits[#traits+1], fi.saffinity = id, fi.saffinity or (id == -fi.affinity)
+			else
+				counters[#counters+1] = C_Garrison.GetFollowerAbilityCounterMechanicInfo(id)
+			end
+		end
+		fi.counters, fi.traits = counters, traits
+
+		return fi, rtid
+	end
+	local function runRecruitProspects(rt, yield)
 		for i=1,#rt do
 			local fi, ct = rt[i]
 			fi.useMarks, fi.clones, ct = {}, {}, T.SpecCounters[fi.classSpec]
 			local c1, c2 = fi.counters[1], fi.counters[2] or 0
 			c1, c2 = c1 < c2 and c1 or c2, c1 < c2 and c2 or c1
 			local skey = c1*100+c2
-			fi.curClone, fi.clones[skey] = fi, fi
+			fi.clones[skey] = fi
 			for i=1,#ct do
 				for j=i+1,#ct do
 					local a, b = ct[i], ct[j]
@@ -3094,7 +3225,8 @@ do -- api.GetBestGroupInfo()
 			end
 		end
 		
-		local ret, gc, groups = {}, {}, api.UpdateGroupEstimates(T.InterestPool, false, yield, rt)
+		local fp, nf1 = api.GetGroupMemberPool(1, false, rt)
+		local ret, gc, groups = {}, {}, api.UpdateGroupEstimates(T.InterestPool, fp, yield, nf1)
 		for k,v in pairs(groups) do
 			gc[k] = v.variants
 		end
@@ -3106,34 +3238,62 @@ do -- api.GetBestGroupInfo()
 					gc[k] = gc[k] - v
 				end
 			end
-			ret[i], t.classSpec, t.cur, t.clones = t, rt[i].classSpec, rt[i].useMarks, c
+			ret[i], t.classSpec, t.clones, c.gc = t, rt[i].classSpec, annotateClones(c, rt[i], rt[i].useMarks), gc
 		end
 		ret.gc = gc
-		if job[ck] == this then
-			res[ck], job[ck] = ret, nil
-			EV("MP_RECRUIT_PROSPECTS_READY", ret, rt)
-		end
+		
 		return ret
 	end
-	function api.GetRecruitGroupProspects(allowStart)
-		local ck, rt, et, rtid = "rec" .. (T.config.interestStack % 2 > 0 and "S" or "C"), C_Garrison.GetAvailableRecruits(), T.EquivTrait, ""
-		for i=1,#rt do
-			local fi = rt[i]
-			fi.affinity, rtid = T.Affinities[fi.followerID], rtid .. "#" .. fi.followerID
-			fi.followerID, fi.garrFollowerID, fi.recruitID = "Rx" .. i, fi.followerID, i
+	local function runRerollProspects(fid, isInactive, yield)
+		local mm
+		if type(fid) == "number" then
+			mm = {(synthFollower(C_Garrison.GetFollowerInfo(fid), C_Garrison.GetFollowerAbilities(fid)))}
+			fid = mm[1].followerID
+		end
+		local ft, me = api.GetGroupMemberPool(1, isInactive, mm)
+		for i=1,#ft do
+			if ft[i].followerID == fid then
+				me, ft[i], ft[#ft] = ft[i], i < #ft and ft[#ft] or nil
+				break
+			end
+		end
+		me.active, me.working = 1, 0
 		
-			local at, counters, traits = C_Garrison.GetRecruitAbilities(i), {}, {-fi.affinity}
-			for i=1,#at do
-				local isTrait, id = at[i].isTrait, at[i].id
-				rtid = rtid .. ":" .. id
-				if isTrait then
-					id = et[id] or id
-					traits[#traits+1], fi.saffinity = id, fi.saffinity or (id == -fi.affinity)
-				else
-					counters[#counters+1] = C_Garrison.GetFollowerAbilityCounterMechanicInfo(id)
+		local bMax, ct, clones = #ft, T.SpecCounters[me.classSpec], {}
+		for i=1,#ct do
+			for j=i+1,#ct do
+				local a, b = ct[i], ct[j]
+				local key = a*100+b
+				if not clones[key] then
+					local cl = {}
+					for k,v in pairs(me) do
+						cl[k] = v
+					end
+					ft[#ft+1], cl.counters, cl.useMarks, clones[key] = cl, {a, b}, {}, cl
 				end
 			end
-			fi.counters, fi.traits = counters, traits
+		end
+		
+		local ret, gc, groups = {}, {}, api.UpdateGroupEstimates(T.InterestPool, ft, yield, bMax)
+		for k,v in pairs(groups) do
+			gc[k] = v.variants
+		end
+		for k,v in pairs(clones) do
+			ret[k] = v.useMarks
+			for k, v in pairs(ret[k]) do
+				gc[k] = gc[k] - v
+			end
+		end
+		ret.gc = gc
+		
+		local c1, c2 = me.counters[1], me.counters[2]
+		local cur = c2 and c1 and (ret[c2*100+c1] or ret[c1*100+c2]) or nil
+		return annotateClones(ret, me, cur)
+	end
+	function api.GetRecruitGroupProspects(allowStart)
+		local ck, rt, rtid, _ = "rec" .. (T.config.interestStack % 2 > 0 and "S" or "C"), C_Garrison.GetAvailableRecruits(), ""
+		for i=1,#rt do
+			_, rtid = synthFollower(rt[i], C_Garrison.GetRecruitAbilities(i), rtid)
 		end
 		rtid = rtid .. "//" .. api.GetMissionPoolIdentity(1) .. "//" .. api.GetFollowerIdentity(false, true, 1)
 		if rtid ~= tag[ck] then
@@ -3141,11 +3301,73 @@ do -- api.GetBestGroupInfo()
 		end
 		
 		if allowStart and not (res[ck] or (job[ck] and coroutine.status(job[ck]) ~= "dead")) then
-			local job = coroutine.create(runRecruitProspects)
-			assert(coroutine.resume(job, job, ck, rt, coroutine.yield))
+			local job = coroutine.create(baseRun)
+			assert(coroutine.resume(job, job, ck, "MP_RECRUIT_PROSPECTS_READY", runRecruitProspects, rt, coroutine.yield))
 		end
 		
 		return res[ck], not res[ck] and (allowStart and job[ck]) or nil
+	end
+	function api.GetRerollProspects(fid, allowStart)
+		local ck = "reroll-" .. (T.config.interestStack % 2 > 0 and "S" or "C") .. fid
+		local isInactive = type(fid) == "string" and C_Garrison.GetFollowerStatus(fid) == GARRISON_FOLLOWER_INACTIVE
+		local rtid = api.GetMissionPoolIdentity(1) .. "//" .. api.GetFollowerIdentity(isInactive, true, 1)
+		if rtid ~= tag[ck] then
+			tag[ck], res[ck], job[ck] = rtid, nil, nil
+		end
+		
+		if allowStart and not (res[ck] or (job[ck] and coroutine.status(job[ck]) ~= "dead")) then
+			local job = coroutine.create(baseRun)
+			assert(coroutine.resume(job, job, ck, "MP_REROLL_PROSPECTS_READY", runRerollProspects, fid, isInactive, coroutine.yield))
+		end
+		
+		return res[ck], not res[ck] and (allowStart and job[ck]) or nil
+	end
+	function api.AnnotateCloneProspects(clones)
+		clones.req = nil
+		for k,v in pairs(clones) do
+			if type(k) == "number" then
+				v.nR, v.nG, v.nM = 0, 0, 0
+			end
+		end
+		
+		local gc = clones.gc
+		for _, mi in api.MoIMissions(1) do
+			if api.IsInterestedInMoI(mi) then
+				local gc, mid = gc[mi[1]], mi[1]
+				for k,v in pairs(clones) do
+					local ng = type(k) == "number" and v[mid]
+					if ng and ng > 0 then
+						v.nG, v.nM = v.nG + ng, v.nM + 1
+						if gc == 0 then
+							v.nR = v.nR + 1
+							clones.req = clones.req or {}
+							clones.req[mid] = (clones.req[mid] or 0) + v.weight
+						end
+					end
+				end
+			end
+		end
+		
+		local sR, sUG, sUM, lR, lUG, lUM, cw, ew = 0,0,0, 0,0,0, clones.rerollWeight, math.max(1,clones.levelWeight)
+		local eR, eG, eM, rR, rG, rM
+		for k,v in pairs(clones) do
+			if type(k) == "number" then
+				local w, ew, nR, nG, nM = v.weight, v.epic, v.nR, v.nG, v.nM
+				sR, sUG, sUM = sR + w*nR, sUG + w*nG, sUM + w*nM
+				lR, lUG, lUM = lR + ew*nR, lUG + ew*nG, lUM + ew*nM
+				if ew > 0 then
+					eR, eG, eM = eR and eR.nR >= v.nR and eR or v, eG and eG.nG >= v.nG and eG or v, eM and eM.nM >= v.nM and eM or v
+				end
+				rR, rG, rM = rR and rR.nR >= v.nR and rR or v, rG and rG.nG >= v.nG and rG or v, rM and rM.nM >= v.nM and rM or v
+			end
+		end
+		
+		local m, cur = clones, clones.cur
+		m.eR, m.eG, m.eM = sR/cw, sUG/cw, sUM/cw
+		m.lR, m.lG, m.lM = lR/ew, lUG/ew, lUM/ew
+		m.cR, m.cG, m.cM = cur and cur.nR or 0, cur and cur.nG or 0, cur and cur.nM or 0
+		m.ceR, m.ceG, m.ceM, m.crR, m.crG, m.crM = eR and eR.nR > 0 and eR, eG and eG.nG > 0 and eG, eM and eM.nM > 0 and eM, rR and rR.nR > 0 and rR, rG and rG.nG > 0 and rG, rM and rM.nM > 0 and rM
+		return m
 	end
 end
 

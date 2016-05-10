@@ -204,7 +204,7 @@ do -- CreateLoader(parent, W, G, H)
 				end
 				ok, er, i, x = coroutine.resume(self.job)
 				local tdiff, stop = debugprofilestop()-t1
-				t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 1.5*tdiff
+				t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 2*tdiff
 			until not (i and x) or stop
 			if not ok then
 				if ok ~= nil then
@@ -229,6 +229,10 @@ do -- CreateLoader(parent, W, G, H)
 				self.nf = (self.nf or 0) + 1
 				return
 			else
+				for i=math.max(1, self.pg or 1), 9 do
+					local si = self[i]
+					si:SetTexture(si.r or 0, si.g or 0, si.b or 0)
+				end
 				if self.OnFinish then
 					securecall(self.OnFinish, self, self.nf or 0)
 				end
@@ -254,7 +258,7 @@ do -- CreateLoader(parent, W, G, H)
 	end
 	function api.CreateLoader(parent, W, G, H, tlim, animHide)
 		local WG, loader = W + G, CreateFrame("Frame", nil, parent)
-		loader.tlim = tlim or 20
+		loader.tlim = tlim or 14
 		loader:SetSize(WG*N-G, H)
 		loader:Hide()
 		for i=1,N do
@@ -1467,6 +1471,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				{arg1=127748},
 				{arg1=128313},
 				{arg1=128316},
+				{arg1=128312},
 				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC},
 			}
 			local function toggleInterestBit(_, key)

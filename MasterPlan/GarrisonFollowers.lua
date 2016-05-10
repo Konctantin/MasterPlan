@@ -25,16 +25,6 @@ local function HideOwnedGameTooltip(self)
 		GameTooltip:Hide()
 	end
 end
-local function GetMoIRewardIcon(rid)
-	if rid == 0 then
-		return "|TInterface\\Icons\\INV_Misc_Coin_01:14:14:0:0:64:64:4:60:4:60|t"
-	elseif rid < 2000 then
-		return "|T" .. (select(3,GetCurrencyInfo(rid)) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
-	else
-		return "|T" .. (GetItemIcon(rid) or "Interface/Icons/Temp") .. ":14:14:0:0:64:64:4:60:4:60|t"
-	end
-	return ""
-end
 
 local mechanicsFrame = CreateFrame("Frame")
 T.mechanicsFrame = mechanicsFrame
@@ -383,11 +373,47 @@ hooksecurefunc("GarrisonFollowerPage_SetItem", function(self)
 	self.ItemAverageLevel:Hide()
 end)
 local CreateClassSpecButton, ClassSpecButton_Set do
+	local tipLoader = T.MissionsUI.CreateLoader(GameTooltip, 16, 4, 9)
+	tipLoader:ClearAllPoints()
+	tipLoader:SetPoint("BOTTOM", 0, 8)
+	
 	local function ClassSpecButton_OnEnter(self)
+		local info, data, job = self.follower
 		GameTooltip:SetOwner(self, "ANCHOR_NONE")
-		if G.SetClassSpecTooltip(GameTooltip, self.follower) then
-			GameTooltip:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT")
+		GameTooltip:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT")
+		if info and not self.suppressProspects and not IsShiftKeyDown() then
+			data, job = G.GetRerollProspects(info.followerID, true)
+		end
+		if data then
+			local ct, tex = T.SpecCounters[info and info.classSpec], ""
+			for i=1,ct and #ct or 0 do
+				tex = tex .. "|T" .. select(3,G.GetMechanicInfo(ct[i])) .. ":16:16:0:0:64:64:5:59:5:59|t"
+			end
+			GameTooltip:AddLine(info.className or "?", 1,1,1)
+			if tex ~= "" then
+				GameTooltip:AddDoubleLine(L"Potential counters:", tex)
+				if type(info.followerID) == "string" then
+					local a1, a2 = C_Garrison.GetFollowerAbilityAtIndex(info.followerID, 1) or 0, C_Garrison.GetFollowerAbilityAtIndex(info.followerID, 2) or 0
+					a1, a2 = a1 > 0 and select(3, C_Garrison.GetFollowerAbilityCounterMechanicInfo(a1)), a2 > 0 and select(3, C_Garrison.GetFollowerAbilityCounterMechanicInfo(a2))
+					if a2 then
+						local tex = ("|T%s:16:16:0:0:64:64:5:59:5:59|t|T%s:16:16:0:0:64:64:5:59:5:59|t"):format(a1, a2)
+						GameTooltip:AddDoubleLine(L"Current counters:", tex)
+					end
+				end
+				GameTooltip:AddLine(" ")
+			end
+			G.SetFollowerCloneTip(GameTooltip, G.AnnotateCloneProspects(data), info and info.isCollected)
+		elseif G.SetClassSpecTooltip(GameTooltip, info) and job then
+			GameTooltip:AddLine(" ")
 			GameTooltip:Show()
+			tipLoader.job = job
+			tipLoader:Show()
+		end
+	end
+	function EV:MP_REROLL_PROSPECTS_READY()
+		local mf = GetMouseFocus()
+		if mf and GameTooltip:GetOwner() == mf and not mf:IsForbidden() and mf:GetScript("OnEnter") == ClassSpecButton_OnEnter then
+			ClassSpecButton_OnEnter(mf)
 		end
 	end
 	function CreateClassSpecButton(parent)
@@ -491,7 +517,7 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 						GameTooltip:AddLine(" ")
 						used = true
 					end
-					GameTooltip:AddDoubleLine(GetMoIRewardIcon(mi.s[4]) .. " " .. (C_Garrison.GetMissionName(mid) or mid or "?"), b[5] .. "%", 1,1,1)
+					GameTooltip:AddDoubleLine(G.GetMoIRewardIcon(mi.s[4]) .. " " .. (C_Garrison.GetMissionName(mid) or mid or "?"), b[5] .. "%", 1,1,1)
 				end
 			end
 			if used then
@@ -567,11 +593,14 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 			self.Missions.followerID = fid
 			self.Missions:SetNormalTexture(f .. r)
 			self.Missions:Show()
+			loader:Hide()
 		else
 			self.Missions:Hide()
 			if job then
 				loader.job = job
 				loader:Show()
+			else
+				loader:Hide()
 			end
 		end
 	end
@@ -606,85 +635,10 @@ local function RecruitAbility_OnLeave(self)
 		GarrisonFollowerAbilityTooltip:Hide()
 	end
 end
-local function GetCounterIconsByKey(key)
-	local c1, c2 = math.floor(key/100), key%100
-	local _, _, i1 = G.GetMechanicInfo(c1)
-	local _, _, i2 = G.GetMechanicInfo(c2)
-	return (i1 and "|T" .. i1 .. ":16:16:0:0:64:64:5:59:5:59|t|T" or "|T") .. i2 .. ":16:16:0:0:64:64:5:59:5:59|t"
-end
-local MoIMark_ModifierWatch
 local function MoIMark_OnEnter(self)
 	GameTooltip:SetOwner(self, "ANCHOR_TOP")
 	GameTooltip:AddLine(L"Missions of Interest", 1,1,1)
-	if self.cR > 0 then
-		GameTooltip:AddLine((L"Improves %s |4Mission of Interest:Missions of Interest;."):format(self.cR))
-	end
-	if self.cM > self.cR then
-		GameTooltip:AddLine((L"Usable in %s groups for %s Missions of Interest."):format(self.cG, self.cM))
-	end
-	if self.lM > 0 then
-		if self.cM > 0 or self.cR > 0 then
-			GameTooltip:AddLine(" ")
-		end
-		GameTooltip:AddLine(ITEM_QUALITY_COLORS[4].hex .. L"Levelled to Epic:")
-		GameTooltip:AddDoubleLine(L"Average:", (L"%.1f groups / %.1f missions"):format(self.lG, self.lM), nil,nil,nil, 1,1,1)
-		if self.ceR then
-			GameTooltip:AddDoubleLine(L"Best Improvement:", (L"%d |4mission:missions;"):format(self.ceR.nR) .. " " .. GetCounterIconsByKey(self.ceR.key), nil,nil,nil, 1,1,1)
-		end
-		if self.ceG and (not self.ceR or self.ceR.nR < self.ceG.nG) then
-			GameTooltip:AddDoubleLine(L"Most Groups:", (L"%d |4group:groups;"):format(self.ceG.nG) .. " " .. GetCounterIconsByKey(self.ceG.key), nil,nil,nil, 1,1,1)
-		end
-		if self.ceM and (not self.ceR or self.ceR.nR < self.ceM.nM) then
-			GameTooltip:AddDoubleLine(L"Most Missions:", (L"%d |4group:groups;"):format(self.ceM.nM) .. " " .. GetCounterIconsByKey(self.ceM.key), nil,nil,nil, 1,1,1)
-		end
-	end
-	if self.eM > 0 then
-		if self.cM > 0 or self.cR > 0 or self.lM > 0 then
-			GameTooltip:AddLine(" ")
-		end
-		GameTooltip:AddLine(ITEM_QUALITY_COLORS[5].hex .. L"Re-training at Epic:")
-		GameTooltip:AddDoubleLine(L"Average:", (L"%.1f groups / %.1f missions"):format(self.eG, self.eM), nil,nil,nil, 1,1,1)
-		if self.crR then
-			GameTooltip:AddDoubleLine(L"Best Improvement:", (L"%d |4mission:missions;"):format(self.crR.nR) .. " " .. GetCounterIconsByKey(self.crR.key), nil,nil,nil, 1,1,1)
-		end
-		if self.crG and (not self.crR or self.crR.nR < self.crG.nG) then
-			GameTooltip:AddDoubleLine(L"Most Groups:", (L"%d |4group:groups;"):format(self.crG.nG) .. " " .. GetCounterIconsByKey(self.crG.key), nil,nil,nil, 1,1,1)
-		end
-		if self.crM and (not self.crR or self.crR.nR < self.crM.nM) then
-			GameTooltip:AddDoubleLine(L"Most Missions:", (L"%d |4mission:missions;"):format(self.crM.nM) .. " " .. GetCounterIconsByKey(self.crM.key), nil,nil,nil, 1,1,1)
-		end
-	end
-	
-	if self.req then
-		local addHeader, cc, overflow, lastLeft, lastRight = true, 0, 0
-		for i=1,2 do
-			for _, mi, b in G.MoIMissions(1) do
-				local mid = mi[1]
-				if self.req[mid] and G.IsInterestedInMoI(mi) and (i == 2) == (not self.cur[mid]) then
-					if addHeader then
-						GameTooltip:AddLine("|n" .. L"Could improve groups for:")
-						addHeader = false
-					end
-					cc, lastLeft, lastRight = cc + 1, GetMoIRewardIcon(mi.s[4]) .. " " .. (C_Garrison.GetMissionName(mid) or mid), (i == 1 and "|cff00ff00" or "") .. self.req[mid] .. "/" .. self.cw
-					if cc < 6 or i == 1 or IsAltKeyDown() then
-						GameTooltip:AddDoubleLine(lastLeft, lastRight, 1,1,1, 1,1,1)
-					else
-						overflow = overflow + 1
-					end
-				end
-			end
-		end
-		if overflow > 1 then
-			GameTooltip:AddLine((L"+ %d other missions"):format(overflow), 0.8, 0.8, 0.8)
-			T.SetModifierSensitiveTip(MoIMark_ModifierWatch, GameTooltip, self)
-		elseif overflow == 1 then
-			GameTooltip:AddDoubleLine(lastLeft, lastRight, 1,1,1, 1,1,1)
-		end
-	end
-	GameTooltip:Show()
-end
-function MoIMark_ModifierWatch(_, self)
-	return MoIMark_OnEnter(self)
+	G.SetFollowerCloneTip(GameTooltip, self.clones, false)
 end
 local recruitMarks = {}
 for i=1,3 do
@@ -692,6 +646,7 @@ for i=1,3 do
 	f.MPClass = CreateClassSpecButton(f)
 	f.MPClass:SetSize(20, 20)
 	f.MPClass:SetPoint("TOPRIGHT", -4, 4)
+	f.MPClass.suppressProspects = true
 	f.Affinity = CreateMechanicButton(f)
 	f.Affinity:SetPoint("TOPRIGHT", -28, 4)
 	f.MoIMark = CreateFrame("Frame", nil, f, nil, i) do
@@ -709,7 +664,8 @@ for i=1,3 do
 end
 local rpLoader = T.MissionsUI.CreateLoader(GarrisonRecruitSelectFrame.FollowerSelection, 8, 4, 14)
 rpLoader:SetPoint("TOPRIGHT", GarrisonRecruitSelectFrame, -46, -38)
-local function Recruit_ProspectCompare(a, b)
+local function Recruit_ProspectCompare(aw, bw)
+	local a, b = aw.clones, bw.clones
 	local ac, bc = a.cR, b.cR
 	if ac == bc then
 		ac, bc = a.crR and a.crR.nR or a.cR, b.crR and b.crR.nR or b.cR
@@ -722,7 +678,7 @@ local function Recruit_ProspectCompare(a, b)
 					if ac == bc then
 						ac, bc = a.eG, b.eG
 						if ac == bc then
-							ac, bc = a:GetID(), b:GetID()
+							ac, bc = aw:GetID(), bw:GetID()
 						end
 					end
 				end
@@ -732,66 +688,10 @@ local function Recruit_ProspectCompare(a, b)
 	return ac > bc
 end
 function EV:MP_RECRUIT_PROSPECTS_READY(data)
-	for i=1,3 do
-		local cs, sw, ew, p, double = T.SpecCounters[data[i].classSpec], 0, 0, data[i]
-		for i=2,#cs do
-			if cs[i-1] == cs[i] then
-				double = cs[i]
-				break
-			end
-		end
-		local fat = GarrisonRecruitSelectFrame.FollowerSelection["Recruit" .. i].Abilities.Entries
-		local cc = fat[1] and (not fat[2] or not fat[2]:IsShown()) and C_Garrison.GetFollowerAbilityCounterMechanicInfo(fat[1].abilityID) or nil
-		for k,v in pairs(p.clones) do
-			local c1, c2 = math.floor(k/100), k % 100
-			local w = c1 == 0 and 0 or (c1 == c2) and 1 or (c1 == double or c2 == double) and 2 or 1
-			local ec = ((c1 == cc or c2 == cc) and w or 0)
-			v.nR, v.nG, v.nM, v.weight, sw, ew, v.epic, v.key = 0, 0, 0, w, sw + w, ew + ec, ec, k
-		end
-		p.cloneWeight, p.levelWeight, p.req = sw, ew
-	end
-	
-	local gc = data.gc
-	for _, mi, b in G.MoIMissions(1) do
-		if G.IsInterestedInMoI(mi) then
-			local gc, mid = gc[mi[1]], mi[1]
-			for i=1,3 do
-				local f = data[i]
-				for k,v in pairs(f.clones) do
-					local ng = v[mid]
-					if ng and ng > 0 then
-						v.nG, v.nM = v.nG + ng, v.nM + 1
-						if gc == 0 then
-							v.nR = v.nR + 1
-							f.req = f.req or {}
-							f.req[mid] = (f.req[mid] or 0) + v.weight
-						end
-					end
-				end
-			end
-		end
-	end
-	
 	for i=1,data and 3 or 0 do
-		local f = GarrisonRecruitSelectFrame.FollowerSelection["Recruit" .. i]
-		local m, u = f.MoIMark, data[i]
+		local m = GarrisonRecruitSelectFrame.FollowerSelection["Recruit" .. i].MoIMark
+		m.clones = G.AnnotateCloneProspects(data[i].clones)
 		m:Show()
-		local sR, sUG, sUM, lR, lUG, lUM, cw, ew = 0,0,0, 0,0,0, u.cloneWeight, math.max(1,u.levelWeight)
-		local eR, eG, eM, rR, rG, rM
-		for k,v in pairs(u.clones) do
-			local w, ew, nR, nG, nM = v.weight, v.epic, v.nR, v.nG, v.nM
-			sR, sUG, sUM = sR + w*nR, sUG + w*nG, sUM + w*nM
-			lR, lUG, lUM = lR + ew*nR, lUG + ew*nG, lUM + ew*nM
-			if ew > 0 then
-				eR, eG, eM = eR and eR.nR >= v.nR and eR or v, eG and eG.nG >= v.nG and eG or v, eM and eM.nM >= v.nM and eM or v
-			end
-			rR, rG, rM = rR and rR.nR >= v.nR and rR or v, rG and rG.nG >= v.nG and rG or v, rM and rM.nM >= v.nM and rM or v
-		end
-		m.eR, m.eG, m.eM = sR/cw, sUG/cw, sUM/cw
-		m.lR, m.lG, m.lM = lR/ew, lUG/ew, lUM/ew
-		m.cR, m.cG, m.cM = u.cur.nR, u.cur.nG, u.cur.nM
-		m.ceR, m.ceG, m.ceM, m.crR, m.crG, m.crM = eR and eR.nR > 0 and eR, eG and eG.nG > 0 and eG, eM and eM.nM > 0 and eM, rR and rR.nR > 0 and rR, rG and rG.nG > 0 and rG, rM and rM.nM > 0 and rM
-		m.clones, m.cur, m.classSpec, m.req, m.cw = u.clones, u.cur, u.classSpec, u.req, cw
 	end
 	if data then
 		table.sort(recruitMarks, Recruit_ProspectCompare)
@@ -1089,6 +989,7 @@ do -- Weapon/Armor upgrades and rerolls
 	
 	local items, gear, reroll = CreateFrame("Frame", "MPFollowerItemContainer") do
 		items:SetSize(1, 24)
+		items:Hide()
 		gear = CreateFrame("Frame", nil, items) do
 			gear:SetPoint("TOP")
 			gear:SetSize(218, 24)
@@ -1162,6 +1063,9 @@ do -- Weapon/Armor upgrades and rerolls
 		reroll = CreateFrame("Frame", nil, items) do
 			reroll:SetPoint("TOP", items, "BOTTOM", 0, -2)
 			reroll:SetHeight(24)
+			reroll:SetScript("OnShow", function(self) self:RegisterEvent("BAG_UPDATE_DELAYED") end)
+			reroll:SetScript("OnHide", function(self) self.wasHidden = true; self:UnregisterEvent("BAG_UPDATE_DELAYED") end)
+			reroll:SetScript("OnEvent", function(self) self:Sync(true) end)
 			local function TargetFollower()
 				if SpellCanTargetGarrisonFollower() then
 					GarrisonFollower_DisplayUpgradeConfirmation(items.followerID)
@@ -1172,13 +1076,15 @@ do -- Weapon/Armor upgrades and rerolls
 				local b = T.CreateLazyItemButton(reroll, tonumber(i))
 				b:SetSize(24, 24)
 				b.real:SetScript("PostClick", TargetFollower)
+				b:Hide()
 				buttons[#buttons+1] = b
 			end
-			function reroll:Sync()
+			function reroll:Sync(keepShown)
+				keepShown = keepShown and not self.wasHidden
 				local x = 0
 				for i=1,#buttons do
 					local b = buttons[i]
-					if GetItemCount(b.itemID) > 0 then
+					if GetItemCount(b.itemID) > 0 or (keepShown and b:IsShown()) then
 						b:SetPoint("LEFT", x, 0)
 						b:Show()
 						x = x + 28
@@ -1187,6 +1093,7 @@ do -- Weapon/Armor upgrades and rerolls
 					end
 				end
 				self:SetWidth(x > 0 and x - 4 or 0)
+				self.wasHidden = nil
 			end
 		end
 	end
@@ -1194,9 +1101,11 @@ do -- Weapon/Armor upgrades and rerolls
 		if not tab:IsVisible() or not tab.MPItemsOffsetY then
 			return
 		elseif type(id) ~= "string" then
+			items.followerID = nil
 			items:Hide()
 			return
 		end
+		local isRefresh = items:IsVisible() and items.followerID == id
 		items.followerID = id
 		if C_Garrison.GetFollowerLevel(id) < 100 then
 			gear:Hide()
@@ -1206,7 +1115,7 @@ do -- Weapon/Armor upgrades and rerolls
 			gear:Show()
 		end
 		reroll:SetPoint("TOP", items, "BOTTOM", 0, tab.MPSideItemsOffsetY or -2)
-		reroll:Sync()
+		reroll:Sync(isRefresh)
 		items:SetParent(tab)
 		items:SetPoint("BOTTOM", tab, "BOTTOMLEFT", 156 + (tab.MPItemsOffsetX or 0), tab.MPItemsOffsetY)
 		items:Show()
