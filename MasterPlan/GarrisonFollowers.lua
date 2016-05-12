@@ -1065,7 +1065,7 @@ do -- Weapon/Armor upgrades and rerolls
 			reroll:SetHeight(24)
 			reroll:SetScript("OnShow", function(self) self:RegisterEvent("BAG_UPDATE_DELAYED") end)
 			reroll:SetScript("OnHide", function(self) self.wasHidden = true; self:UnregisterEvent("BAG_UPDATE_DELAYED") end)
-			reroll:SetScript("OnEvent", function(self) self:Sync(true) end)
+			reroll:SetScript("OnEvent", function(self) gear:Sync() self:Sync(true) end)
 			local function TargetFollower()
 				if SpellCanTargetGarrisonFollower() then
 					GarrisonFollower_DisplayUpgradeConfirmation(items.followerID)
@@ -1121,6 +1121,15 @@ do -- Weapon/Armor upgrades and rerolls
 		items:Show()
 	end
 	EV.FXUI_GARRISON_FOLLOWER_LIST_SHOW_FOLLOWER = updateTabView
+	function EV:BAG_UPDATE_DELAYED()
+		local f = GarrisonMissionFrame.FollowerTab
+		for i=1,2 do
+			if f.followerList and f:IsVisible() then
+				f.followerList:UpdateData()
+			end
+			f = GarrisonLandingPage.FollowerTab
+		end
+	end
 end
 
 do -- XP Projections for follower summaries
