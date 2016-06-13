@@ -194,7 +194,7 @@ MISSION_PAGE_FRAME.StartMissionButton:SetScript("OnClick", function()
 end)
 
 do -- CreateLoader(parent, W, G, H)
-	local N, c = 9, "16FF1F1DEDFC9C04F6128CFEE8FF08FD3016FE9B17FF8DD2706F6E"
+	local fin, N, c = setmetatable({}, {__mode="k"}), 9, "16FF1F1DEDFC9C04F6128CFEE8FF08FD3016FE9B17FF8DD2706F6E"
 	local function Loader_OnUpdate(self)
 		if self.job then
 			local t1, tlim, ok, er, i, x = debugprofilestop(), self.tlim
@@ -204,9 +204,9 @@ do -- CreateLoader(parent, W, G, H)
 				end
 				ok, er, i, x = coroutine.resume(self.job)
 				local tdiff, stop = debugprofilestop()-t1
-				t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 1.5*tdiff
+				t1, tlim, stop = t1+tdiff, tlim-tdiff, tlim < 2*tdiff
 			until not (i and x) or stop
-			if not ok then
+			if not (fin[self.job] or ok) then
 				if ok ~= nil then
 					securecall(error, "CO: " .. tostring(er) .. "\n" .. debugstack(self.job))
 				end
@@ -229,6 +229,11 @@ do -- CreateLoader(parent, W, G, H)
 				self.nf = (self.nf or 0) + 1
 				return
 			else
+				for i=math.max(1, self.pg or 1), 9 do
+					local si = self[i]
+					si:SetTexture(si.r or 0, si.g or 0, si.b or 0)
+				end
+				fin[self.job or 1] = 1
 				if self.OnFinish then
 					securecall(self.OnFinish, self, self.nf or 0)
 				end
@@ -254,7 +259,7 @@ do -- CreateLoader(parent, W, G, H)
 	end
 	function api.CreateLoader(parent, W, G, H, tlim, animHide)
 		local WG, loader = W + G, CreateFrame("Frame", nil, parent)
-		loader.tlim = tlim or 20
+		loader.tlim = tlim or 14
 		loader:SetSize(WG*N-G, H)
 		loader:Hide()
 		for i=1,N do
@@ -1467,6 +1472,7 @@ local interestUI = CreateFrame("Frame", nil, missionList) do
 				{arg1=127748},
 				{arg1=128313},
 				{arg1=128316},
+				{arg1=128312},
 				{arg1=115280, text="|TInterface\\Minimap\\ObjectIcons:16:16:0:0:256:256:194:222:130:158|t |cffff8000" .. ITEM_QUALITY5_DESC},
 			}
 			local function toggleInterestBit(_, key)
@@ -3382,12 +3388,18 @@ do -- Ships
 		local f = CreateFrame("FRAME", nil, parent)
 		f:SetAllPoints()
 		for i=1,2 do
-			local t = f:CreateTexture()
-			t:SetSize(22-6*i, 22-6*i)
+			local t = f:CreateTexture(nil, "ARWORK", nil, i)
+			t:SetSize(22-5*i, 22-5*i)
 			t:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMaskSmall")
 			t:SetPoint("CENTER", f, "TOPRIGHT", -12, -12)
 			f[i == 1 and "outer" or "inner"] = t
 		end
+		local t = f:CreateTexture(nil, "ARWORK", nil, 3)
+		t:SetSize(12, 5)
+		t:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMaskSmall")
+		t:SetTexCoord(0, 1, 7/12, 1)
+		t:SetPoint("BOTTOM", f.inner, "BOTTOM")
+		f.innerLow = t
 		f.outer:SetVertexColor(0.2, 0.2, 0.2)
 		f.inner:SetVertexColor(0, 1, 0)
 		
@@ -3455,6 +3467,22 @@ do -- Ships
 			end
 		end)
 	end
+	local function getGroupColor(s)
+		local c = T.config
+		if not s then
+			return 0.4, 0.4, 0.4
+		elseif s == 100 then
+			return 0.2, 0.7, 1
+		elseif c.ship4 > s then
+			return 0.6, 0, 0
+		elseif c.ship3 > s then
+			return 1, 0.4, 0
+		elseif c.ship2 > s then
+			return 1, 0.9, 0
+		elseif c.ship1 > s then
+			return 0.2, 1, 0.2
+		end
+	end
 	local function UpdateShipMissionMap()
 		local self = GarrisonShipyardFrame.MissionTab.MissionList
 		local sg = G.GetSuggestedGroupsForAllMissions(2)
@@ -3468,25 +3496,19 @@ do -- Ships
 				fg = fg and not G.GetMissionGroupDeparture(fg, mission) and fg
 				lg = lg and lg ~= fg and G.GetMissionGroupDeparture(lg, mission) and lg
 
-				local s, c, nt, r, g, b = fg and fg[1], T.config, G.HasTentativeParty(mission.missionID), 0.2, 0.7, 1
+				local nt, r, g, b, r2, g2, b2 = G.HasTentativeParty(mission.missionID)
 				if nt == mission.numFollowers then
 					r,g,b = 1, 0.2, 0.6
 				elseif nt > 0 then
 					r,g,b = 0.6, 0.2, 1
 				elseif (mission.cost or 0) > oil then
 					r,g,b = 1/4, 1/4, 1/4
-				elseif not s then
-					r,g,b = 0.4, 0.4, 0.4
-				elseif c.ship4 > s then
-					r,g,b = 0.6, 0, 0
-				elseif c.ship3 > s then
-					r,g,b = 1, 0.4, 0
-				elseif c.ship2 > s then
-					r,g,b = 1, 0.9, 0
-				elseif c.ship1 > s then
-					r,g,b = 0.2, 1, 0.2
+				else
+					r,g,b = getGroupColor(fg and fg[1])
+					r2, g2, b2 = getGroupColor(lg and lg[1] or fg and fg[1])
 				end
 				ui.inner:SetVertexColor(r,g,b)
+				ui.innerLow:SetVertexColor(r2 or r, g2 or g, b2 or b)
 				ui:Show()
 			elseif frame.MPUI then
 				frame.MPUI:Hide()
