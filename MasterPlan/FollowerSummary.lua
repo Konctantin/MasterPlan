@@ -1,6 +1,11 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
 local G, L, EV = T.Garrison, T.L, T.Evie
+local is7 = select(4, GetBuildInfo()) >= 7e4
+
+local function SetColorTexture(self, ...)
+	return self[is7 and "SetColorTexture" or "SetTexture"](self, ...)
+end
 
 local summaryTab = CreateFrame("Frame", nil, GarrisonMissionFrame, "GarrisonMissionBaseFrameTemplate") do
 	summaryTab:Hide()
@@ -320,7 +325,7 @@ local stats = CreateFrame("Frame", nil, summaryTab) do
 		t:SetPoint("BOTTOMRIGHT", -6, 0)
 		if i > 1 then
 			b:SetNormalTexture("Interface\\Icons\\Temp")
-			b:GetNormalTexture():SetTexture(0,0,0,0)
+			SetColorTexture(b:GetNormalTexture(), 0,0,0,0)
 			b:SetPushedTexture("Interface/Buttons/UI-QuickSlot-Depress")
 			b:GetPushedTexture():SetAllPoints(b.Icon)
 			b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")

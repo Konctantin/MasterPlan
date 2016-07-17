@@ -1,9 +1,11 @@
 local api, _, T = {}, ...
 if T.Mark ~= 50 then return end
 local EV, L = T.Evie, newproxy(true)
+local is7 = select(4, GetBuildInfo()) >= 7e4
 getmetatable(L).__call = function(_,k) if T.L then L = T.L return L(k) end return k end
 local FOLLOWER_ITEM_LEVEL_CAP, MENTOR_FOLLOWER, INF = T.FOLLOWER_ITEM_LEVEL_CAP, T.MENTOR_FOLLOWER, math.huge
 local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INACTIVE]=1}
+
 
 hooksecurefunc(C_Garrison, "MarkMissionComplete", function(mid)
 	EV("MP_MARK_MISSION_COMPLETE", mid)
@@ -203,8 +205,8 @@ end
 
 local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 	local complete, startQueue, startQueueSize, it = {}, {}, 0, 1
-	function api.GetAvailableMissions()
-		local t = C_Garrison.GetAvailableMissions(1)
+	function api.GetAvailableMissions(mt)
+		local t = C_Garrison.GetAvailableMissions(mt or 1)
 		securecall(api.ObserveMissions, t, 1)
 		local i, n, nit, dropCost = 1, #t, it % 2 + 1, 0
 		while i <= n do
@@ -296,11 +298,11 @@ local dropFollowers, missionEndTime = {}, {} do -- Start/Available capture
 		if next(startQueue) then
 			C_Timer.After(0.5, startQueuePing)
 		end
-		api.SuppressFollowerEvents()
+		api.SuppressFollowerEvents(1) --FIXME: MP doesn't use false-start for ship groups
 		for k, v in pairs(startQueue) do
 			pushStart(k, v[1], v[2], v[3])
 		end
-		api.ReleaseFollowerEvents()
+		api.ReleaseFollowerEvents(1)
 	end
 	function api.StartMissionQueue(id, f1, f2, f3)
 		local fi, fc = api.GetFollowerInfo(), C_Garrison.GetMissionMaxFollowers(id) or 0
@@ -411,12 +413,27 @@ local function followerIDcmp(a, b)
 end
 function api.GetFollowerInfo(refresh)
 	if not data.followers or refresh then
-		SetFollowerInfo(C_Garrison.GetFollowers())
+		local t
+		if is7 then
+			t = C_Garrison.GetFollowers(1)
+			local g = C_Garrison.GetFollowers(2)
+			if g and not t then
+				t = g
+			else
+				for i=1,g and #g or 0 do
+					t[#t+1] = g[i]
+				end
+			end
+			t = t or {}
+		else
+			t = C_Garrison.GetFollowers()
+		end
+		SetFollowerInfo(t)
 	end
 	return data.followers
 end
-function api.GetFollowerIdentity(includeInactive, includeStatus)
-	local f = C_Garrison.GetFollowers()
+function api.GetFollowerIdentity(includeInactive, includeStatus, folType)
+	local f = C_Garrison.GetFollowers(folType)
 	local last = #f
 	for i=last, 1, -1 do
 		if not f[i].isCollected then
@@ -436,7 +453,6 @@ function api.GetFollowerIdentity(includeInactive, includeStatus)
 			sig = sig .. q .. (v.status == GARRISON_FOLLOWER_INACTIVE and "#in#" or "#") .. (includeStatus and (dropFollowers[k] and GARRISON_FOLLOWER_ON_MISSION or v.status ~= GARRISON_FOLLOWER_IN_PARTY and v.status or ".") .. "#" .. (tentativeState[k] or "-") or "") .. (ignore[k] and "i" or "-")
 		end
 	end
-	SetFollowerInfo(f)
 	return sig
 end
 function api.PushFollowerPartyStatus(fid)
@@ -526,7 +542,7 @@ do -- api.GetMechanicInfo(mid/tex)
 	local function addCounter(k, tid)
 		local id, _, tex = C_Garrison.GetFollowerAbilityCounterMechanicInfo(tid)
 		if id then
-			local lc = tex:lower()
+			local lc = tostring(tex):lower()
 			counter[k], counter[id], counter[lc], counter[lc:gsub("%.blp$","")] = tid, tid, tid, tid
 		end
 	end
@@ -534,7 +550,7 @@ do -- api.GetMechanicInfo(mid/tex)
 		for _, fid in pairs({6, 118, 127, 131, 138, 140, 144}) do
 			for _, a in pairs(C_Garrison.GetFollowerAbilities(fid)) do
 				for k,t in pairs(a.counters) do
-					local lc = t.icon:lower()
+					local lc = tostring(t.icon):lower()
 					counter[k], counter[lc], counter[lc:gsub("%.blp$","")], desc[k] = a.id, a.id, a.id, t.description
 				end
 			end
@@ -547,6 +563,9 @@ do -- api.GetMechanicInfo(mid/tex)
 		end
 	end
 	function api.GetMechanicInfo(mid)
+		if type(mid) == "string" then
+			mid = mid:lower():gsub("%.blp$","")
+		end
 		if populate then
 			populate = populate()
 		end
@@ -680,7 +699,7 @@ end
 
 do -- CompleteMissions/AbortCompleteMissions
 	local curStack, curRewards, curFollowers, curCallback, curOverflow
-	local curSalvage, curPlayerXP = {[114120]=0, [114119]=0, [114116]=0}, {}
+	local curSalvage, curPlayerXP = {[114120]=0, [114119]=0, [114116]=0, [140590]=0, [139593]=0}, {}
 	local curState, curIndex, completionStep, lastAction, delayIndex, delayMID
 	local function checkSalvage(addRewards)
 		for k,v in pairs(curSalvage) do
@@ -768,7 +787,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			C_Timer.After(... == "IMMEDIATE" and 0 or 0.5, delayDone)
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
 			api.ExtendMissionInfoWithParty(mi)
-			if mi.state == -1 then
+			if mi.state == -1 or (is7 and not mi.completed) then
 				curState, delayIndex, delayMID = "COMPLETE", curIndex, mi.missionID
 				delayOpen(... ~= "IMMEDIATE" and 0.2)
 			elseif not isWastingCurrency(mi) then
@@ -818,8 +837,9 @@ do -- CompleteMissions/AbortCompleteMissions
 			end
 		end
 	end
-	function EV:GARRISON_FOLLOWER_XP_CHANGED(fid, xpAward, oldXP, olvl, oqual)
+	function EV:GARRISON_FOLLOWER_XP_CHANGED(...)
 		if curState then
+			local fid, xpAward, oldXP, olvl, oqual = select(is7 and 2 or 1, ...)
 			curFollowers[fid] = curFollowers[fid] or {olvl=olvl, oqual=oqual, xpAward=0, oxp=oldXP}
 			curFollowers[fid].xpAward = curFollowers[fid].xpAward + xpAward
 		end
@@ -907,13 +927,13 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 				releaseFollowerEvents()
 			end
 		end
-		function suppressFollowerEvents()
+		function suppressFollowerEvents(mt)
 			if level == 0 then
 				frames, followers = {GetFramesRegisteredForEvent("GARRISON_FOLLOWER_LIST_UPDATE")}, {}
 				for i=1,#frames do
 					frames[i]:UnregisterEvent("GARRISON_FOLLOWER_LIST_UPDATE")
 				end
-				local mmi = C_Garrison.GetAvailableMissions()
+				local mmi = C_Garrison.GetAvailableMissions(mt)
 				for i=1,#mmi do
 					for k,v in pairs(mmi[i].followers) do
 						C_Garrison.RemoveFollowerFromMission(mmi[i].missionID, v)
@@ -924,18 +944,21 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			end
 			level = level + 1
 		end
-		function releaseFollowerEvents()
+		function releaseFollowerEvents(mt)
 			assert(level > 0, "release not matched to suppress")
 			level = level - 1
 			if level == 0 then
-				local mmi = C_Garrison.GetAvailableMissions()
-				for i=1,#mmi do
-					for k,v in pairs(mmi[i].followers) do
-						C_Garrison.RemoveFollowerFromMission(mmi[i].missionID, v)
+				for i=1,(is7 and not mt) and 2 or 1 do
+					local mt = is7 and not mt and i or mt
+					local mmi = C_Garrison.GetAvailableMissions(mt)
+					for i=1,#mmi do
+						for k,v in pairs(mmi[i].followers) do
+							C_Garrison.RemoveFollowerFromMission(mmi[i].missionID, v)
+						end
 					end
-				end
-				for f, m in pairs(followers) do
-					C_Garrison.AddFollowerToMission(m, f)
+					for f, m in pairs(followers) do
+						C_Garrison.AddFollowerToMission(m, f)
+					end
 				end
 				for i=1,#frames do
 					frames[i]:RegisterEvent("GARRISON_FOLLOWER_LIST_UPDATE")
@@ -955,11 +978,11 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 		end
 	end
 	function api.PrepareAllMissionGroups(mtype)
-		suppressFollowerEvents()
+		suppressFollowerEvents(mtype)
 		local mmi = C_Garrison.GetAvailableMissions(mtype or 1)
 		securecall(api.ObserveMissions, mmi, mtype or 1)
 		securecall(doPrepareMissionGroups, mmi)
-		releaseFollowerEvents()
+		releaseFollowerEvents(mtype)
 		return mmi
 	end
 	function api.GetMissionGroups(mid, trustValid, omi)
@@ -1013,7 +1036,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 				end
 			end
 			
-			suppressFollowerEvents()
+			suppressFollowerEvents(mt)
 			
 			local fn, t, fm, m, mn = #msi, {}, {}, {hasBonusEffect=mi.hasBonusEffect}, 1
 			fm[1] = fn
@@ -1055,7 +1078,7 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 				C_Garrison.RemoveFollowerFromMission(mid, msi[t[i]])
 			end
 			msd[mid], ret = m, m
-			releaseFollowerEvents()
+			releaseFollowerEvents(mt)
 		end
 		return ret
 	end
@@ -1272,10 +1295,10 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 	local groupCache, lastTimeHorizon = {}
 	local prepareRun, getSuggestedGroups, completeRun do
 		local rank2, finfo, now, defValid, useFocus, order, f1, f2, f3
-		function prepareRun(_order, _f1, _f2, _f3)
+		function prepareRun(_order, _f1, _f2, _f3, mtype)
 			order, f1, f2, f3 = _order, _f1, _f2, _f3
 			local fid
-			fid, finfo = api.GetFollowerIdentity(false, true), api.GetFollowerInfo()
+			fid, finfo = api.GetFollowerIdentity(false, true, mtype), api.GetFollowerInfo(mtype)
 			fid = (order == "xptime" and "T" or "!") .. fid .. "#-ROAM-#" .. (f1 or "!") .. "-" .. (f2 or "!") .. "-" .. (f3 or "!")
 			timeHorizon = time() + T.config.timeHorizon
 			if groupCache._identity ~= fid or math.abs((lastTimeHorizon or 0) - timeHorizon) > 180 then
@@ -1353,7 +1376,7 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 	end
 
 	function api.GetSuggestedGroupsForAllMissions(mtype, order, f1, f2, f3)
-		prepareRun(order, f1, f2, f3)
+		prepareRun(order, f1, f2, f3, mtype)
 		local missions, tv = api.PrepareAllMissionGroups(mtype), false
 		for i=1,#missions do
 			local mi = missions[i]
@@ -1365,7 +1388,7 @@ local timeHorizon, computeEquivXP, computeEarliestCompletion, flushGroupAnnotati
 		return groupCache
 	end
 	function api.GetSuggestedGroupsForMission(mi, order, f1, f2, f3)
-		prepareRun(order, f1, f2, f3)
+		prepareRun(order, f1, f2, f3, mi.followerTypeID)
 		if not groupCache[mi.missionID] then
 			groupCache[mi.missionID] = getSuggestedGroups(mi, false)
 		end
@@ -1803,10 +1826,10 @@ function api.ExtendFollowerTooltipProjectedRewardXP(mi, fi)
 	local tip = fi and (fi.followerTypeID == 1 and GarrisonFollowerTooltip or GarrisonShipyardFollowerTooltip)
 	if mi and fi and tip and tip:IsShown() and tip.XPBarBackground:IsShown() then
 		local bmul, base, extraXP, bonus, mentor = api.ExtendMissionInfoWithXPRewardData(mi)
-		if base and extraXP and bmul and fi.levelXP then
+		if base and extraXP and bmul and (fi.levelXP or 0) ~= 0 then
 			local base, bonus = api.GetFollowerXPGain(fi, api.GetFMLevel(mi), extraXP + base, bonus * bmul, mentor)
 			local toLevel, wmul = fi.levelXP - fi.xp, tip.XPBarBackground:GetWidth()/fi.levelXP
-			tip.XPBarBackground:SetTexture(0.25, 0.25, 0.25)
+			tip.XPBarBackground[is7 and "SetColorTexture" or "SetTexture"](tip.XPBarBackground, 0.25, 0.25, 0.25)
 			if tip.XPBar:IsShown() then
 				tip.XPRewardBase:SetPoint("TOPLEFT", tip.XPBar, "TOPRIGHT")
 				tip.XPRewardBase:SetPoint("BOTTOMLEFT", tip.XPBar, "BOTTOMRIGHT")
@@ -2027,7 +2050,9 @@ function FollowerEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, scrat
 		rp = (nc + ex) * 100 / (cap + ex)
 		rp = rp - rp % 1
 	end
-	return rp, traits[FTraitStack[rew]] or 0, amlvl, bmlvl, cmlvl
+	local ts = FTraitStack[rew]
+	local stack = (traits[ts] or 0) + (is7 and ts == 79 and traits[256] or 0)*2
+	return rp, stack, amlvl, bmlvl, cmlvl
 end
 function FollowerEstimator.SaveGroup(best, traits, fa, fb, fc, sc, amlvl, bmlvl, cmlvl, a, b, c)
 	local na, nw = (fa.active or 0) + (b and fb.active or 0) + (c and fc.active or 0), 3 - (fa.working or 0) - (b and fb.working or 0) - (c and fc.working or 0)
@@ -2231,7 +2256,7 @@ function api.UpdateGroupEstimates(missions, followers, yield, bMax)
 	local nf1, nf = bMax and bMax or #f, #f -- TODO: moreFollowers thingy.
 
 	local scratch, counters, traits = {}, est.PrepareCounters()
-	local EvaluateGroup, SaveGroup, s1, doStack = est.EvaluateGroup, est.SaveGroup, 68719476736, bit.band(T.config.interestStack,2^mt/2)>0
+	local EvaluateGroup, SaveGroup, s1, doStack = est.EvaluateGroup, est.SaveGroup, 17179869184, bit.band(T.config.interestStack,2^mt/2)>0
 	local consideredGroups, totalGroups = 0 do
 		local re, n1, n2, n3 = nf > nf1 and nf-nf1 or 0, ms[1] and #ms[1] or 0, ms[2] and #ms[2] or 0, ms[3] and #ms[3] or 0
 		nf1, totalGroups = nf1+1, nf * n1 + (nf1*(nf1-1)/2+re*nf1) * n2 + (nf1*(nf1-1)*(nf1-2)/6 + re*nf1*(nf1-1)/2) * n3
@@ -2268,7 +2293,7 @@ function api.UpdateGroupEstimates(missions, followers, yield, bMax)
 		for i=1,nF and mi and #mi or 0 do
 			local mi, sc = mi[i]
 			local best, rp, rm, amlvl, bmlvl, cmlvl = best[mi], EvaluateGroup(mi, counters, traits, fa, fb, fc, scratch)
-			consideredGroups, sc = consideredGroups+1, (rp * (1 + (doStack and rm or 0)) * 4 + rm) * s1
+			consideredGroups, sc = consideredGroups+1, (rp * (1 + (doStack and rm or 0)) * 16 + rm) * s1
 			if best[1] - sc < s1 and SaveGroup(best, traits, fa, fb, fc, sc, amlvl, bmlvl, cmlvl, a, b, c) then
 				local ua, ub, uc, score, bk = fa.useMarks, fb and fb.useMarks, fc and fc.useMarks, best[1], bkey[best]
 				for j=1,mi[2] do
@@ -2295,8 +2320,8 @@ function api.UpdateGroupEstimates(missions, followers, yield, bMax)
 		local best = best[mi and mi.s]
 		if best and best[1] > 0 then
 			local head = math.floor(best[1]/s1)
-			local stack = head % 4
-			local gg = GetGroup(best, mi.s, f, counters, traits, stack, (head-stack)/4/(1 + (doStack and stack or 0)))
+			local stack = head % 16
+			local gg = GetGroup(best, mi.s, f, counters, traits, stack, (head-stack)/16/(1 + (doStack and stack or 0)))
 			ret[mi[1]], gg.mi = gg, mi
 		end
 		local bk = bkey[best]
@@ -2334,7 +2359,7 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 				mi.numFollowers,
 				mi.durationSeconds,
 				rt or 1,
-				mi.followerTypeID == 2 and select(4,C_Garrison.GetPartyMissionInfo(mi.missionID)) or env and api.GetMechanicInfo(env:lower()) or 0,
+				mi.followerTypeID == 2 and select(4,C_Garrison.GetPartyMissionInfo(mi.missionID)) or env and api.GetMechanicInfo(tostring(env)) or 0,
 			}
 			for i=1,#en do
 				for id in pairs(en[i].mechanics) do
@@ -2390,7 +2415,7 @@ do -- +api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
 		yield(2, 1, 1)
 	end
 	function api.GetSuggestedMissionUpgradeGroups(missions, f1, f2, f3)
-		local fid = api.GetFollowerIdentity(true, false)
+		local fid = api.GetFollowerIdentity(true, false, 1)
 		if upgroups.identity ~= fid then
 			wipe(upgroups)
 			upgroups.identity = fid

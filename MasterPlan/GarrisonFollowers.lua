@@ -2,6 +2,7 @@ local _, T = ...
 if T.Mark ~= 50 then return end
 local G, L, EV = T.Garrison, T.L, T.Evie
 local countFreeFollowers = G.countFreeFollowers
+local is7 = select(4, GetBuildInfo()) >= 7e4
 
 do -- Feed FrameXML updates to Evie
 	local function FollowerList_OnShowFollower(self, id)
@@ -426,7 +427,7 @@ local CreateClassSpecButton, ClassSpecButton_Set do
 		return f
 	end
 	function ClassSpecButton_Set(self, info)
-		self.Icon:SetToFileData(T.SpecIcons[info and info.classSpec])
+		self.Icon[is7 and "SetTexture" or "SetToFileData"](self.Icon, T.SpecIcons[info and info.classSpec])
 		self.follower = info
 	end
 end
@@ -612,10 +613,12 @@ local SpecAffinityFrame = CreateFrame("Frame") do
 		end
 	end
 end
-GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnEnter", GarrisonMissionMechanic_OnEnter)
-GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnLeave", function()
-	GarrisonMissionMechanicTooltip:Hide()
-end)
+if not is7 then
+	GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnEnter", GarrisonMissionMechanic_OnEnter)
+	GarrisonMissionFrame.FollowerTab.AbilitiesFrame.Counters[1]:SetScript("OnLeave", function()
+		GarrisonMissionMechanicTooltip:Hide()
+	end)
+end
 
 local function ShowPotentialAbilityTooltip(owner, classSpec, dropCounter, altTitle)
 	GameTooltip:SetOwner(owner, "ANCHOR_NONE")
@@ -632,7 +635,11 @@ local function RecruitAbility_OnEnter(self)
 	elseif self.abilityID and self.abilityID > 0 then
 		GarrisonFollowerAbilityTooltip:ClearAllPoints()
 		GarrisonFollowerAbilityTooltip:SetPoint("TOPLEFT", self.Icon, "BOTTOMRIGHT")
-		GarrisonFollowerAbilityTooltip_Show(self.abilityID)
+		if is7 then
+			GarrisonFollowerAbilityTooltip_Show(GarrisonFollowerAbilityTooltip, self.abilityID)
+		else
+			GarrisonFollowerAbilityTooltip_Show(self.abilityID)
+		end
 	end
 end
 local function RecruitAbility_OnLeave(self)
@@ -732,8 +739,8 @@ hooksecurefunc("GarrisonRecruitSelectFrame_UpdateRecruits", function(waiting)
 		end
 	end
 end)
-hooksecurefunc("GarrisonMissionFrame_SetFollowerPortrait", function(port, fi)
-	if not (port == GarrisonMissionFrame.FollowerTab.PortraitFrame or port == GarrisonLandingPage.FollowerTab.PortraitFrame) then
+hooksecurefunc(is7 and "GarrisonMissionPortrait_SetFollowerPortrait" or "GarrisonMissionFrame_SetFollowerPortrait", function(port, fi)
+	if not (port == GarrisonMissionFrame.FollowerTab.PortraitFrame or port == GarrisonLandingPage.FollowerTab.PortraitFrame) or (fi and fi.followerTypeID or 3) > 2 then
 		return
 	end
 	local p = port:GetParent()
@@ -992,7 +999,7 @@ do -- Weapon/Armor upgrades and rerolls
 	GarrisonLandingPage.FollowerTab.MPItemsOffsetX = -4
 	GarrisonLandingPage.FollowerTab.MPItemsOffsetY = 62
 	GarrisonLandingPage.FollowerTab.MPSideItemsOffsetY = -8
-	GarrisonLandingPage.FollowerTab.Model.UpgradeFrame:ClearAllPoints()
+	GarrisonLandingPage.FollowerTab[is7 and "ModelCluster" or "Model"].UpgradeFrame:ClearAllPoints()
 	
 	local items, gear, reroll = CreateFrame("Frame", "MPFollowerItemContainer") do
 		items:SetSize(1, 24)
@@ -1114,6 +1121,12 @@ do -- Weapon/Armor upgrades and rerolls
 		end
 		local isRefresh = items:IsVisible() and items.followerID == id
 		items.followerID = id
+		local fi = C_Garrison.GetFollowerInfo(id)
+		if not fi or fi.followerTypeID > 2 then
+			items:Hide()
+			reroll:Hide()
+			return
+		end
 		if C_Garrison.GetFollowerLevel(id) < 100 then
 			gear:Hide()
 			UpgradesFrame:Hide()

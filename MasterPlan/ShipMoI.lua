@@ -1,6 +1,7 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
 local L, G, EV, api = T.L, T.Garrison, T.Evie, T.MissionsUI
+local is7 = select(4, GetBuildInfo()) >= 7e4
 
 local function dismissTooltip(self)
 	if GameTooltip:IsOwned(self) then
@@ -32,7 +33,9 @@ local moiContainer, core, loader = CreateFrame("Frame", "MPShipMoI", GarrisonShi
 	loader = api.CreateLoader(moiContainer, 20, 30, 20)
 	loader:SetPoint("CENTER")
 	local fadeIn = moiContainer.List:CreateAnimationGroup() do
-		fadeIn:SetIgnoreFramerateThrottle(true)
+		if not is7 then
+			fadeIn:SetIgnoreFramerateThrottle(true)
+		end
 		local a = fadeIn:CreateAnimation("Alpha")
 		a:SetFromAlpha(0)
 		a:SetToAlpha(1)

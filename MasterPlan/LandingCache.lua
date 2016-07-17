@@ -1,6 +1,7 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
 local G, L, E = T.Garrison, T.L, T.Evie
+local is7 = select(4, GetBuildInfo()) >= 7e4
 
 function T.SetCacheTooltip(GameTooltip, current, cv, mv, st, md)
 	GameTooltip:ClearLines()
@@ -105,6 +106,19 @@ local function Ship_SetRecruit(ship)
 	return true
 end
 hooksecurefunc("GarrisonLandingPageReport_GetShipments", function(self)
+	if is7 then
+		if (C_Garrison.GetLandingPageGarrisonType() or 1) > 2 then return end
+		local index, ship = self.shipmentsPool.numActiveObjects, self.shipmentsPool:Acquire()
+		ship:SetPoint("TOPLEFT", 60 + mod(index, 3) * 105, -105 - floor(index / 3) * 100)
+		if Ship_SetRecruit(ship) then
+			index, ship = self.shipmentsPool.numActiveObjects, self.shipmentsPool:Acquire()
+			ship:SetPoint("TOPLEFT", 60 + mod(index, 3) * 105, -105 - floor(index / 3) * 100)
+		end
+		if not Ship_SetCache(ship) then
+			self.shipmentsPool:Release(ship)
+		end
+		return
+	end
 	local ships = self.Shipments
 	for i=1,#ships do
 		local ship = ships[i]

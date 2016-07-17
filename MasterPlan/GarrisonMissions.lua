@@ -1,6 +1,18 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
 local EV, G, L = T.Evie, T.Garrison, T.L
+local is7 = select(4, GetBuildInfo()) >= 7e4
+
+local function GarrisonFollowerList_UpdateFollowers(s, ...)
+	if is7 then
+		s:UpdateFollowers(...)
+	else
+		_G.GarrisonFollowerList_UpdateFollowers(s, ...)
+	end
+end
+local function SetColorTexture(self, ...)
+	return self[is7 and "SetColorTexture" or "SetTexture"](self, ...)
+end
 
 local roamingParty, easyDrop = T.MissionsUI.roamingParty, T.MissionsUI.easyDrop
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
@@ -14,7 +26,10 @@ end
 
 do -- Feed FrameXML updates to Evie
 	local function FollowerList_OnUpdateData(self)
-		EV("FXUI_GARRISON_FOLLOWER_LIST_UPDATE", self:GetParent())
+		local p = self:GetParent()
+		if not (is7 and p == GarrisonLandingPage and C_Garrison.GetLandingPageGarrisonType() == 3) then
+			EV("FXUI_GARRISON_FOLLOWER_LIST_UPDATE", p)
+		end
 	end
 	hooksecurefunc(GarrisonMissionFrame.FollowerList, "UpdateData", FollowerList_OnUpdateData)
 	hooksecurefunc(GarrisonLandingPage.FollowerList, "UpdateData", FollowerList_OnUpdateData)
@@ -188,8 +203,10 @@ function EV:FXUI_GARRISON_FOLLOWER_LIST_UPDATE(frame)
 	local mlvl = mi and G.GetFMLevel(mi)
 	for i=1, #buttons do
 		local btn = buttons[i]
-		if btn:IsShown() then
-			local follower, st = btn.info, btn.XPBar.statusText
+		if is7 and btn.Follower then btn = btn.Follower end
+		local follower = btn.info
+		if btn:IsShown() and follower then
+			local st = btn.XPBar.statusText
 			if not st then
 				st = btn:CreateFontString(nil, "ARTWORK", "TextStatusBarText")
 				st:SetTextColor(0.7, 0.6, 0.85)
@@ -256,7 +273,9 @@ do -- Follower counter button tooltips
 	end
 	hooksecurefunc("GarrisonFollowerButton_UpdateCounters", function(_, self)
 		if old and (fake.info ~= old.info or not (old:IsShown() and old:IsMouseOver())) then
-			GarrisonMissionMechanicFollowerCounter_OnLeave(fake)
+			if not is7 then
+				GarrisonMissionMechanicFollowerCounter_OnLeave(fake)
+			end
 			old, fake.info = nil
 		end
 		for i=1,#self.Counters do
@@ -393,7 +412,7 @@ end
 local function Mechanic_OnEnter(self)
 	local mi = MISSION_PAGE_FRAME.missionInfo
 	GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-	G.SetThreatTooltip(GameTooltip, self.info.icon:lower(), nil, G.GetFMLevel(mi))
+	G.SetThreatTooltip(GameTooltip, tostring(self.info.icon), nil, G.GetFMLevel(mi))
 	GameTooltip:Show()
 end
 hooksecurefunc(GarrisonMissionFrame, "SetEnemies", function(_, f, enemies)
@@ -591,13 +610,13 @@ do -- GarrisonFollowerTooltip xp textures
 	local tf, tf2 = GarrisonFollowerTooltip, GarrisonShipyardFollowerTooltip
 	repeat
 		tf.XPGained = tf:CreateTexture(nil, "ARTWORK", nil, 2)
-		tf.XPGained:SetTexture(1, 0.8, 0.2)
+		SetColorTexture(tf.XPGained, 1, 0.8, 0.2)
 		tf.XPRewardBase = tf:CreateTexture(nil, "ARTWORK", nil, 2)
-		tf.XPRewardBase:SetTexture(0.6, 1, 0)
+		SetColorTexture(tf.XPRewardBase, 0.6, 1, 0)
 		tf.XPRewardBase:SetPoint("TOPLEFT", tf.XPBar, "TOPRIGHT")
 		tf.XPRewardBase:SetPoint("BOTTOMLEFT", tf.XPBar, "BOTTOMRIGHT")
 		tf.XPRewardBonus = tf:CreateTexture(nil, "ARTWORK", nil, 2)
-		tf.XPRewardBonus:SetTexture(0, 0.75, 1)
+		SetColorTexture(tf.XPRewardBonus, 0, 0.75, 1)
 		tf.XPRewardBonus:SetPoint("TOPLEFT", tf.XPRewardBase, "TOPRIGHT")
 		tf.XPRewardBonus:SetPoint("BOTTOMLEFT", tf.XPRewardBase, "BOTTOMRIGHT")
 		tf, tf2 = tf2
@@ -667,20 +686,24 @@ do -- Counter-follower lists
 		end
 	end
 	
-	hooksecurefunc("GarrisonFollowerTooltipTemplate_SetGarrisonFollower", function(self, _info)
-		for i=1,#self.Abilities do
-			local ci = self.Abilities[i].CounterIcon
-			if ci:IsShown() then
-				ci:SetMask("")
-				ci:SetTexCoord(4/64,60/64,4/64,60/64)
+	if not is7 then
+		hooksecurefunc("GarrisonFollowerTooltipTemplate_SetGarrisonFollower", function(self, _info)
+			for i=1,#self.Abilities do
+				local ci = self.Abilities[i].CounterIcon
+				if ci:IsShown() then
+					ci:SetMask("")
+					ci:SetTexCoord(4/64,60/64,4/64,60/64)
+				end
 			end
-		end
-	end)
+		end)
+	end
 	
 	hooksecurefunc("GarrisonFollowerAbilityTooltipTemplate_SetAbility", function(self, aid)
-		self.CounterIcon:SetMask("")
-		self.CounterIcon:SetTexCoord(4/64,60/64,4/64,60/64)
-		if not aid then
+		if not is7 then
+			self.CounterIcon:SetMask("")
+			self.CounterIcon:SetTexCoord(4/64,60/64,4/64,60/64)
+		end
+		if not aid or not self.Details then
 			return
 		elseif self.Details:IsShown() then
 			itip:ActivateFor(self, "TOPLEFT", self.CounterIcon, "BOTTOMLEFT", -14, 16)
@@ -696,7 +719,7 @@ do -- Counter-follower lists
 		itip:Show()
 	end)
 	GarrisonMissionMechanicFollowerCounterTooltip:HookScript("OnShow", function(self)
-		local mech = G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
+		local mech = G.GetMechanicInfo(tostring(self.Icon:GetTexture()))
 		if mech then
 			if self.CounterName:IsShown() then
 				itip:ActivateFor(self, "TOPLEFT", self.CounterIcon, "BOTTOMLEFT", -10, 16)
@@ -708,7 +731,7 @@ do -- Counter-follower lists
 		end
 	end)
 	GarrisonMissionMechanicTooltip:HookScript("OnShow", function(self)
-		local mech = self:GetParent().CloseMission and G.GetMechanicInfo((self.Icon:GetTexture() or ""):lower())
+		local mech = self:GetParent().CloseMission and G.GetMechanicInfo(self.Icon:GetTexture() or "")
 		if mech then
 			itip:ActivateFor(self, "TOPLEFT", self.Description, "BOTTOMLEFT", -10, 16)
 			G.SetThreatTooltip(itip, mech, nil, self.missionLevel, nil, true)
@@ -810,7 +833,7 @@ do -- Follower headcounts
 	end
 	local function sync()
 		ni, nw, nx, nm = 0, 0, 0, 0
-		for k, v in pairs(G.GetFollowerInfo()) do
+		for k, v in pairs(G.GetFollowerInfo(1)) do
 			if not v.isCollected or T.config.ignore[k] or v.followerTypeID ~= 1 then
 			elseif v.status == GARRISON_FOLLOWER_WORKING then
 				nw = nw + 1
@@ -986,7 +1009,7 @@ do -- Ship re-fitting
 				b.icon = ico
 				ico:SetTexture("Interface/Icons/Temp")
 				b:SetNormalTexture("Interface/Icons/Temp")
-				b:GetNormalTexture():SetTexture(0,0,0,0)
+				SetColorTexture(b:GetNormalTexture(), 0,0,0,0)
 				b:SetPushedTexture("Interface/Buttons/UI-QuickSlot-Depress")
 				b:SetHighlightTexture("Interface/Buttons/ButtonHilight-Square")
 				b:SetCheckedTexture("Interface/Buttons/CheckButtonHilight")
@@ -1007,7 +1030,7 @@ do -- Ship re-fitting
 				border:SetAllPoints()
 				ico:SetTexture("Interface/Icons/Temp")
 				b:SetNormalTexture("Interface/Icons/Temp")
-				b:GetNormalTexture():SetTexture(0,0,0,0)
+				SetColorTexture(b:GetNormalTexture(), 0,0,0,0)
 				b:SetPushedTexture("Interface/Buttons/UI-QuickSlot-Depress")
 				b:SetHighlightTexture("Interface/Buttons/ButtonHilight-Square")
 				b:SetPoint("LEFT", i*34-34 + math.floor(i/2-0.5)*12, 0)
