@@ -1157,10 +1157,10 @@ do -- XP Projections for follower summaries
 		local tab, baseBar, bonusBar = bar:GetParent(), bar.XPBaseReward, bar.XPBonusReward
 		local fid = tab.followerID
 		if fid and type(fid) == "string" and C_Garrison.GetFollowerStatus(fid) == GARRISON_FOLLOWER_ON_MISSION then
-			for k,v in pairs(C_Garrison.GetInProgressMissions(C_Garrison.GetFollowerTypeByID(fid))) do
+			local fi = G.GetFollowerInfo()[fid]
+			for k,v in pairs(C_Garrison.GetInProgressMissions(fi and fi.followerTypeID or 1)) do
 				local ft = v.followers
 				if ft[1] == fid or ft[2] == fid or ft[3] == fid then
-					local fi = G.GetFollowerInfo()[fid]
 					local bmul, base, extraXP, bonus, mentor = G.ExtendMissionInfoWithXPRewardData(v)
 					local base, bonus = G.GetFollowerXPGain(fi, G.GetFMLevel(v), extraXP + base, bonus * bmul, mentor)
 					local toLevel, wmul = fi.levelXP - fi.xp, bar.length/fi.levelXP
