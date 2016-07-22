@@ -1,7 +1,6 @@
 local api, _, T = {}, ...
 if T.Mark ~= 50 then return end
 local EV, L = T.Evie, newproxy(true)
-local is7 = select(4, GetBuildInfo()) >= 7e4
 getmetatable(L).__call = function(_,k) if T.L then L = T.L return L(k) end return k end
 local FOLLOWER_ITEM_LEVEL_CAP, MENTOR_FOLLOWER, INF = T.FOLLOWER_ITEM_LEVEL_CAP, T.MENTOR_FOLLOWER, math.huge
 local unfreeStatusOrder = {[GARRISON_FOLLOWER_WORKING]=2, [GARRISON_FOLLOWER_INACTIVE]=1}
@@ -413,22 +412,16 @@ local function followerIDcmp(a, b)
 end
 function api.GetFollowerInfo(refresh)
 	if not data.followers or refresh then
-		local t
-		if is7 then
-			t = C_Garrison.GetFollowers(1)
-			local g = C_Garrison.GetFollowers(2)
-			if g and not t then
-				t = g
-			else
-				for i=1,g and #g or 0 do
-					t[#t+1] = g[i]
-				end
-			end
-			t = t or {}
+		local t = C_Garrison.GetFollowers(1)
+		local g = C_Garrison.GetFollowers(2)
+		if g and not t then
+			t = g
 		else
-			t = C_Garrison.GetFollowers()
+			for i=1,g and #g or 0 do
+				t[#t+1] = g[i]
+			end
 		end
-		SetFollowerInfo(t)
+		SetFollowerInfo(t or {})
 	end
 	return data.followers
 end
@@ -787,7 +780,7 @@ do -- CompleteMissions/AbortCompleteMissions
 			C_Timer.After(... == "IMMEDIATE" and 0 or 0.5, delayDone)
 		elseif curState == "NEXT" and ev == "GARRISON_MISSION_NPC_OPENED" then
 			api.ExtendMissionInfoWithParty(mi)
-			if mi.state == -1 or (is7 and not mi.completed) then
+			if not mi.completed then
 				curState, delayIndex, delayMID = "COMPLETE", curIndex, mi.missionID
 				delayOpen(... ~= "IMMEDIATE" and 0.2)
 			elseif not isWastingCurrency(mi) then
@@ -837,9 +830,8 @@ do -- CompleteMissions/AbortCompleteMissions
 			end
 		end
 	end
-	function EV:GARRISON_FOLLOWER_XP_CHANGED(...)
+	function EV:GARRISON_FOLLOWER_XP_CHANGED(_, fid, xpAward, oldXP, olvl, oqual)
 		if curState then
-			local fid, xpAward, oldXP, olvl, oqual = select(is7 and 2 or 1, ...)
 			curFollowers[fid] = curFollowers[fid] or {olvl=olvl, oqual=oqual, xpAward=0, oxp=oldXP}
 			curFollowers[fid].xpAward = curFollowers[fid].xpAward + xpAward
 		end
@@ -948,8 +940,8 @@ do -- PrepareAllMissionGroups/GetMissionGroups {sc xp gr ti p1 p2 p3 xp pb}
 			assert(level > 0, "release not matched to suppress")
 			level = level - 1
 			if level == 0 then
-				for i=1,(is7 and not mt) and 2 or 1 do
-					local mt = is7 and not mt and i or mt
+				for i=1,(not mt) and 2 or 1 do
+					local mt = not mt and i or mt
 					local mmi = C_Garrison.GetAvailableMissions(mt)
 					for i=1,#mmi do
 						for k,v in pairs(mmi[i].followers) do
@@ -1829,7 +1821,7 @@ function api.ExtendFollowerTooltipProjectedRewardXP(mi, fi)
 		if base and extraXP and bmul and (fi.levelXP or 0) ~= 0 then
 			local base, bonus = api.GetFollowerXPGain(fi, api.GetFMLevel(mi), extraXP + base, bonus * bmul, mentor)
 			local toLevel, wmul = fi.levelXP - fi.xp, tip.XPBarBackground:GetWidth()/fi.levelXP
-			tip.XPBarBackground[is7 and "SetColorTexture" or "SetTexture"](tip.XPBarBackground, 0.25, 0.25, 0.25)
+			tip.XPBarBackground:SetColorTexture(0.25, 0.25, 0.25)
 			if tip.XPBar:IsShown() then
 				tip.XPRewardBase:SetPoint("TOPLEFT", tip.XPBar, "TOPRIGHT")
 				tip.XPRewardBase:SetPoint("BOTTOMLEFT", tip.XPBar, "BOTTOMRIGHT")
@@ -2051,7 +2043,7 @@ function FollowerEstimator.EvaluateGroup(mi, counters, traits, fa, fb, fc, scrat
 		rp = rp - rp % 1
 	end
 	local ts = FTraitStack[rew]
-	local stack = (traits[ts] or 0) + (is7 and ts == 79 and traits[256] or 0)*2
+	local stack = (traits[ts] or 0) + (ts == 79 and traits[256] or 0)*2
 	return rp, stack, amlvl, bmlvl, cmlvl
 end
 function FollowerEstimator.SaveGroup(best, traits, fa, fb, fc, sc, amlvl, bmlvl, cmlvl, a, b, c)

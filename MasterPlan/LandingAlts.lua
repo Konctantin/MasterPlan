@@ -1,10 +1,13 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
 local L, G, E, api = T.L, T.Garrison, T.Evie, T.MissionsUI
-local is7 = select(4, GetBuildInfo()) >= 7e4
 
-local function SetColorTexture(self, ...)
-	return self[is7 and "SetColorTexture" or "SetTexture"](self, ...)
+local function GetInProgressMissions()
+	local t = C_Garrison.GetInProgressMissions(1)
+	for k,v in pairs(C_Garrison.GetInProgressMissions(2)) do
+		t[#t+1] = v
+	end
+	return t
 end
 
 local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) do
@@ -44,7 +47,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 			PanelTemplates_DeselectTab(ui.Tab)
 		end
 	end
-	hooksecurefunc(is7 and GarrisonLandingPage or _G, is7 and "UpdateTabs" or "GarrisonLandingPage_UpdateTabs", function(self)
+	hooksecurefunc(GarrisonLandingPage, "UpdateTabs", function(self)
 		ui.Tab:SetPoint("LEFT", self.FleetTab:IsShown() and GarrisonLandingPageTab3 or GarrisonLandingPageTab2, "RIGHT", -5, 0)
 	end)
 	
@@ -168,7 +171,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 		t:SetPoint("BOTTOMRIGHT", 6, -4)
 		t:SetTexCoord(1,0, 1,0)
 		t = b:CreateTexture(nil, "BACKGROUND", nil, 6)
-		SetColorTexture(t, 0,0,0,0.25)
+		t:SetColorTexture(0,0,0,0.25)
 		t:SetPoint("TOPLEFT", 2, -2)
 		t:SetPoint("BOTTOMRIGHT", -2, 2)
 
@@ -321,7 +324,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 	end
 end
 
-local lastIP, lastAvail = not is7 and C_Garrison.GetInProgressMissions(), {}
+local lastIP, lastAvail = GetInProgressMissions(), {}
 function E:PLAYER_LOGOUT()
 	local t, now = {}, GetServerTime()
 	MasterPlanA.data.summary = t
@@ -343,7 +346,8 @@ function E:PLAYER_LOGOUT()
 			end
 		end
 	end
-	local r, ip = {}, lastIP or (not is7 and C_Garrison.GetInProgressMissions())
+	local r, ip = {}, lastIP or GetInProgressMissions()
+	print(ip, lastIP)
 	if ip then
 		for k,v in pairs(ip) do
 			r[v.missionID] = v.missionEndTime
@@ -364,14 +368,7 @@ function E:PLAYER_LOGOUT()
 	end
 end
 local function storeIP()
-	if is7 then
-		lastIP = C_Garrison.GetInProgressMissions(1)
-		for k,v in pairs(C_Garrison.GetInProgressMissions(2)) do
-			lastIP[#lastIP+1] = v
-		end
-	else
-		lastIP = C_Garrison.GetInProgressMissions()
-	end
+	lastIP = GetInProgressMissions()
 end
 local function queueStoreIP()
 	if lastIP then

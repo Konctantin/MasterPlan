@@ -1,22 +1,6 @@
 local _, T = ...
 if T.Mark ~= 50 then return end
 local L, EV, G, api = T.L, T.Evie, T.Garrison, {}
-local is7 = select(4, GetBuildInfo()) >= 7e4
-
-local function SetToFileData(tex, ...)
-	return tex[is7 and "SetTexture" or "SetToFileData"](tex, ...)
-end
-local function SetColorTexture(self, ...)
-	return self[is7 and "SetColorTexture" or "SetTexture"](self, ...)
-end
-local function GarrisonFollowerList_UpdateFollowers(s, ...)
-	if is7 then
-		s:UpdateFollowers(...)
-	else
-		_G.GarrisonFollowerList_UpdateFollowers(s, ...)
-	end
-end
-
 
 local MISSION_PAGE_FRAME = GarrisonMissionFrame.MissionTab.MissionPage
 local SHIP_MISSION_PAGE = GarrisonShipyardFrame.MissionTab.MissionPage
@@ -136,7 +120,7 @@ local function OpenToMission(mi, f1, f2, f3, isResume)
 		PAGE.Stage.MissionEnvIcon.Anim:Stop()
 	end
 	FRAME:UpdateMissionParty(PAGE.Followers)
-	GarrisonFollowerList_UpdateFollowers(FRAME.FollowerList)
+	FRAME.FollowerList:UpdateFollowers()
 	for i=1,6 do
 		s1, s2, s3, s4, s5, s6 = s2, s3, s4, s5, s6, s1 and StopSound(s1)
 	end
@@ -152,7 +136,7 @@ local function FollowerTooltip_SetFollower(owner, info, skipDescriptions)
 		C_Garrison.GetFollowerXP(id),
 		C_Garrison.GetFollowerLevelXP(id),
 		C_Garrison.GetFollowerItemLevelAverage(id),
-		select(is7 and 1 or 2, 0,
+		0,
 		C_Garrison.GetFollowerAbilityAtIndex(id, 1),
 		C_Garrison.GetFollowerAbilityAtIndex(id, 2),
 		C_Garrison.GetFollowerAbilityAtIndex(id, 3),
@@ -161,7 +145,7 @@ local function FollowerTooltip_SetFollower(owner, info, skipDescriptions)
 		C_Garrison.GetFollowerTraitAtIndex(id, 2),
 		C_Garrison.GetFollowerTraitAtIndex(id, 3),
 		C_Garrison.GetFollowerTraitAtIndex(id, 4),
-		skipDescriptions))
+		skipDescriptions)
 end
 local function FormatCountdown(sec)
 	if sec >= 3600 then
@@ -227,7 +211,7 @@ do -- CreateLoader(parent, W, G, H)
 					securecall(error, "CO: " .. tostring(er) .. "\n" .. debugstack(self.job))
 				end
 				for i=1,#self do
-					SetColorTexture(self[i], 1, 0.1, 0)
+					self[i]:SetColorTexture(1, 0.1, 0)
 				end
 				return
 			elseif i and x then
@@ -235,10 +219,10 @@ do -- CreateLoader(parent, W, G, H)
 				if pg ~= self.pg then
 					for i=math.max(1, self.pg or 1), pg do
 						local si = self[i]
-						SetColorTexture(si, si.r or 0, si.g or 0, si.b or 0)
+						si:SetColorTexture(si.r or 0, si.g or 0, si.b or 0)
 					end
 					for i=pg+1, self.pg or 9 do
-						SetColorTexture(self[i], 0,0,0, 0.25)
+						self[i]:SetColorTexture(0,0,0, 0.25)
 					end
 					self.pg = pg
 				end
@@ -247,7 +231,7 @@ do -- CreateLoader(parent, W, G, H)
 			else
 				for i=math.max(1, self.pg or 1), 9 do
 					local si = self[i]
-					SetColorTexture(si, si.r or 0, si.g or 0, si.b or 0)
+					si:SetColorTexture(si.r or 0, si.g or 0, si.b or 0)
 				end
 				fin[self.job or 1] = 1
 				if self.OnFinish then
@@ -283,7 +267,7 @@ do -- CreateLoader(parent, W, G, H)
 			tex:SetSize(W, H)
 			local r,g,b = c:match("(%x%x)(%x%x)(%x%x)", 6*i-5)
 			tex.r, tex.g, tex.b = tonumber(r or 64,16)/255, tonumber(g or 64,16)/255, tonumber(b or 64,16)/255
-			SetColorTexture(tex, 0,0,0, 0.25)
+			tex:SetColorTexture(0,0,0, 0.25)
 			tex:SetPoint("LEFT", WG*(i-1), 0)
 			loader[i] = tex
 		end
@@ -569,13 +553,13 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 				s:SetObeyStepOnDrag(true)
 				t = s:CreateTexture(nil, "BACKGROUND")
 				t:SetHeight(10)
-				SetColorTexture(t, 0, 1, 0)
+				t:SetColorTexture(0, 1, 0)
 				t:SetAlpha(0.25)
 				t:SetPoint("LEFT", 3, 0)
 				t:SetPoint("RIGHT", tt, "CENTER", 0, 0)
 				t = s:CreateTexture(nil, "BACKGROUND")
 				t:SetHeight(10)
-				SetColorTexture(t, 1, 0, 0)
+				t:SetColorTexture(1, 0, 0)
 				t:SetAlpha(0.25)
 				t:SetPoint("RIGHT", -3, 0)
 				t:SetPoint("LEFT", tt, "CENTER", 0, 0)
@@ -642,7 +626,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		lf:SetPoint("CENTER", GarrisonMissionFrameMissions, "CENTER")
 		local t = lf:CreateTexture(nil, "BACKGROUND", nil, -1)
 		t:SetAllPoints(GarrisonMissionFrameMissions)
-		SetColorTexture(t, 0,0,0)
+		t:SetColorTexture(0,0,0)
 		t:SetAlpha(0.35)
 		local w1, h1 = lf:GetSize()
 		local w2, h2 = GarrisonMissionFrameMissions:GetSize()
@@ -725,11 +709,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 		local function close(self)
 			lootFrame:Hide()
 			GarrisonMissionFrame.MissionComplete.completeMissions = C_Garrison.GetCompleteMissions(1)
-			if is7 then
-				GarrisonMissionFrame:UpdateMissions()
-			else
-				GarrisonMissionList_UpdateMissions() -- TODO
-			end
+			GarrisonMissionFrame:UpdateMissions()
 			RefreshActiveMissionsView(self == lootFrame.Dismiss)
 		end
 		t = CreateFrame("Button", "MPLootSummaryDone", lootFrame, "UIPanelButtonTemplate")
@@ -792,11 +772,7 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 				btn.LevelBorder:SetVertexColor(color.r, color.g, color.b)
 				btn.Level:SetText(info.level);
 				local pico = info.portraitIconID or 0
-				if pico == 0 then
-					btn.Portrait:SetTexture("Interface\\Garrison\\Portraits\\FollowerPortrait_NoPortrait")
-				else
-					btn.Portrait[is7 and "SetTexture" or "SetToFileData"](btn.Portrait, pico)
-				end
+				btn.Portrait:SetTexture(pico ~= 0 and pico or "Interface\\Garrison\\Portraits\\FollowerPortrait_NoPortrait")
 				if info.levelXP > info.xp and award > 0 then
 					local baseXP = info.xp - math.min(info.xp, award)
 					btn.xpProgressTex:SetWidth(math.max(0.01,46*baseXP/info.levelXP))
@@ -865,9 +841,6 @@ local activeUI = CreateFrame("Frame", nil, missionList) do
 				b.LevelUpAnim = b:CreateAnimationGroup()
 				b.LevelUpAnim:SetLooping("REPEAT")
 				b.LevelUpAnim:SetScript("OnStop", LevelPulse_OnStop)
-				if not is7 then
-					b.LevelUpAnim:SetIgnoreFramerateThrottle(true)
-				end
 				local t = b.LevelUpAnim:CreateAnimation("Alpha")
 				t:SetEndDelay(1.25)
 				t:SetDuration(1.5) t:SetFromAlpha(0) t:SetToAlpha(1)
@@ -1156,7 +1129,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 					end
 				end
 				if f then
-					SetToFileData(slots[i].portrait, fi.portraitIconID)
+					slots[i].portrait:SetTexture(fi.portraitIconID)
 					slots[i].portrait:SetVertexColor(1, 1, 1)
 				else
 					slots[i].portrait:SetTexture("Interface\\Garrison\\Portraits\\FollowerPortrait_NoPortrait")
@@ -1382,7 +1355,7 @@ local availUI = CreateFrame("Frame", nil, missionList) do
 		function EV:MP_MISSION_REJECT(mid)
 			syncLater()
 			G.GetMissionParty(mid, true)
-			if not is7 then
+			if false then --FIXME
 				PlaySound("igQuestFailed")
 			end
 		end
@@ -1607,7 +1580,7 @@ do -- tabs
 		PanelTemplates_TabResize(availTab, 10)
 		PanelTemplates_TabResize(interestTab, 10)
 	end
-	hooksecurefunc(is7 and "GarrisonMissionListTab_SetTab" or "GarrisonMissionList_SetTab", function(self)
+	hooksecurefunc("GarrisonMissionListTab_SetTab", function(self)
 		if missionList:IsShown() and self then
 			PanelTemplates_SetTab(GarrisonMissionFrame, self:GetID() == 2 and 3 or 1)
 		end
@@ -1648,12 +1621,8 @@ do -- tabs
 		end
 	end)
 	T.UpdateMissionTabs = updateMissionTabs
-	if is7 then
-		hooksecurefunc(GarrisonMissionFrame, "UpdateMissions", updateMissionTabs)
-		GarrisonMissionFrame:HookScript("OnShow", updateMissionTabs)
-	else
-		hooksecurefunc("GarrisonMissionList_UpdateMissions", updateMissionTabs)
-	end
+	hooksecurefunc(GarrisonMissionFrame, "UpdateMissions", updateMissionTabs)
+	GarrisonMissionFrame:HookScript("OnShow", updateMissionTabs)
 	hooksecurefunc("PanelTemplates_UpdateTabs", function(frame)
 		if frame == GarrisonMissionFrame then
 			updateMissionTabs()
@@ -1669,7 +1638,7 @@ do -- tabs
 		end
 		PanelTemplates_SetTab(GarrisonMissionFrame, 3)
 		if not missionList:IsShown() then
-			(is7 and GarrisonMissionListTab_SetTab or GarrisonMissionList_SetTab)(GarrisonMissionFrameMissionsTab2)
+			GarrisonMissionListTab_SetTab(GarrisonMissionFrameMissionsTab2)
 		end
 		GarrisonMissionFrame:CheckCompleteMissions()
 	end)
@@ -1677,7 +1646,7 @@ do -- tabs
 		PlaySound("UI_Garrison_Nav_Tabs")
 		SetMissionsFrameTab(1)
 		if not missionList:IsShown() then
-			(is7 and GarrisonMissionListTab_SetTab or GarrisonMissionList_SetTab)(GarrisonMissionFrameMissionsTab1)
+			GarrisonMissionListTab_SetTab(GarrisonMissionFrameMissionsTab1)
 		end
 	end)
 	interestTab:SetScript("OnClick", function()
@@ -1689,7 +1658,7 @@ do -- tabs
 		PanelTemplates_SetTab(GarrisonMissionFrame, 4)
 		api:SetMissionsUI(4)
 	end)
-	hooksecurefunc(is7 and "GarrisonMissionListTab_SetTab" or "GarrisonMissionList_SetTab", updateMissionTabs)
+	hooksecurefunc("GarrisonMissionListTab_SetTab", updateMissionTabs)
 	function EV:GARRISON_MISSION_FINISHED()
 		if GarrisonMissionFrame:IsVisible() and GarrisonMissionFrame.selectedTab ~= 3 then
 			updateMissionTabs()
@@ -1817,7 +1786,7 @@ local core do
 				local bg = bar:CreateTexture(nil, "BACKGROUND")
 				bg:SetPoint("TOPLEFT", 0, 16)
 				bg:SetPoint("BOTTOMRIGHT", 0, -14)
-				SetColorTexture(bg, 0,0,0)
+				bg:SetColorTexture(0,0,0)
 				bg:SetAlpha(0.85)
 				local top = bar:CreateTexture(nil, "ARTWORK")
 				top:SetSize(24, 48)
@@ -2178,7 +2147,7 @@ do -- CreateMissionButton
 		t:SetScript("OnShow", RaiseVeil)
 		t, b.veil = t:CreateTexture(nil, "OVERLAY", nil, -1), t
 		t:SetAllPoints(b)
-		SetColorTexture(t, 1,1,1)
+		t:SetColorTexture(1,1,1)
 		t:SetGradient("VERTICAL", 0.8, 0.8, 0.8, 0.6, 0.6, 0.6)
 		t:SetBlendMode("MOD")
 		
@@ -2519,7 +2488,7 @@ do -- activeMissionsHandle
 				fi, w = fin[d.followers[i]], self.followers[nf]
 				if fi and w then
 					w.followerID, nf = fi.followerID, nf + 1
-					SetToFileData(w.portrait, fi.portraitIconID)
+					w.portrait:SetTexture(fi.portraitIconID)
 					local ct = (fi.level < 100 or fi.quality < 4) and ITEM_QUALITY_COLORS[fi.quality]
 					if ct then
 						w.glow:SetVertexColor(ct.r, ct.g, ct.b)
@@ -3078,7 +3047,7 @@ do -- interestMissionsHandle
 			local ts = T.TraitStack[s[4]]
 			usefulTraits[best.ttrait or 0] = 1
 			usefulTraits[ts or 0] = 1
-			usefulTraits[is7 and ts == 79 and 256 or 0] = 1
+			usefulTraits[ts == 79 and 256 or 0] = 1
 			usefulTraits[232] = best.dtrait
 			for i=1,data.s[2] do
 				local fi = fi[best[i]]
@@ -3190,7 +3159,7 @@ do -- interestMissionsHandle
 		self.seen:SetText("")
 		self.chance:SetText("")
 		self.fstack:SetText("")
-		SetColorTexture(self.mtype, 0,0,0,0)
+		self.mtype:SetColorTexture(0,0,0,0)
 		unusedFollowers:SetParent(self)
 		unusedFollowers:SetPoint("BOTTOM")
 		unusedFollowers.label:SetText(isRed and L"Redundant followers:" or L"Inactive followers:")
@@ -3199,7 +3168,7 @@ do -- interestMissionsHandle
 			local fb, fi = uf[i], finfo[d[i]]
 			if fb and fi then
 				fb.followerID = fi.followerID
-				SetToFileData(fb.portrait, fi.portraitIconID or 0)
+				fb.portrait:SetTexture(fi.portraitIconID or 0)
 				fb:Show()
 			end
 		end
@@ -3264,7 +3233,7 @@ do -- interestMissionsHandle
 				fb:Hide()
 			else
 				fb.followerID, fb.targetLevel = best[i], (mentor < mlvl or fi.garrFollowerID == T.MENTOR_FOLLOWER) and mlvl or 0
-				SetToFileData(fb.portrait, fi and fi.portraitIconID or 0)
+				fb.portrait:SetTexture(fi and fi.portraitIconID or 0)
 				fb.glow:Hide()
 				if fi.status == GARRISON_FOLLOWER_INACTIVE then
 					fb.portrait:SetVertexColor(0.2, 0.2, 1)
