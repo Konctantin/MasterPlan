@@ -410,18 +410,16 @@ end
 local function followerIDcmp(a, b)
 	return a.followerID < b.followerID
 end
+function api.MergeFollowersAndShipyard(f)
+	local g, s = f(1), f(2)
+	for i=1,g and s and #s or 0 do
+		g[#g+1] = s[i]
+	end
+	return g or s or {}
+end
 function api.GetFollowerInfo(refresh)
 	if not data.followers or refresh then
-		local t = C_Garrison.GetFollowers(1)
-		local g = C_Garrison.GetFollowers(2)
-		if g and not t then
-			t = g
-		else
-			for i=1,g and #g or 0 do
-				t[#t+1] = g[i]
-			end
-		end
-		SetFollowerInfo(t or {})
+		SetFollowerInfo(api.MergeFollowersAndShipyard(C_Garrison.GetFollowers))
 	end
 	return data.followers
 end

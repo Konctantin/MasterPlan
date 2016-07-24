@@ -2,14 +2,6 @@ local _, T = ...
 if T.Mark ~= 50 then return end
 local L, G, E, api = T.L, T.Garrison, T.Evie, T.MissionsUI
 
-local function GetInProgressMissions()
-	local t = C_Garrison.GetInProgressMissions(1)
-	for k,v in pairs(C_Garrison.GetInProgressMissions(2)) do
-		t[#t+1] = v
-	end
-	return t
-end
-
 local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandingPage) do
 	ui:Hide()
 	ui:SetAllPoints()
@@ -324,7 +316,7 @@ local ui, core, handle = CreateFrame("Frame", "MPLandingPageAlts", GarrisonLandi
 	end
 end
 
-local lastIP, lastAvail = GetInProgressMissions(), {}
+local lastIP, lastAvail = G.MergeFollowersAndShipyard(C_Garrison.GetInProgressMissions), {}
 function E:PLAYER_LOGOUT()
 	local t, now = {}, GetServerTime()
 	MasterPlanA.data.summary = t
@@ -346,8 +338,7 @@ function E:PLAYER_LOGOUT()
 			end
 		end
 	end
-	local r, ip = {}, lastIP or GetInProgressMissions()
-	print(ip, lastIP)
+	local r, ip = {}, lastIP or G.MergeFollowersAndShipyard(C_Garrison.GetInProgressMissions)
 	if ip then
 		for k,v in pairs(ip) do
 			r[v.missionID] = v.missionEndTime
@@ -368,7 +359,7 @@ function E:PLAYER_LOGOUT()
 	end
 end
 local function storeIP()
-	lastIP = GetInProgressMissions()
+	lastIP = G.MergeFollowersAndShipyard(C_Garrison.GetInProgressMissions)
 end
 local function queueStoreIP()
 	if lastIP then
